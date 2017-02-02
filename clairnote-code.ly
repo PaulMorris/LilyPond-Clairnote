@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160208
+%    Version: 20160211
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -474,7 +474,7 @@
                   (map not raw-pattern)
                   raw-pattern))
      (first-item (list-ref pattern 0))
-     (x-inc (if (and (pair? alt-list) (positive? (cdr (car alt-list)))) -0.6 0.6))
+     (x-inc (if (and (pair? alt-list) (positive? (cdr (car alt-list)))) -0.8 0.8))
 
      (raw-posns (cn-make-keysig-posns (car pattern) (cdr pattern) '((0 . 0)) x-inc))
      (posns-b (map (lambda (p) (cons (car p) (* (cdr p) note-space))) raw-posns))
@@ -483,9 +483,8 @@
                 (map (lambda (p) (cons (+ 1.2 (car p)) (cdr p))) posns-b)
                 posns-b))
 
-
-     (black-dot (make-circle-stencil 0.3 0.001 #t))
-     (white-dot (make-circle-stencil 0.25 0.15 #f))
+     (black-dot (make-oval-stencil 0.34 0.34 0.14 #t))
+     (white-dot (make-oval-stencil 0.34 0.34 0.15 #f))
 
      (stack-list (map (lambda (xy bw)
                         (ly:stencil-translate (if bw black-dot white-dot) xy))
@@ -498,10 +497,10 @@
                            (assoc-ref relative-alt-list n)) '(0 1 2 3 4 5 6)))
 
      (sharp-line (ly:stencil-translate-axis
-                  (make-connected-path-stencil '((-0.7  -0.7)) 0.2 1 1 #f #f)
+                  (make-connected-path-stencil '((-0.7  -0.7)) 0.22 1 1 #f #f)
                   -0.2 Y))
      (flat-line (ly:stencil-translate-axis
-                 (make-connected-path-stencil '((-0.7  0.7)) 0.2 1 1 #f #f)
+                 (make-connected-path-stencil '((-0.7  0.7)) 0.22 1 1 #f #f)
                  0.2 Y))
      (alt-stack-list (map (lambda (stil alt xy)
                             (cond
@@ -514,8 +513,13 @@
                                 (ly:stencil-translate sharp-line xy)
                                 -0.2))
                              (else stil)))
-                       stack-list full-alt-list posns)))
-    (fold ly:stencil-add empty-stencil alt-stack-list)))
+                       stack-list full-alt-list posns))
+     (combined-stack (fold ly:stencil-add empty-stencil alt-stack-list))
+     ;; horizontal position adjustment
+     (extent (ly:stencil-extent combined-stack 0))
+     (positioned-stack
+      (ly:stencil-translate-axis combined-stack (- (car extent)) X)))
+    positioned-stack))
 
 #(define (cn-draw-keysig grob context)
    "Draws Clairnote key signature stencils."
@@ -546,13 +550,15 @@
                          (ly:context-property context 'cnClefShift)))
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
      (stack (ly:stencil-translate-axis raw-stack vert-adj Y)))
-    ;; shift the sig to the right for better spacing
-    (ly:stencil-translate-axis stack 0 X))
 
-   ;;(if (> mode 2)
-   ;;    (ly:stencil-translate-axis stack 0.35 X)
-   ;;    (ly:stencil-translate-axis stack 0.9 X))
-   )
+    ;; TODO: is this horizontal adjustment needed?
+    ;; shift the sig to the right for better spacing
+    ;; (ly:stencil-translate-axis stack 0 X)
+    ;; (if (> mode 2)
+    ;;    (ly:stencil-translate-axis stack 0.35 X)
+    ;;    (ly:stencil-translate-axis stack 0.9 X))
+
+    stack))
 
 #(define Cn_key_signature_engraver
    ;; Clairnote's staff definition has printKeyCancellation = ##f, which
