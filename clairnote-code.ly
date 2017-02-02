@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150912
+%    Version: 20151003
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -38,21 +38,19 @@
    "Takes a note head grob and returns its semitone."
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
-#(define (cn-get-is-clairnote-staff grob)
-   "Takes a grob and returns the custom StaffSymbol property
-    cn-is-clairnote-staff.  Silently falls back to the default of #t."
+#(define (cn-staff-symbol-property prop default grob)
+   "Takes a grob @var{grob}, a symbol @var{prop}, and
+    a @var{default} value. Returns that custom StaffSymbol
+    property or silently falls back to the default value."
    (define staff-sym (ly:grob-object grob 'staff-symbol))
    (if (ly:grob? staff-sym)
-       (ly:grob-property staff-sym 'cn-is-clairnote-staff)
-       #t))
+       (ly:grob-property staff-sym prop)
+       default))
 
 #(define (cn-get-base-staff-space grob)
    "Takes a grob and returns the custom StaffSymbol property
     cn-base-staff-space.  Silently falls back to the default of 0.7."
-   (define staff-sym (ly:grob-object grob 'staff-symbol))
-   (if (ly:grob? staff-sym)
-       (ly:grob-property staff-sym 'cn-base-staff-space)
-       0.7))
+   (cn-staff-symbol-property 'cn-base-staff-space 0.7 grob))
 
 #(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
@@ -147,19 +145,36 @@
                       mag mag))))
 
              ;; not whole note
-             (let ((font (ly:grob-default-font grob)))
-               (ly:grob-set-property! grob 'stencil
-                 (if black-note
-                     (ly:font-get-glyph font "noteheads.s2")
-                     ;; white notes are scaled horizontally to match black ones
-                     (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
-               ;; black notes can be rotated as far as -27,
-               ;; but -18 also works for white notes, currently -9
-               (ly:grob-set-property! grob 'rotation '(-9 0 0))
-               (ly:grob-set-property! grob 'stem-attachment
-                 (if black-note
-                     (cons 1.04 0.3)
-                     (cons 1.06  0.3)))
+             (let ((font (ly:grob-default-font grob))
+                   (width-scale (cn-staff-symbol-property 'cn-notehead-width-scale 1 grob))
+                   (style (cn-staff-symbol-property 'cn-notehead-style "lilypond" grob)))
+
+               (if (equal? style "funksol")
+
+                   ;; funk sol note heads
+                   (ly:grob-set-property! grob 'stencil
+                     (if black-note
+                         (ly:font-get-glyph font "noteheads.s2solFunk")
+                         (ly:font-get-glyph font "noteheads.s1solFunk")))
+
+                   ;; standard style "lilypond" (emmentaler font) note heads
+                   (begin
+                    (ly:grob-set-property! grob 'stencil
+                      (if black-note
+                          (ly:font-get-glyph font "noteheads.s2")
+                          ;; white notes are scaled horizontally to match black ones
+                          (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
+                    ;; black notes can be rotated as far as -27,
+                    ;; but -18 also works for white notes, currently -9
+                    (ly:grob-set-property! grob 'rotation '(-9 0 0))
+                    (ly:grob-set-property! grob 'stem-attachment
+                      (if black-note
+                          (cons 1.04 0.3)
+                          (cons 1.06  0.3)))))
+
+               (if (not (= 1 width-scale))
+                   (ly:grob-set-property! grob 'stencil
+                     (ly:stencil-scale (ly:grob-property grob 'stencil) width-scale 1)))
                ))))))))
 
 
@@ -722,7 +737,7 @@
 #(define (cn-repeat-dot-bar-procedure grob extent)
    "Return a procedure for repeat sign dots based on a custom grob
     property: StaffSymbol.cn-is-clairnote-staff."
-   (if (cn-get-is-clairnote-staff grob)
+   (if (cn-staff-symbol-property 'cn-is-clairnote-staff #t grob)
        ;; Clairnote staff or Traditional five line staff
        ((cn-make-repeat-dot-bar '(-2 2)) grob extent)
        ((cn-make-repeat-dot-bar '(-1 1)) grob extent)))
@@ -777,14 +792,17 @@
         (if (= 1 (ly:grob-property grob 'duration-log))
             (let*
              ((stem (ly:stem::print grob))
-              ;; second stem is 1.5 times as thick as standard stem
-              (thick-stem (ly:stencil-scale stem 1.5 1))
+              ;; second stem is 1.5 times as thick as standard stem by default
+              (thick-scale (cn-staff-symbol-property 'cn-double-stem-thickness 1.5 grob))
+              (thick-stem (ly:stencil-scale stem thick-scale 1))
               (dir (- (ly:grob-property grob 'direction)))
               (stem-extent (ly:stencil-extent stem X))
               (stem-width (- (car stem-extent) (cdr stem-extent)))
               ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
               ;; 4.5 * stem-width = -0.585
-              (spacing (* 4.5 stem-width)))
+              (spacing-scale (cn-staff-symbol-property 'cn-double-stem-spacing 4.5 grob))
+              (spacing (* spacing-scale stem-width)))
+
              (ly:grob-set-property! grob 'stencil
                (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
              ;; X-extent needs to be set here because its usual callback
@@ -858,7 +876,7 @@
                ((negative? going-up)
                 (if (> (length current-positions) extension-length)
                     (drop-right (sort current-positions <) extension-length)
-                    (begin (ly:warning "\\unextendStaffUp failed, not enough staff to unextend") posns)))
+                    (begin (ly:warning "\\cnUnextendStaffUp failed, not enough staff to unextend") posns)))
                (else posns)))
 
              (posns-down
@@ -867,7 +885,7 @@
                ((negative? going-down)
                 (if (> (length current-positions) extension-length)
                     (drop (sort current-positions <) extension-length)
-                    (begin (ly:warning "\\unextendStaffDown failed, not enough staff to unextend") posns)))
+                    (begin (ly:warning "\\cnUnextendStaffDown failed, not enough staff to unextend") posns)))
                (else posns-up))))
 
             ;; store current positions in custom property VerticalAxisGroup.cn-current-staff-lines
@@ -886,20 +904,20 @@ cnExtendStaff =
     #(cn-extend-staff reset going-up going-down)
   #})
 
-extendStaffUp = \cnExtendStaff ##f 1 0
-extendStaffDown = \cnExtendStaff ##f 0 1
-unextendStaffUp = \cnExtendStaff ##f -1 0
-unextendStaffDown = \cnExtendStaff ##f 0 -1
-oneOctaveStaff = \cnExtendStaff ##t 0 0
-twoOctaveStaff = \cnExtendStaff ##t 1 0
-threeOctaveStaff = \cnExtendStaff ##t 1 1
-fourOctaveStaff = \cnExtendStaff ##t 2 1
+cnExtendStaffUp = \cnExtendStaff ##f 1 0
+cnExtendStaffDown = \cnExtendStaff ##f 0 1
+cnUnextendStaffUp = \cnExtendStaff ##f -1 0
+cnUnextendStaffDown = \cnExtendStaff ##f 0 -1
+cnOneOctaveStaff = \cnExtendStaff ##t 0 0
+cnTwoOctaveStaff = \cnExtendStaff ##t 1 0
+cnThreeOctaveStaff = \cnExtendStaff ##t 1 1
+cnFourOctaveStaff = \cnExtendStaff ##t 2 1
 
 
-%% USER VERTICAL STAFF COMPRESSION FUNCTION
+%% USER FUNCTION TO SET STAFF COMPRESSION
 
 % must be used before \magnifyStaff for both to work
-vertScaleStaff =
+cnStaffCompression =
 #(define-music-function (parser location vscale-staff) (number?)
    "1.2 is the default vscale-staff which gives default ss (staff-space) of 0.7
     vscale-staff of 1 gives a staff with same size octave as traditional"
@@ -908,6 +926,24 @@ vertScaleStaff =
      \override Staff.StaffSymbol.cn-base-staff-space = #ss
      \override Staff.StaffSymbol.staff-space = #ss
    #})
+
+
+%% USER FUNCTIONS TO CUSTOMIZE NOTEADS
+
+cnNoteheadStyle =
+#(define-music-function (parser location style) (string?)
+   (if (and
+        (not (equal? style "lilypond"))
+        (not (equal? style "funksol")))
+       (ly:warning "\\cnNoteheadStyle used with an unrecognized style, using default instead."))
+   #{
+     \override Staff.StaffSymbol.cn-notehead-style = #style
+   #})
+
+cnNoteheadWidth =
+#(define-music-function (parser location width) (number?)
+   "1.4 results in about the same funksol width as standard LilyPond noteheads."
+   #{ \override Staff.StaffSymbol.cn-notehead-width-scale = #width #})
 
 
 %% CUSTOM GROB PROPERTIES
@@ -935,6 +971,15 @@ vertScaleStaff =
 % Stored in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
 % Used with user functions for extending the staff.
 #(cn-define-grob-property 'cn-base-staff-lines list?)
+
+% StaffSymbol property for note head style, "funksol" or "lilypond".
+#(cn-define-grob-property 'cn-notehead-style string?)
+% StaffSymbol property for scaling width of note heads (no affect on whole notes).
+#(cn-define-grob-property 'cn-notehead-width-scale number?)
+
+% StaffSymbol properties for double stems for half notes.
+#(cn-define-grob-property 'cn-double-stem-spacing number?)
+#(cn-define-grob-property 'cn-double-stem-thickness number?)
 
 
 %% STAFF CONTEXT DEFINITION
@@ -985,6 +1030,9 @@ vertScaleStaff =
     % Stem and beam size, time sig and key sig position depend on it.
     \override StaffSymbol.cn-base-staff-space = #0.7
 
+    \override StaffSymbol.cn-notehead-style = "lilypond"
+    \override StaffSymbol.cn-notehead-width-scale = #1
+
     % Custom grob properties for user staff extension functions
     \override VerticalAxisGroup.cn-current-staff-lines = #'(-8 -4 4 8)
     \override VerticalAxisGroup.cn-base-staff-lines = #'(-8 -4)
@@ -996,6 +1044,8 @@ vertScaleStaff =
 
     \consists \Cn_note_heads_engraver
     \override Stem.no-stem-extend = ##t
+    \override StaffSymbol.cn-double-stem-spacing = #4.5
+    \override StaffSymbol.cn-double-stem-thickness = #1.5
 
     % Cn_key_signature_engraver has to come before
     % Cn_accidental_engraver or we get a segfault crash
