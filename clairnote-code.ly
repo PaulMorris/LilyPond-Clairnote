@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151020
+%    Version: 20151108
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -192,85 +192,81 @@
 
 %% ACCIDENTAL SIGNS
 
-% sharp sign and flat sign stencils are also used by key sig engraver
-#(define cn-sharp-sign empty-stencil)
-#(define cn-flat-sign empty-stencil)
-#(define cn-double-sharp-sign empty-stencil)
-#(define cn-double-flat-sign empty-stencil)
+#(define cn-acc-sign-stils
+   ;; associative list of accidental sign stencils
+   ;; sharp and flat sign stencils are also used by key sig engraver
+   (let*
+    ((draw-acc-sign
+      (lambda (is-sharp)
+        "Return a sharp or flat sign stencil. @var{is-sharp} is boolean"
+        (let ((line (ly:stencil-translate
+                     (make-connected-path-stencil '((0  1.0)) 0.2 1 1 #f #f)
+                     (cons 0 -0.5)))
+              (circ (make-circle-stencil 0.24 0.01 #t)))
+          (ly:stencil-add line
+            (ly:stencil-translate circ (cons 0 (if is-sharp 0.5 -0.5)))))))
 
-% generate accidental sign stencils
-#(let
-  ((draw-acc-sign
-    (lambda (is-sharp)
-      "Return a sharp or flat sign stencil. @var{is-sharp} is boolean"
-      (let ((line (ly:stencil-translate
-                   (make-connected-path-stencil '((0  1.0)) 0.2 1 1 #f #f)
-                   (cons 0 -0.5)))
-            (circ (make-circle-stencil 0.24 0.01 #t)))
-        (ly:stencil-add line
-          (ly:stencil-translate circ (cons 0 (if is-sharp 0.5 -0.5)))))))
+     (draw-double-acc-sign
+      (lambda (acc-sign)
+        "Return a double sharp or double flat sign stencil."
+        (ly:stencil-add
+         (ly:stencil-translate acc-sign (cons -0.25 0))
+         (ly:stencil-translate acc-sign (cons  0.25 0)))))
 
-   (draw-double-acc-sign
-    (lambda (acc-sign)
-      "Return a double sharp or double flat sign stencil."
-      (ly:stencil-add
-       (ly:stencil-translate acc-sign (cons -0.25 0))
-       (ly:stencil-translate acc-sign (cons  0.25 0))))))
+     (sharp (draw-acc-sign #t))
+     (flat (draw-acc-sign #f))
+     (double-sharp (draw-double-acc-sign sharp))
+     (double-flat (draw-double-acc-sign flat)))
+    (list
+     (cons 1/2 sharp)
+     (cons -1/2 flat)
+     (cons 1 double-sharp)
+     (cons -1 double-flat))))
 
-  (set! cn-sharp-sign (draw-acc-sign #t))
-  (set! cn-flat-sign (draw-acc-sign #f))
-  (set! cn-double-sharp-sign (draw-double-acc-sign cn-sharp-sign))
-  (set! cn-double-flat-sign (draw-double-acc-sign cn-flat-sign)))
+#(define (cn-set-acc-extents grob alt)
+   ;; Only used for LilyPond 2.18
+   ;; TODO: should natural signs have the same Y-extent as others?
+   ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
+   (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
+   (ly:grob-set-property! grob 'X-extent
+     (case alt
+       ((-1/2) '(0 . 0.54))
+       ((1/2) '(-0.27 . 0.27))
+       ((-1) '(-0.34 . 0.67))
+       ((1) '(-0.54 . 0.47))
+       ;; else covers natural sign (0)
+       (else '(-0.0 . 0.44)))))
 
-#(define (cn-redo-acc-sign grob mag alt)
+#(define (cn-redo-acc-sign grob alt mag)
    "Replaces the accidental sign stencil."
    (let*
-    ((stil
-      (case alt
-        ((-1/2) cn-flat-sign)
-        ((1/2) cn-sharp-sign)
-        ((-1) cn-double-flat-sign)
-        ((1) cn-double-sharp-sign)
-        ;; else covers natural sign (0)
-        (else (ly:stencil-scale
-               (ly:grob-property grob 'stencil)
-               0.63 0.63)))))
+    ((acc-lookup (assoc-ref cn-acc-sign-stils alt))
+     (stil (if acc-lookup
+               acc-lookup
+               ;; natural sign (alt is 0)
+               (ly:stencil-scale
+                (ly:grob-property grob 'stencil)
+                0.63 0.63))))
     (ly:grob-set-property! grob 'stencil
       (ly:stencil-scale stil mag mag))
-
     (if (cn-check-ly-version <= '(2 19 0))
-        (begin
-         ;; TODO: should natural signs have the same Y-extent as others?
-         ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
-         (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
-         (ly:grob-set-property! grob 'X-extent
-           (case alt
-             ((-1/2) '(0 . 0.54))
-             ((1/2) '(-0.27 . 0.27))
-             ((-1) '(-0.34 . 0.67))
-             ((1) '(-0.54 . 0.47))
-             ;; else covers natural sign (0)
-             (else '(-0.0 . 0.44)))
-           )))))
+        (cn-set-acc-extents grob alt))))
 
-#(define (cn-pitch-in-key pitch key-sig)
+#(define (cn-pitch-in-key note alt key-sig)
    "key-sig is an association list of sharps or flats in the key sig.
     Example: D major (C#, F#) = ((0 . 1/2) (3 . 1/2))"
    ;; TODO: handle custom key sigs that have octave values:
    ;;    "keySignature (list) ... an alist containing (step . alter)
    ;;    or ((octave . step) . alter)"    <---- not currently handled
-   (let
-    ((note (ly:pitch-notename pitch))
-     (alt (ly:pitch-alteration pitch)))
-    (cond
-     ;; 1. sharp or flat, in the key sig. (note-alt pair in key-sig)
-     ((equal? (cons note alt) (assoc note key-sig)) #t)
-     ;; 2. sharp or flat, not in key sig. (alt is sharp or flat)
-     ((not (equal? 0 alt)) #f)
-     ;; 3. not sharp or flat, not in the key sig. (note is in key-sig, alt is not)
-     ((assoc-ref key-sig note) #f)
-     ;; 4. not sharp or flat, in the key sig.
-     (else #t))))
+   (cond
+    ;; 0. sharp or flat, in the key sig. (note-alt pair in key-sig)
+    ((equal? (cons note alt) (assoc note key-sig)) #t)
+    ;; 1. sharp or flat, not in key sig. (alt is sharp or flat)
+    ((not (equal? 0 alt)) #f)
+    ;; 2. not sharp or flat, not in the key sig. (note is in key-sig, alt is not)
+    ((assoc-ref key-sig note) #f)
+    ;; 3. not sharp or flat, in the key sig.
+    (else #t)))
 
 #(define Cn_accidental_engraver
    ;; context has to be accessed like this (and not with
@@ -282,54 +278,54 @@
        (make-engraver
         (acknowledgers
          ((accidental-interface engraver grob source-engraver)
+
+          ;; refresh barnum and acc-list if we're in a new bar
           (let ((current-barnum (ly:context-property context 'currentBarNumber)))
             ;; another option: (ly:context-property context 'internalBarNumber)
-            ;; if we're in a new bar, clear alt-list and set barnum
             (if (not (equal? barnum current-barnum))
                 (begin
                  (set! alt-list '())
                  (set! barnum current-barnum)))
-            (let*
-             ((alt (accidental-interface::calc-alteration grob))
-              (stl (ly:grob-property-data grob 'stencil))
-              (note-head (ly:grob-parent grob Y))
-              (pitch (cn-notehead-pitch note-head))
-              (semi (ly:pitch-semitones pitch))
-              (key-alts
-               ;; redo this when we drop support for LilyPond 2.18
-               (ly:context-property context
-                 (if (cn-check-ly-version >= '(2 19 7))
-                     'keyAlterations 'keySignature)
-                 '()))
-              (in-the-key (cn-pitch-in-key pitch key-alts))
-              (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
-              (semi-in-alt-list (equal? alt (assoc-ref alt-list semi)))
-              (mag (cn-magnification grob context)))
-             ;;Show an acc sign? Yes: 1,2,3, No: 0,4,5
-             (cond
-              ;; 0. omit is in effect (stencil is #f)
-              ((not stl)
-               (ly:grob-suicide! grob))
-              ;; 1. new acc: an acc not in the alt-list
-              ;; add to alt-list (any previous alt for that semi is replaced)
-              ((and (not in-the-key) (not in-alt-list))
-               (cn-redo-acc-sign grob mag alt)
-               (set! alt-list (assoc-set! alt-list semi alt)))
-              ;; 2. cancel acc: in the key, cancels a previous alt in alt-list
-              ;; (i.e. semi is in alt-list but the alt does not match)
-              ;; remove alt from alt-list
-              ((and in-the-key (not in-alt-list) semi-in-alt-list)
-               (cn-redo-acc-sign grob mag alt)
-               (set! alt-list (assoc-remove! alt-list semi)))
-              ;; 3. forced acc: acc wouldn't be shown, but it was forced with !
-              ;; no change to alt-list
-              ((and (equal? #t (ly:grob-property grob 'forced)))
-               (cn-redo-acc-sign grob mag alt))
-              ;; 4. is an acc but not a new one in this measure
-              ;; 5. is not an acc and is not cancelling previous acc
-              ;; TODO: does grob-suicide affect ledger line widths?
-              (else (ly:grob-suicide! grob)))
-             ))))))))
+
+            ;; 0. omit in effect, stencil = #f
+            (if (not (ly:grob-property-data grob 'stencil))
+                (ly:grob-suicide! grob)
+
+                (let*
+                 ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
+                  (semi (ly:pitch-semitones pitch))
+                  (note (ly:pitch-notename pitch))
+                  (alt (accidental-interface::calc-alteration grob))
+                  (key-alts
+                   (ly:context-property context
+                     (if (cn-check-ly-version >= '(2 19 7))
+                         'keyAlterations 'keySignature) '()))
+
+                  (in-the-key (cn-pitch-in-key note alt key-alts))
+                  (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
+                  (semi-in-alt-list (equal? alt (assoc-ref alt-list semi)))
+
+                  ;; 1. new acc
+                  ;; 2. cancel acc: in the key, cancels an alt in alt-list
+                  ;;     (semi is in alt-list but the alt does not match)
+                  ;; 3. forced acc: forced with !
+                  (new-acc (and (not in-the-key) (not in-alt-list)))
+                  (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
+                  (forced-acc (equal? #t (ly:grob-property grob 'forced))))
+
+                 (if (or new-acc cancel-acc forced-acc)
+                     (cn-redo-acc-sign grob alt (cn-magnification grob context))
+                     ;; 4. is an acc but not a new one in this measure
+                     ;; 5. is not an acc and is not cancelling previous acc
+                     ;; TODO: does grob-suicide affect ledger line widths?
+                     (ly:grob-suicide! grob))
+
+                 ;; add to or remove from alt-list
+                 ;; add replaces any existing alt for that semi
+                 (cond
+                  (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
+                  (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))
+                 )))))))))
 
 
 %% KEY SIGNATURES
@@ -387,8 +383,8 @@
     ((num-scale (/ 0.6 mag))
      (acc-scale (/ 0.65 mag))
      (acc (cond
-           ((> alt-count 0) cn-sharp-sign)
-           ((< alt-count 0) cn-flat-sign)
+           ((> alt-count 0) (assoc-ref cn-acc-sign-stils 1/2))
+           ((< alt-count 0) (assoc-ref cn-acc-sign-stils -1/2))
            ((= alt-count 0) (ly:stencil-scale
                              (grob-interpret-markup grob (markup #:natural))
                              acc-scale acc-scale))))
@@ -544,39 +540,35 @@
    (loop note-heads first-semi #t))
 
 
-#(define Cn_note_column_engraver
+#(define (cn-note-column-callback grob)
    ; "For notes in chords or harmonic intervals that are 2 semitones
    ; apart or less, automatically position them on opposite sides of the stem.
    ; (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
-   (make-engraver
-    (acknowledgers
-     ((note-column-interface engraver grob source-engraver)
-      (let* ((heads-array (ly:grob-object grob 'note-heads))
-             (nhs-raw
-              (if (ly:grob-array? heads-array)
-                  (ly:grob-array->list heads-array)
-                  ;; rests, no note heads in NoteColumn grob
-                  (list 0))))
-        ;; rests and single notes don't need shifting
-        (if (> (length nhs-raw) 1)
-            (let*
-             ((nhs-sorted
-               (sort-list nhs-raw
-                 (lambda (a b)
-                   (< (cn-notehead-semitone a)
-                      (cn-notehead-semitone b)))))
-              ;; stem direction, 1 is up, -1 is down
-              (stem-dir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
-              ;; if stem is down then reverse the order
-              (nhs-cooked
-               (if (< stem-dir 0)
-                   (reverse nhs-sorted)
-                   nhs-sorted))
-              (first-semi (cn-notehead-semitone (car nhs-cooked))))
+   (let* ((heads-array (ly:grob-object grob 'note-heads))
+          (nhs-raw
+           (if (ly:grob-array? heads-array)
+               (ly:grob-array->list heads-array)
+               ;; rests, no note heads in NoteColumn grob
+               (list 0))))
+     ;; rests and single notes don't need shifting
+     (if (> (length nhs-raw) 1)
+         (let*
+          ((nhs-sorted
+            (sort-list nhs-raw
+              (lambda (a b)
+                (< (cn-notehead-semitone a)
+                   (cn-notehead-semitone b)))))
+           ;; stem direction, 1 is up, -1 is down
+           (stem-dir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
+           ;; if stem is down then reverse the order
+           (nhs-cooked
+            (if (< stem-dir 0)
+                (reverse nhs-sorted)
+                nhs-sorted))
+           (first-semi (cn-notehead-semitone (car nhs-cooked))))
 
-             ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
-             (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob))))
-      ))))
+          ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
+          (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob)))))
 
 
 %% CLEFS AND OTTAVA (8VA 8VB 15MA 15MB)
@@ -1046,6 +1038,10 @@ cnNoteheadWidth =
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
 
+    % NoteColumn override doesn't work as an engraver for some reason,
+    % crashes with manual beams on chords.
+    \override NoteColumn.before-line-breaking = #cn-note-column-callback
+
     % staff-space reflects vertical compression of Clairnote staff.
     % Default of 0.75 makes the Clairnote octave 1.28571428571429
     % times the size of the traditional octave (3/4 * 12/7 = 9/7).
@@ -1057,7 +1053,6 @@ cnNoteheadWidth =
     \consists \Cn_key_signature_engraver
     \consists \Cn_time_signature_engraver
     \consists \Cn_note_heads_engraver
-    \consists \Cn_note_column_engraver
     \consists \Cn_stem_engraver
     \consists \Cn_beam_engraver
 
