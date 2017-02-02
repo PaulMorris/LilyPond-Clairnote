@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150408
+%    Version: 20150410
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -72,24 +72,49 @@
 
 %% NOTE HEADS AND STEM ATTACHMENT
 
-#(define (cn-draw-note-head-stencils note-type font)
-   "Returns a custom note head stencil."
-   (case note-type
-     ;; black note
-     ((0) (ly:font-get-glyph font "noteheads.s2"))
-     ;; white note, scale horizontally to match black ones
-     ((1) (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1))
-     ;; black whole note, add black circle to make solid
-     ((2) (ly:stencil-add (ly:font-get-glyph font "noteheads.s0")
-            (ly:stencil-translate
-             (make-circle-stencil 0.47 0.1 #t)
-             '(0.95 . 0))))
-     ;; white whole note, thicken top and bottom using an oval
-     ;; path so no white space shows above and below staff lines
-     ((3) (ly:stencil-add (ly:font-get-glyph font "noteheads.s0")
-            (ly:stencil-translate
-             (make-oval-stencil 0.7 0.58 0.11 #f)
-             '(0.98 . 0))))))
+#(define cn-whole-note-white empty-stencil)
+#(define cn-whole-note-black empty-stencil)
+
+% make-path-stencil is much nicer syntax, but we're still supporting LilyPond 2.18, see:
+% http://lsr.di.unimi.it/LSR/Item?id=623
+% scm/stencil.scm
+#(let
+  ((whole-note-outline
+    `(moveto 0 0
+       curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432
+       curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784
+       curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432
+       curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0
+       curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448
+       curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768
+       curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448
+       curveto 0.12694192 -0.2800192 0 -0.16054432 0 0
+       closepath)))
+
+  (set! cn-whole-note-black
+        (ly:make-stencil
+         `(path 0.0001
+            `(,@',whole-note-outline)
+            ;; cap style, join style, filled, and X and Y extents
+            'round 'round #t)
+         (cons -0.00005 1.87057768)
+         (cons -0.507818 0.50781784)))
+
+  (set! cn-whole-note-white
+        (ly:make-stencil
+         `(path 0.0001
+            (append
+              `(,@',whole-note-outline)
+              `(moveto 1.06033904 -0.36566768
+                 curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328
+                 curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752
+                 curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312
+                 curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768
+                 closepath))
+            ;; cap style, join style, filled, and X and Y extents
+            'round 'round #t)
+         (cons 0.0 1.87057768)
+         (cons -0.507818 0.50781784))))
 
 #(define Cn_note_heads_engraver
    ;; Customizes stencil, stem-attachment, rotation.
@@ -98,33 +123,40 @@
      ((note-head-interface engraver grob source-engraver)
       ;; make sure \omit is not in effect (i.e. stencil is not #f)
       ;; and do nothing for certain notehead styles
-      ;; TODO: better handling of various notehead styles
-      ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
-      ;; output-lib.scm
       (if
        (and
         (ly:grob-property-data grob 'stencil)
         (not (memq (ly:grob-property-data grob 'style)
                (list 'harmonic 'harmonic-black 'harmonic-mixed
                  'diamond 'cross 'xcircle 'triangle 'slash))))
-       (let ((whole-note (< (ly:grob-property grob 'duration-log) 1))
-             ;; 0 = black note, 1 = white note
-             (note-type (modulo (cn-notehead-semitone grob) 2)))
-         (if whole-note
-             ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
-             (set! note-type (+ 2 note-type))
-             ;; else set rotation and stem attachment properties
-             (begin
-              ;; black notes can be rotated to -27, but -18 also works for white notes
-              ;; currently -9, half of -18
-              (ly:grob-set-property! grob 'rotation '(-9 0 0))
-              (ly:grob-set-property! grob 'stem-attachment
-                (if (equal? 0 note-type)
-                    (cons 1.04 0.3) ;; black note (0)
-                    (cons 1.06  0.3))))) ;; white note (1)
-         ;; replace note head stencil
-         (ly:grob-set-property! grob 'stencil
-           (cn-draw-note-head-stencils note-type (ly:grob-default-font grob)))))))))
+       ;; TODO: better handling of various notehead styles
+       ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
+       ;; output-lib.scm
+       (let ((black-note (= 0 (modulo (cn-notehead-semitone grob) 2))))
+         (if (< (ly:grob-property grob 'duration-log) 1)
+
+             ;; whole note
+             (let ((mag (cn-magnification grob)))
+               (ly:grob-set-property! grob 'stencil
+                 (if black-note
+                     (ly:stencil-scale cn-whole-note-black mag mag)
+                     (ly:stencil-scale cn-whole-note-white mag mag))))
+
+             ;; not whole note
+             (let ((font (ly:grob-default-font grob)))
+               (ly:grob-set-property! grob 'stencil
+                 (if black-note
+                     (ly:font-get-glyph font "noteheads.s2")
+                     ;; white notes are scaled horizontally to match black ones
+                     (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
+               ;; black notes can be rotated as far as -27,
+               ;; but -18 also works for white notes, currently -9
+               (ly:grob-set-property! grob 'rotation '(-9 0 0))
+               (ly:grob-set-property! grob 'stem-attachment
+                 (if black-note
+                     (cons 1.04 0.3)
+                     (cons 1.06  0.3)))
+               ))))))))
 
 
 %% DOTS ON DOTTED NOTES
@@ -145,7 +177,8 @@
                  -1 ;; down
                  1))) ;; up or neutral
           ((member semi '(2 6 10))
-           (ly:grob-set-property! grob 'Y-offset -0.36))))))
+           (ly:grob-set-property! grob 'Y-offset -0.36))
+          ))))
 
 
 %% ACCIDENTAL SIGNS
@@ -865,6 +898,7 @@ vertScaleStaff =
 
     \override NoteColumn.before-line-breaking = #cn-chords
 
+    % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
     \numericTimeSignature
