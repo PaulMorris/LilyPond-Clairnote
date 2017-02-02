@@ -1,15 +1,15 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150315
+%    Version: 20150324
 %
-%    Copyright © 2013, 2014, 2015 Paul Morris, except for five functions:
-%    A. two functions copied and modified from LilyPond source code:
-%    define-grob-property and translator-property-description
-%    B. three functions in the public domain: cn-shift-noteheads,
-%    setOtherScriptParent, and adjustStem, copied (and edited slightly) from
-%    the LilyPond Snippet Repository, snippet 861, "Re-positioning note heads
-%    on the opposite side of the stem" http://lsr.di.unimi.it/LSR/Item?id=861
-%    Thanks to David Nalesnik and Thomas Morley for these two functions.
+%    Copyright © 2013, 2014, 2015 Paul Morris, except for:
+%    A. functions copied and modified from LilyPond source code:
+%    define-grob-property
+%    B. functions in the public domain:
+%    cn-shift-notehead, copied and edited from the LilyPond Snippet Repository,
+%    snippet 861, "Re-positioning note heads on the opposite side of the stem"
+%    http://lsr.di.unimi.it/LSR/Item?id=861
+%    Thanks to David Nalesnik and Thomas Morley for this snippet.
 %
 %    Contact information: http://clairnote.org/about/
 %
@@ -386,241 +386,107 @@
 
 %% CHORDS
 
-#(define (cn-chords-one grob)
-   "Step 1 of 4. For notes in chords or harmonic intervals
-    that are 2 semitones apart, automatically place them
-    on opposite sides of the stem."
-   (let* ((heads-array (ly:grob-object grob 'note-heads))
-          (note-heads (if (ly:grob-array? heads-array)
-                          (ly:grob-array->list heads-array)
-                          ;; for case of no note-heads in NoteColumn grob (rests)
-                          (list 0))))
-     ;; rests and single notes don't need offsetting
-     (if (> (length note-heads) 1)
-         (cn-chords-two grob note-heads))))
+% Credit goes to David Nalesnik and Thomas Morley for much of
+% cn-shift-notehead, copied and edited from the LilyPond Snippet
+% Repository, snippet 861, "Re-positioning note heads on the
+% opposite side of the stem," http://lsr.di.unimi.it/LSR/Item?id=861
+% Use that snippet for any manual adjustments of note head positions.
 
-#(define (cn-chords-two grob note-heads)
-   "Step 2 of 4."
-   (let* (;; create a list of the semitones of each note in the chord
-           (semitones (map cn-notehead-semitone note-heads))
-           ;; create a list of lists to store input order of notes, like: ((0 6) (1 10) (2 8) ...)
-           (semi-lists (zip (iota (length note-heads)) semitones))
-           ;; sort both by semitones, ascending
-           (semitones-sorted (sort-list semitones <))
-           (semi-lists-sorted
-            (sort! semi-lists (lambda (a b) (< (list-ref a 1) (list-ref b 1)))))
-           ;; calculate the intervals between the notes, uses a second copy
-           ;; of the list with its first value dropped so the previous values are
-           ;; in place to be subtracted from the next
-           (int-list (map - (cdr semitones-sorted) semitones-sorted)))
-     ;; no 2 semitone intervals? then there is no need to offset
-     ;; any notes since standard layout is already correct
-     (if (memq 2 int-list)
-         (cn-chords-three grob note-heads int-list semi-lists-sorted))))
+#(define (cn-shift-notehead note-head nh-dir stem-dir)
+   "Shift a note head to the left or right."
+   (let*
+    ((dur-log (ly:grob-property note-head 'duration-log))
+     (stil (ly:grob-property note-head 'stencil))
+     (stil-x-length (interval-length (ly:stencil-extent stil X)))
+     (stem (ly:grob-object note-head 'stem))
+     (stem-thick (ly:grob-property stem 'thickness 1.3))
+     (stem-x-width (/ stem-thick 10))
+     ;; (stem-dir (ly:grob-property stem 'direction))
 
-#(define (cn-make-cluster-list int-list)
-   "convert interval list into a list of clusters of notes
-    ex: (4 3 2 2 5) --> (1 1 3 1)"
-   ;; notes 2 semitones apart or less are in the same cluster
-   ;; if not in previous cluster, start new cluster at 1
-   ;; else in current cluster, add 1 to current cluster
-   (fold-right
-    (lambda (int clust-list)
-      (if (> int 2)
-          (cons 1 clust-list)
-          (cons (+ 1 (car clust-list)) (cdr clust-list))))
-    '(1)
-    int-list))
+     ;; stencil width method, doesn't work with non-default beams
+     ;; so using thickness property above instead
+     ;; (stem-stil (ly:grob-property stem 'stencil))
+     ;; (stem-x-width (if (ly:stencil? stem-stil)
+     ;;                 (interval-length (ly:stencil-extent stem-stil X))
+     ;;                 ;; if no stem-stencil use 'thickness-property
+     ;;                 (/ stem-thick 10)))
 
-#(define (cn-make-stemsides-list cluster-list stmdir)
-   "convert cluster-list to stemsides list:
-    new, desired note placements (-1 left, 1 right)
-    ex: (1 1 3 1) --> upstem: (-1 -1 -1 1 -1 -1) or downstem: (1 1 1 -1 1 1)"
-   ;; For each note in a cluster alternate between -1 and 1
-   ;; putting every other note on the opposite side of the stem.
-   ;; The first/lowest head in a cluster is usually on the left side of
-   ;; the stem. It is only on the right with a down-stem and
-   ;; odd-numbered cluster (single note = odd-numbered cluster).
-   (concatenate
-    (fold-right
-     (lambda (cluster stemside-list)
-       (let ((stemside (if (and (= stmdir -1) (odd? cluster)) 1 -1)))
-         (cons
-          (map-in-order
-           (lambda (n)
-             (if (even? n)
-                 stemside
-                 (* stemside -1)))
-           (iota cluster))
-          stemside-list)))
-     '()
-     cluster-list)))
+     ;; Calculate a value to compensate the stem-extension
+     (stem-x-corr
+      ;; TODO: better coding if (<= log 0)
+      (cond
+       ;; original, doesn't work (whole notes)
+       ;; ((and (= q 0) (= stem-dir 1))
+       ;;      (* -1 (+ 2  (* -4 stem-x-width))))
+       ;; new, quick fix, could be better?
+       ((= dur-log 0) 0.223)
 
-#(define (cn-get-old-stemsides grob stmdir note-heads)
-   "Get old/default stem-side positions."
-   (map-in-order
-    (lambda (head-grob)
-      ;; use round to avoid floating point number errors
-      (let ((pos (round (ly:grob-relative-coordinate head-grob grob 0))))
-        (cond
-         ((and (= stmdir 1) (= pos 0)) -1) ;; left of up-stem
-         ((and (= stmdir 1) (positive? pos)) 1) ;; right of up-stem
-         ((and (= stmdir -1) (= pos 0)) 1) ;; right of down-stem
-         ((and (= stmdir -1) (negative? pos)) -1)))) ;; left of down-stem
-    note-heads))
+       ((and (< dur-log 0) (= stem-dir 1))
+        (* -1 (+ 2  (* -1 stem-x-width))))
+       ((< dur-log 0)
+        (* 2 stem-x-width))
+       (else (/ stem-x-width 2)))))
+    ;; final calculation for moving the note head
+    (ly:grob-translate-axis! note-head (* nh-dir (- stil-x-length stem-x-corr)) X)))
 
-#(define (cn-chords-three grob note-heads int-list semi-lists-sorted)
-   "Step 3 of 4."
-   (let* ((cluster-list (cn-make-cluster-list int-list))
-          ;; stem direction, 1 is up, -1 is down
-          (stmdir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
-          (stemsides (cn-make-stemsides-list cluster-list stmdir))
-          ;; get the order the notes were entered in the input file and
-          ;; assemble list of lists zipping the new stemsides to their input positions
-          ;; sort stemsides by order notes were entered in the input file
-          (input-order-sorted (unzip1 semi-lists-sorted))
-          (stemsides-zip (zip input-order-sorted stemsides))
-          (stemsides-sorted
-           (sort! stemsides-zip
-             (lambda (a b) (< (list-ref a 0) (list-ref b 0)))))
-          (old-stemsides (cn-get-old-stemsides grob stmdir note-heads))
-          ;; generate offsets
-          ;; if old-stemside and stemside-sorted are the same,
-          ;; 0 is the offset, else use -1 or 1 from stemsides-sorted
-          (offsets
-           (map-in-order
-            (lambda (a b) (if (= a b ) 0 b ))
-            old-stemsides
-            (concatenate (map cdr stemsides-sorted)))))
-     ;; is there anything to offset?  no need to send ( 0 0 0 0 )
-     (if (or
-          (memq 1 offsets)
-          (memq -1 offsets))
-         ((cn-shift-noteheads offsets) grob))))
+#(define (cn-chords-recurse note-heads last-semi parity stem-dir note-col)
+   "Use recursion to iterate through the note heads, shifting them as needed."
+   (if (> (length note-heads) 0)
+       (let* ((note-head (car note-heads))
+              (semi (cn-notehead-semitone note-head))
+              (interval (abs (- semi last-semi))))
 
+         (if (> interval 2)
+             ;; on to the next note head
+             (cn-chords-recurse (cdr note-heads) semi #t stem-dir note-col)
+             ;; else maybe shift this note head
+             (let*
+              ((nh-dir (if parity stem-dir (* -1 stem-dir)))
+               ;; check the old/default position to see if the note head needs moving
+               ;; use round to avoid floating point number errors
+               (pos (round (ly:grob-relative-coordinate note-head note-col X)))
+               (old-nh-dir
+                (if (= stem-dir 1)
+                    ;; stem up (stem-dir is 1)
+                    (if (= pos 0) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
+                    ;; stem down (stem-dir is -1)
+                    (if (= pos 0) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
 
-% Credit goes to David Nalesnik and Thomas Morley for these three functions:
-% cn-shift-noteheads, setOtherScriptParent, and adjustStem, copied (and edited slightly)
-% from the LilyPond Snippet Repository, snippet 861, "Re-positioning note heads on
-% the opposite side of the stem" http://lsr.di.unimi.it/LSR/Item?id=861
-% The code for these three functions is in the public domain.
+              (if (not (= nh-dir old-nh-dir))
+                  (cn-shift-notehead note-head nh-dir stem-dir))
 
-#(define ((cn-shift-noteheads offsets) grob)
-   "Step 4 of 4. Moves NoteHeads according to a list of @var{offsets}."
-   (let* (
-           ;; NoteHeads
-           ;; Get the NoteHeads of the NoteColumn
-           (note-heads (ly:grob-array->list (ly:grob-object grob 'note-heads)))
-           ;; Get their durations
-           (nh-duration-log
-            (map
-             (lambda (nhead-grob)
-               (ly:grob-property nhead-grob 'duration-log))
-             note-heads))
-           ;; Get the stencils of the NoteHeads
-           (nh-stencils
-            (map
-             (lambda (note-head-grobs)
-               (ly:grob-property note-head-grobs 'stencil))
-             note-heads))
-           ;; Get their length in X-axis-direction
-           (stencils-x-lengths
-            (map
-             (lambda (x)
-               (let* ((stencil (ly:grob-property x 'stencil))
-                      (stencil-X-exts (ly:stencil-extent stencil X))
-                      (stencil-lengths (interval-length stencil-X-exts)))
-                 stencil-lengths))
-             note-heads))
-           ;; Stem
-           (stem (ly:grob-object grob 'stem))
-           (stem-thick (ly:grob-property stem 'thickness 1.3))
-           (stem-x-width (/ stem-thick 10))
-           (stem-dir (ly:grob-property stem 'direction))
+              (cn-chords-recurse (cdr note-heads) semi (not parity) stem-dir note-col))))))
 
-           ;; stencil width method, doesn't work with non-default beams
-           ;; so using thickness property above instead
-           ;; (stem-stil (ly:grob-property stem 'stencil))
-           ;; (stem-x-width (if (ly:stencil? stem-stil)
-           ;;                 (interval-length (ly:stencil-extent stem-stil X))
-           ;;                 ;; if no stem-stencil use 'thickness-property
-           ;;                 (/ stem-thick 10)))
+#(define (cn-chords note-col)
+   "For notes in chords or harmonic intervals that are 2 semitones
+    apart or less, automatically position them on opposite sides of the stem.
+    (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
+   (let* ((heads-array (ly:grob-object note-col 'note-heads))
+          (note-heads-raw
+           (if (ly:grob-array? heads-array)
+               (ly:grob-array->list heads-array)
+               ;; rests, no note heads in NoteColumn grob
+               (list 0))))
+     (display note-heads-raw)(newline)
+     ;; rests and single notes don't need shifting
+     (if (> (length note-heads-raw) 1)
+         (let*
+          ((note-heads-sorted
+            (sort-list note-heads-raw
+              (lambda (a b)
+                (< (cn-notehead-semitone a)
+                   (cn-notehead-semitone b)))))
+           ;; stem direction, 1 is up, -1 is down
+           (stem-dir (ly:grob-property (ly:grob-object note-col 'stem) 'direction))
+           ;; if stem is down then reverse the order
+           (note-heads
+            (if (< stem-dir 0)
+                (reverse note-heads-sorted)
+                note-heads-sorted))
+           (first-semi (cn-notehead-semitone (car note-heads))))
 
-           ;; Calculate a value to compensate the stem-extension
-           (stem-x-corr
-            (map
-             (lambda (q)
-               ;; TODO better coding if (<= log 0)
-               (cond
-                ;; original, doesn't work (whole notes)
-                ;; ((and (= q 0) (= stem-dir 1))
-                ;;      (* -1 (+ 2  (* -4 stem-x-width))))
-                ;; new, quick fix, could be better?
-                ((= q 0) 0.223)
-
-                ((and (< q 0) (= stem-dir 1))
-                 (* -1 (+ 2  (* -1 stem-x-width))))
-                ((< q 0)
-                 (* 2 stem-x-width))
-                (else (/ stem-x-width 2))))
-             nh-duration-log)))
-
-     ;; Final Calculation for moving the NoteHeads
-     (for-each
-      (lambda (nh nh-x-length off x-corr)
-        (if (= off 0)
-            #f
-            (ly:grob-translate-axis! nh (* off (- nh-x-length x-corr)) X)))
-      note-heads stencils-x-lengths offsets stem-x-corr)))
-
-snhs =
-#(define-music-function (parser location offsets) (list?)
-   "To manually shift note heads (snhs) to the other side of the stem."
-   #{
-     \once \override NoteColumn.before-line-breaking = #(cn-shift-noteheads offsets)
-   #})
-
-setOtherScriptParent =
-#(define-music-function (parser location which-note-head)(integer?)
-   "If the parent-NoteHead of a Script is moved, another parent from the
-    NoteColumn could be chosen.
-    The NoteHeads are numbered 1 2 3...  not 0 1 2... "
-   #{
-     %% Let "staccato" be centered on NoteHead, if Stem 'direction is forced
-     %% with \stemUp, \stemDown, \voiceOne, \voiceTwo etc
-     \once \override Script.toward-stem-shift = #0
-
-     \once \override Script.after-line-breaking =
-     #(lambda (grob)
-        (let* ((note-head (ly:grob-parent grob X))
-               (note-column (ly:grob-parent note-head X))
-               (note-heads-list
-                (ly:grob-array->list
-                 (ly:grob-object note-column 'note-heads)))
-               (count-note-heads (length note-heads-list)))
-          (if (> which-note-head count-note-heads)
-              (ly:warning "Can't find specified note-head - ignoring")
-              (set! (ly:grob-parent grob X)
-                    (list-ref note-heads-list (- which-note-head 1))))))
-   #})
-
-adjustStem =
-#(define-music-function (parser location val)(pair?)
-   "Adjust 'stem-attachment via
-   adding multiples of the stem-width to the x-default (car val)
-   and multiplying the y-default with (cdr val). "
-   #{
-     \once \override NoteHead.before-line-breaking =
-     #(lambda (grob)
-        (let* ((stem-at (ly:grob-property grob 'stem-attachment))
-               (stem (ly:grob-object grob 'stem))
-               (stem-x-width (interval-length (ly:grob-property stem 'X-extent))))
-          (ly:grob-set-property!
-           grob
-           'stem-attachment
-           (cons (+ (car stem-at) (* stem-x-width (car val))) (* (cdr val) (cdr stem-at)))
-           )))
-   #})
+          ;; start with cdr of note-heads because the first one never needs shifting
+          (cn-chords-recurse (cdr note-heads) first-semi #t stem-dir note-col)))))
 
 
 %% CLEFS: CLEF SETTINGS
@@ -1044,7 +910,7 @@ fourOctaveStaff = {
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
 
-    \override NoteColumn.before-line-breaking = #cn-chords-one
+    \override NoteColumn.before-line-breaking = #cn-chords
 
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
