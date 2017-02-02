@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140723 (2014 July 23)
+%    Version: 20140913 (2014 Sept 13)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -48,8 +48,8 @@
    (assq-ref (ly:grob-property grob 'meta) 'name))
 
 #(define (cn-staff-symbol-property grob prop)
-   "Takes a grob and a property name and returns that
-    StaffSymbol property. For getting custom StaffSymbol props."
+   "For getting custom StaffSymbol props. Takes a grob and
+    a property name and returns that StaffSymbol property."
    (ly:grob-property (ly:grob-object grob 'staff-symbol) prop))
 
 
@@ -78,42 +78,42 @@
         (make-oval-stencil 0.7 0.58 0.11 #f)
         '(0.98 . 0))))))
 
-#(define (cn-note-heads grob)
-   "Override note head stencils and other properties."
-   ;; make sure \omit is not in effect (i.e. stencil is not #f)
-   ;; and do nothing for certain notehead styles
-   ;; TODO: better handling of various notehead styles
-   ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
-   ;; output-lib.scm
-   (if (and
+#(define Cn_note_heads_engraver
+   ;; Sets custom notehead stencils, stem-attachment, rotation.
+   (make-engraver
+    (acknowledgers
+     ((note-head-interface engraver grob source-engraver)
+      ;; make sure \omit is not in effect (i.e. stencil is not #f)
+      ;; and do nothing for certain notehead styles
+      ;; TODO: better handling of various notehead styles
+      ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
+      ;; output-lib.scm
+      (if
+       (and
         (ly:grob-property-data grob 'stencil)
         (not (memq (ly:grob-property-data grob 'style)
                (list 'harmonic 'harmonic-black 'harmonic-mixed
-                 'diamond 'cross 'xcircle 'triangle 'slash ))))
-       (let
-        ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
-         (whole-note (< (ly:grob-property grob 'duration-log) 1))
-         ;; 0 = black note, 1 = white note
-         (note-type (modulo (cn-notehead-semitone grob) 2)))
-        (if whole-note
-            ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
-            (set! note-type (+ 2 note-type))
-            ;; else set rotation and stem attachment properties
-            (begin
-             ;; black notes can be rotated to -27, but -18 also works for white notes
-             ;; currently -9, half of -18
-             (ly:grob-set-property! grob 'rotation '(-9 0 0))
-             (ly:grob-set-property! grob 'stem-attachment
-               (if (equal? 0 note-type)
-                   (cons 1.04 0.3) ;; black note (0)
-                   (cons 1.06  0.3))))) ;; white note (1)
-        ;; set note head stencil
-        (ly:grob-set-property! grob 'stencil
-          (ly:stencil-scale
+                 'diamond 'cross 'xcircle 'triangle 'slash))))
+       (let* ((whole-note (< (ly:grob-property grob 'duration-log) 1))
+              ;; 0 = black note, 1 = white note
+              (note-type (modulo (cn-notehead-semitone grob) 2)))
+         (if whole-note
+             ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
+             (set! note-type (+ 2 note-type))
+             ;; else set rotation and stem attachment properties
+             (begin
+              ;; black notes can be rotated to -27, but -18 also works for white notes
+              ;; currently -9, half of -18
+              (ly:grob-set-property! grob 'rotation '(-9 0 0))
+              (ly:grob-set-property! grob 'stem-attachment
+                (if (equal? 0 note-type)
+                    (cons 1.04 0.3) ;; black note (0)
+                    (cons 1.06  0.3))))) ;; white note (1)
+         ;; set note head stencil
+         (ly:grob-set-property! grob 'stencil
            (list-ref
             (cn-staff-symbol-property grob 'cn-note-head-stencils)
-             note-type)
-           mult mult)))))
+            note-type))))))))
 
 
 % DOTS ON DOTTED NOTES
@@ -806,35 +806,35 @@ clefsTrad =
       mus)))
 
 %{
-          actual expected values and conversions for clefsTrad function
-          clefPosition
-          ((-5) -2) ;; treble
-          ((5) 2) ;; bass
-          ;; ((0) 0) ;; alto - no change
-          ;; ((0) 2) ;; tenor - conflicts with alto clef
-          middleCClefPosition / clefs.G
-          ((-12) -6) ;; treble ;; -4 + -2
-          ((-24) -13) ;; treble^8
-          ((-36) -20) ;; treble^15
-          ((0) 1) ;; treble_8
-          ((12) 8) ;; treble_15
-          middleCClefPosition / clefs.F
-          ((12) 6) ;; bass ;; 4 + 2
-          ((24) 13) ;; bass_8
-          ((36) 20) ;; bass_15
-          ((0) -1) ;; bass^8
-          ((-12) -8) ;; bass^15
-          middleCClefPosition / clefs.C
-          ;; ((0) 0) ;; alto - no change
-          ((-12) -7) ;; alto^8
-          ((12) 7) ;; alto_8
-          ((-24) -14) ;; alto^15
-          ((24) 14) ;; alto_15
-          clefTransposition
-          ((12) 7) ;; ^8
-          ((-12) -7) ;; _8
-          ((24) 14) ;; ^15
-          ((-24) -14) ;; _15
+   actual expected values and conversions for clefsTrad function
+   clefPosition
+   ((-5) -2) ;; treble
+   ((5) 2) ;; bass
+   ;; ((0) 0) ;; alto - no change
+   ;; ((0) 2) ;; tenor - conflicts with alto clef
+   middleCClefPosition / clefs.G
+   ((-12) -6) ;; treble ;; -4 + -2
+   ((-24) -13) ;; treble^8
+   ((-36) -20) ;; treble^15
+   ((0) 1) ;; treble_8
+   ((12) 8) ;; treble_15
+   middleCClefPosition / clefs.F
+   ((12) 6) ;; bass ;; 4 + 2
+   ((24) 13) ;; bass_8
+   ((36) 20) ;; bass_15
+   ((0) -1) ;; bass^8
+   ((-12) -8) ;; bass^15
+   middleCClefPosition / clefs.C
+   ;; ((0) 0) ;; alto - no change
+   ((-12) -7) ;; alto^8
+   ((12) 7) ;; alto_8
+   ((-24) -14) ;; alto^15
+   ((24) 14) ;; alto_15
+   clefTransposition
+   ((12) 7) ;; ^8
+   ((-12) -7) ;; _8
+   ((24) 14) ;; ^15
+   ((-24) -14) ;; _15
 %}
 
 
@@ -1045,7 +1045,7 @@ vertScaleStaff =
     \override Stem.no-stem-extend = ##t
 
     \vertScaleStaff 1.2
-    \override NoteHead.before-line-breaking = #cn-note-heads
+    \consists \Cn_note_heads_engraver
     \override Dots.before-line-breaking = #cn-note-dots
 
     \consists \Cn_key_signature_engraver
