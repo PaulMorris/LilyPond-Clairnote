@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140915 (2014 Sept 15)
+%    Version: 20140920 (2014 Sept 20)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -172,12 +172,12 @@
      (ly:grob-set-property! grob 'stencil
        (ly:stencil-scale stil mult mult))))
 
-#(define (cn-redo-acc-signs grob acc)
+#(define (cn-redo-acc-signs grob alt)
    "Replaces the accidental sign stencil and resizes X/Y extents."
    ;; TODO: should natural signs have the same Y-extent as others?
    ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
    (ly:grob-set-property! grob 'Y-extent (cons -0.5 1.2))
-   (case acc
+   (case alt
      ((-1/2) (cn-redo-acc grob cn-flat-sign (cons 0 0.54)))
      ((1/2) (cn-redo-acc grob cn-sharp-sign (cons -0.27 0.27)))
      ((-1) (cn-redo-acc grob cn-double-flat-sign (cons -0.34 0.67)))
@@ -187,7 +187,7 @@
             (cons -0.0 (* 2/3 0.65))))
      (else (ly:grob-property grob 'stencil))))
 
-#(define (pitch-in-key? pitch key-sig)
+#(define (pitch-in-key pitch key-sig)
    "key-sig is an association list of sharps or flats in the key sig.
     Example: D major (C#, F#) = ((0 . 1/2) (3 . 1/2))"
    ;; TODO: handle custom key sigs that have octave values:
@@ -211,67 +211,55 @@
                 #f
                 #t)))))
 
-#(define (cn-engrave-acc context grob acc-list)
-   "To show an acc sign or not. Updates cn-acc-list if needed.
-    SHOW ACC SIGN:
-    1. new acc: an acc not in the acc list
-        add to cn-acc-list (remove previous acc if replacing it)
-    2. cancel acc: in key, cancels a previous acc in acc list
-        (semi is in cn-acc-list but the acc does not match)
-        remove acc from cn-acc-list
-    3. forced acc: acc wouldn't be shown, but it was forced with !
-        no change to cn-acc-list
-    DON'T SHOW ACC SIGN:
-    4. is an acc but not a new one in this measure
-    5. is not an acc and is not cancelling previous acc
-    6. omit is in effect (stencil is #f)"
-   (let*
-    ((alt (accidental-interface::calc-alteration grob))
-     (stl (ly:grob-property-data grob 'stencil))
-     (note-head (ly:grob-parent grob Y))
-     (pitch (cn-notehead-pitch note-head))
-     (semi (ly:pitch-semitones pitch))
-     (key-sig (ly:context-property context 'keySignature))
-     (in-the-key (pitch-in-key? pitch key-sig))
-     (in-acc-list (equal? (cons semi alt) (assoc semi acc-list)))
-     (semi-in-acc-list (equal? alt (assoc-ref acc-list semi))))
-    (cond
-     ;; 1. new acc
-     ((and (not in-the-key) (not in-acc-list) stl)
-      (cn-redo-acc-signs grob alt)
-      (if semi-in-acc-list
-          (ly:context-set-property! context 'cn-acc-list
-            (assoc-remove! acc-list semi)))
-      (ly:context-set-property! context 'cn-acc-list
-        (assoc-set! acc-list semi alt)))
-     ;; 2. cancel acc
-     ((and in-the-key (not in-acc-list) semi-in-acc-list stl)
-      (cn-redo-acc-signs grob alt)
-      (ly:context-set-property! context 'cn-acc-list
-        (assoc-remove! acc-list semi)))
-     ;; 3. forced acc
-     ((and (equal? #t (ly:grob-property grob 'forced)) stl)
-      (cn-redo-acc-signs grob alt))
-     ;; 4, 5, 6
-     ;; TODO: does this affect ledger line widths?
-     (else (ly:grob-suicide! grob)))))
-
 #(define Cn_accidental_engraver
    (make-engraver
     (acknowledgers
      ((accidental-interface engraver grob source-engraver)
+      (define context (ly:translator-context engraver))
+      (let ((bar-num (ly:context-property context 'internalBarNumber)))
+        ;; another option? (ly:context-property context 'currentBarNumber)
+        ;; if we're in a new measure, clear cn-acc-list, and set cn-bar-num
+        (if (not (equal? bar-num (ly:context-property context 'cn-bar-num)))
+            (begin
+             (ly:context-set-property! context 'cn-acc-list '())
+             (ly:context-set-property! context 'cn-bar-num bar-num))))
       (let*
-       ((context (ly:translator-context engraver))
-        ;; (current-bar-num (ly:context-property context 'currentBarNumber))
-        (bar-num (ly:context-property context 'internalBarNumber)))
-       ;; if we're in a new measure, clear cn-acc-list, and set cn-bar-num
-       (if (equal? bar-num (ly:context-property context 'cn-bar-num))
-           (cn-engrave-acc context grob
-             (ly:context-property context 'cn-acc-list))
-           (begin
-            (ly:context-set-property! context 'cn-acc-list '())
-            (ly:context-set-property! context 'cn-bar-num bar-num)
-            (cn-engrave-acc context grob '()))))))))
+       ((acc-list (ly:context-property context 'cn-acc-list))
+        (alt (accidental-interface::calc-alteration grob))
+        (stl (ly:grob-property-data grob 'stencil))
+        (note-head (ly:grob-parent grob Y))
+        (pitch (cn-notehead-pitch note-head))
+        (semi (ly:pitch-semitones pitch))
+        (key-sig (ly:context-property context 'keySignature))
+        (in-the-key (pitch-in-key pitch key-sig))
+        (in-acc-list (equal? (cons semi alt) (assoc semi acc-list)))
+        (semi-in-acc-list (equal? alt (assoc-ref acc-list semi))))
+       ;;To show an acc sign or not?
+       ;; Show: 1, 2, 3, Update cn-acc-list if needed.
+       ;; Don't show: 4, 5, 6
+       (cond
+        ;; 1. new acc: an acc not in the acc list
+        ;; add to cn-acc-list (any previous alt for that semi is replaced)
+        ((and (not in-the-key) (not in-acc-list) stl)
+         (cn-redo-acc-signs grob alt)
+         (ly:context-set-property! context 'cn-acc-list
+           (assoc-set! acc-list semi alt)))
+        ;; 2. cancel acc: in key, cancels a previous acc in acc list
+        ;; (i.e. semi is in cn-acc-list but the alt does not match)
+        ;; remove acc from cn-acc-list
+        ((and in-the-key (not in-acc-list) semi-in-acc-list stl)
+         (cn-redo-acc-signs grob alt)
+         (ly:context-set-property! context 'cn-acc-list
+           (assoc-remove! acc-list semi)))
+        ;; 3. forced acc: acc wouldn't be shown, but it was forced with !
+        ;; no change to cn-acc-list
+        ((and (equal? #t (ly:grob-property grob 'forced)) stl)
+         (cn-redo-acc-signs grob alt))
+        ;; 4. is an acc but not a new one in this measure
+        ;; 5. is not an acc and is not cancelling previous acc
+        ;; 6. omit is in effect (stencil is #f)"
+        ;; TODO: does this affect ledger line widths?
+        (else (ly:grob-suicide! grob))))))))
 
 
 %% KEY SIGNATURES
@@ -821,7 +809,6 @@ clefsTrad =
     coordinates of @var{dot-positions} are equivalent to the
     coordinates of @code{StaffSymbol.line-positions}, a dot-position
     of X and a line-position of X indicate the same vertical position."
-
    (let* ((staff-space (ly:staff-symbol-staff-space grob))
           (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot"))
           (stencil empty-stencil))
