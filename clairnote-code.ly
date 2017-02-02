@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150325
+%    Version: 20150326
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for:
 %    A. functions copied and modified from LilyPond source code:
@@ -397,13 +397,13 @@
 % opposite side of the stem," http://lsr.di.unimi.it/LSR/Item?id=861
 % Use that snippet for any manual adjustments of note head positions.
 
-#(define (cn-shift-notehead note-head nh-dir stem-dir)
+#(define (cn-shift-notehead nh nh-dir stem-dir)
    "Shift a note head to the left or right."
    (let*
-    ((dur-log (ly:grob-property note-head 'duration-log))
-     (stil (ly:grob-property note-head 'stencil))
+    ((dur-log (ly:grob-property nh 'duration-log))
+     (stil (ly:grob-property nh 'stencil))
      (stil-x-length (interval-length (ly:stencil-extent stil X)))
-     (stem (ly:grob-object note-head 'stem))
+     (stem (ly:grob-object nh 'stem))
      (stem-thick (ly:grob-property stem 'thickness 1.3))
      (stem-x-width (/ stem-thick 10))
      ;; (stem-dir (ly:grob-property stem 'direction))
@@ -432,65 +432,71 @@
         (* 2 stem-x-width))
        (else (/ stem-x-width 2)))))
     ;; final calculation for moving the note head
-    (ly:grob-translate-axis! note-head (* nh-dir (- stil-x-length stem-x-corr)) X)))
+    (ly:grob-translate-axis! nh (* nh-dir (- stil-x-length stem-x-corr)) X)))
 
-#(define (cn-chords-recurse note-heads last-semi parity stem-dir note-col)
-   "Use recursion to iterate through the note heads, shifting them as needed."
-   (if (> (length note-heads) 0)
-       (let* ((note-head (car note-heads))
-              (semi (cn-notehead-semitone note-head))
-              (interval (abs (- semi last-semi))))
+#(define (cn-chords-loop note-heads first-semi stem-dir note-col)
+   "Use recursion to iterate through the note heads, shifting them as needed.
+    Use internal procedure (loop) since we need stem-dir and note-col in scope,
+    and don't want to pass them as arguments."
+   (define (loop nhs last-semi parity)
+     (if (> (length nhs) 0)
+         (let* ((nh (car nhs))
+                (semi (cn-notehead-semitone nh))
+                (interval (abs (- semi last-semi))))
 
-         (if (> interval 2)
-             ;; on to the next note head
-             (cn-chords-recurse (cdr note-heads) semi #t stem-dir note-col)
-             ;; else maybe shift this note head
-             (let*
-              ((nh-dir (if parity stem-dir (* -1 stem-dir)))
-               ;; check the old/default position to see if the note head needs moving
-               ;; use round to avoid floating point number errors
-               (pos (round (ly:grob-relative-coordinate note-head note-col X)))
-               (old-nh-dir
-                (if (= stem-dir 1)
-                    ;; stem up (stem-dir is 1)
-                    (if (= pos 0) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
-                    ;; stem down (stem-dir is -1)
-                    (if (= pos 0) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
+           (if (> interval 2)
+               ;; on to the next note head
+               (loop (cdr nhs) semi #t)
 
-              (if (not (= nh-dir old-nh-dir))
-                  (cn-shift-notehead note-head nh-dir stem-dir))
+               ;; else maybe shift this note head
+               (let*
+                ((nh-dir (if parity stem-dir (* -1 stem-dir)))
+                 ;; check the old/default position to see if the note head needs moving
+                 ;; use round to avoid floating point number errors
+                 (pos (round (ly:grob-relative-coordinate nh note-col X)))
+                 (old-nh-dir
+                  (if (> stem-dir 0)
+                      ;; stem up (stem-dir is 1)
+                      (if (= pos 0) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
+                      ;; stem down (stem-dir is -1)
+                      (if (= pos 0) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
 
-              (cn-chords-recurse (cdr note-heads) semi (not parity) stem-dir note-col))))))
+                (if (not (= nh-dir old-nh-dir))
+                    (cn-shift-notehead nh nh-dir stem-dir))
+                (loop (cdr nhs) semi (not parity)))))))
+
+   ;; start the loop
+   (loop note-heads first-semi #t))
 
 #(define (cn-chords note-col)
    "For notes in chords or harmonic intervals that are 2 semitones
     apart or less, automatically position them on opposite sides of the stem.
     (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
    (let* ((heads-array (ly:grob-object note-col 'note-heads))
-          (note-heads-raw
+          (nhs-raw
            (if (ly:grob-array? heads-array)
                (ly:grob-array->list heads-array)
                ;; rests, no note heads in NoteColumn grob
                (list 0))))
      ;; rests and single notes don't need shifting
-     (if (> (length note-heads-raw) 1)
+     (if (> (length nhs-raw) 1)
          (let*
-          ((note-heads-sorted
-            (sort-list note-heads-raw
+          ((nhs-sorted
+            (sort-list nhs-raw
               (lambda (a b)
                 (< (cn-notehead-semitone a)
                    (cn-notehead-semitone b)))))
            ;; stem direction, 1 is up, -1 is down
            (stem-dir (ly:grob-property (ly:grob-object note-col 'stem) 'direction))
            ;; if stem is down then reverse the order
-           (note-heads
+           (nhs-cooked
             (if (< stem-dir 0)
-                (reverse note-heads-sorted)
-                note-heads-sorted))
-           (first-semi (cn-notehead-semitone (car note-heads))))
+                (reverse nhs-sorted)
+                nhs-sorted))
+           (first-semi (cn-notehead-semitone (car nhs-cooked))))
 
-          ;; start with cdr of note-heads because the first one never needs shifting
-          (cn-chords-recurse (cdr note-heads) first-semi #t stem-dir note-col)))))
+          ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
+          (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir note-col)))))
 
 
 %% CLEFS: CLEF SETTINGS
