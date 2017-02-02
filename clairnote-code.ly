@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20161208-2
+%    Version: 20161208-3
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -807,7 +807,78 @@
 
 %--- STEM LENGTH AND DOUBLE STEMS ----------------
 
-#(define (multiply-details details multiplier skip-list)
+#(define (cn-grob-edge grob positive)
+   "Takes a grob and returns the edge of the grob in positive
+    or negative direction (up or down), positive arg is boolean."
+   (let* ((offset (ly:grob-property grob 'Y-offset))
+          (extent (ly:grob-property grob 'Y-extent))
+          (extent-dir (if positive (cdr extent) (car extent))))
+     (+ offset extent-dir)))
+
+#(define (cn-grobs-edge grobs positive)
+   "Takes a list of grobs and positive, a boolean of whether the
+    direction we care about is positive/up or not/down, and returns
+    the furthest edge of the grobs in that direction."
+   (let* ((comparator (if positive > <))
+          (final-edge
+           (fold (lambda (g prev-edge)
+                   (let ((this-edge (cn-grob-edge g positive)))
+                     (if (comparator this-edge prev-edge)
+                         this-edge
+                         prev-edge)))
+             (cn-grob-edge (car grobs) positive)
+             (cdr grobs))))
+     final-edge))
+
+#(define (cn-double-stem grob context)
+   (let*
+    ((stem-stil (ly:stem::print grob))
+     (dir (ly:grob-property grob 'direction))
+     (up-stem (= dir 1))
+     (stem-y-extent (ly:grob-property grob 'Y-extent))
+     (stem-x-extent (ly:grob-property grob 'X-extent))
+     (stem-width (- (car stem-x-extent) (cdr stem-x-extent)))
+
+     ;; by default second stem is 1.5 times as thick as standard stem
+     (width-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
+     (stem2-width (* stem-width width-scale))
+
+     (note-heads (cn-note-heads-from-grob grob '()))
+     (nhs-edge (cn-grobs-edge note-heads up-stem))
+
+     (stem-tip (if up-stem (cdr stem-y-extent) (car stem-y-extent)))
+     (nhs-margin (* dir 0.1))
+     (tip-adjust (* dir (/ stem2-width 2)))
+     (stem2-start-y (+ nhs-margin nhs-edge))
+     (stem2-end-y (+ tip-adjust stem-tip))
+
+     ;; spacing is 4 times stem-width by default
+     (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4))
+     (spacing (* spacing-scale stem-width))
+
+     (stem2-x (+ (* -1 dir spacing)
+                (if up-stem (car stem-x-extent) (cdr stem-x-extent))))
+
+     (stem2-stil (ly:make-stencil
+                  (list 'draw-line
+                    stem2-width    ;; width
+                    stem2-x        ;; start x
+                    stem2-start-y  ;; start y
+                    stem2-x        ;; end x
+                    stem2-end-y)   ;;end y
+                  (cons stem2-x stem2-x) ;; x extent
+                  (cons stem2-start-y stem2-end-y) ;; y extent
+                  )))
+
+    (ly:grob-set-property! grob 'stencil
+      (ly:stencil-add stem-stil stem2-stil))
+    ;; X-extent needs to be set here because its usual callback
+    ;; ly:stem::width doesn't take the actual stencil width into account
+    (ly:grob-set-property! grob 'X-extent
+      (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
+    ))
+
+#(define (cn-multiply-details details multiplier skip-list)
    "multiplies each of the values of a details property
     (e.g. of the stem grob) by multiplier, except for
     skip-list, a list of symbols, e.g. '(stem-shorten) "
@@ -820,29 +891,6 @@
                        vals
                        (map multiply-by vals)))))
     details))
-
-#(define (grob-edge grob positive)
-   "Takes a grob and returns the edge of the grob in positive
-    or negative direction (up or down), positive arg is boolean."
-   (let* ((offset (ly:grob-property grob 'Y-offset))
-          (extent (ly:grob-property grob 'Y-extent))
-          (extent-dir (if positive (cdr extent) (car extent))))
-     (+ offset extent-dir)))
-
-#(define (grobs-edge grobs positive)
-   "Takes a list of grobs and positive, a boolean of whether the
-    direction we care about is positive/up or not/down, and returns
-    the furthest edge of the grobs in that direction."
-   (let* ((comparator (if positive > <))
-          (final-edge
-           (fold (lambda (g prev-edge)
-                   (let ((this-edge (grob-edge g positive)))
-                     (if (comparator this-edge prev-edge)
-                         this-edge
-                         prev-edge)))
-             (grob-edge (car grobs) positive)
-             (cdr grobs))))
-     final-edge))
 
 #(define Cn_stem_engraver
    ;; "Lengthen all stems to undo staff compression side effects,
@@ -858,59 +906,15 @@
            ((context (ly:translator-context engraver))
             (bss-inverse (/ 1 (ly:context-property context 'cnBaseStaffSpace)))
             (deets (ly:grob-property grob 'details))
-            (deets2 (multiply-details deets bss-inverse '(stem-shorten))))
+            (deets2 (cn-multiply-details deets bss-inverse '(stem-shorten))))
 
            (ly:grob-set-property! grob 'details deets2)
 
            ;; double stems for half notes
            (if (= 1 (ly:grob-property grob 'duration-log))
-               (let*
-                ((stem-stil (ly:stem::print grob))
-                 (dir (ly:grob-property grob 'direction))
-                 (up-stem (= dir 1))
-                 (stem-y-extent (ly:grob-property grob 'Y-extent))
-                 (stem-x-extent (ly:grob-property grob 'X-extent))
-                 (stem-width (- (car stem-x-extent) (cdr stem-x-extent)))
-
-                 ;; by default second stem is 1.5 times as thick as standard stem
-                 (width-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
-                 (stem2-width (* stem-width width-scale))
-
-                 (note-heads (cn-note-heads-from-grob grob '()))
-                 (nhs-edge (grobs-edge note-heads up-stem))
-
-                 (stem-tip (if up-stem (cdr stem-y-extent) (car stem-y-extent)))
-                 (nhs-margin (* dir 0.1))
-                 (tip-adjust (* dir (/ stem2-width 2)))
-                 (stem2-start-y (+ nhs-margin nhs-edge))
-                 (stem2-end-y (+ tip-adjust stem-tip))
-
-                 ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
-                 ;; 4 * stem-width
-                 (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4))
-                 (spacing (* spacing-scale stem-width))
-
-                 (stem2-x (+ (* -1 dir spacing)
-                            (if up-stem (car stem-x-extent) (cdr stem-x-extent))))
-
-                 (stem2-stil (ly:make-stencil
-                              (list 'draw-line
-                                stem2-width    ;; width
-                                stem2-x        ;; start x
-                                stem2-start-y  ;; start y
-                                stem2-x        ;; end x
-                                stem2-end-y)   ;;end y
-                              (cons stem2-x stem2-x) ;; x extent
-                              (cons stem2-start-y stem2-end-y) ;; y extent
-                              )))
-
-                (ly:grob-set-property! grob 'stencil
-                  (ly:stencil-add stem-stil stem2-stil))
-                ;; X-extent needs to be set here because its usual callback
-                ;; ly:stem::width doesn't take the actual stencil width into account
-                (ly:grob-set-property! grob 'X-extent
-                  (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
-                ))))))))
+               (cn-double-stem grob context)
+               #f)
+           ))))))
 
 
 %--- CROSS-STAFF STEMS ----------------
@@ -961,13 +965,10 @@
                   ;; START CLAIRNOTE EDITS
 
                   ;; we just get the 1st notehead, does it matter which?
-                  (note-head (list-ref (cn-note-heads-from-grob root '()) 0))
-                  (is-half-note (and note-head
-                                     (= 1 (ly:grob-property note-head 'duration-log)))))
+                  (note-head (list-ref (cn-note-heads-from-grob root '()) 0)))
 
-             (display (ly:grob-extent root root X))(newline)
-
-             (if is-half-note
+             ;; if is half note...
+             (if (and note-head (= 1 (ly:grob-property note-head 'duration-log)))
                  ;; TODO: better cross staff double stems for half notes,
                  ;; and un-hardcode the following stem X extent, works
                  ;; fine with 'set-global-staff-size' but ugly with 'magnifyStaff'
@@ -1009,7 +1010,7 @@
        (let ((roots (filter stem-is-root? stems)))
          (for-each (make-stem-span! stems trans) roots))))
 
-% overwrites the default engraver
+% overwrites the default engraver in order to call custom cn-make-stem-spans!
 #(define (Span_stem_engraver ctx)
    "Connect cross-staff stems to the stems above in the system"
    (let ((stems '()))
@@ -1032,50 +1033,46 @@
      (map cn-notehead-semitone note-heads)))
 
 #(define (cn-dots-callback dots-grob)
-   "Avoid collision between double-stem and dots by repositioning dots for
-    double-stemmed half notes only when they are on a staff line, have an
+   "Avoid collision between double-stem and dots by shifting right the dots on
+    double-stemmed half notes but only when they are on a staff line, have an
     up stem, and are the highest note in their column.
     We use a callback here so that the stem width is already set.
-    Returns a pair of numbers (or #f) for the extra-extent for a dots grob."
+    Returns a pair of numbers or #f for the Dots.extra-offset grob property."
    (let*
     ((parent (ly:grob-parent dots-grob Y))
      ;; parent is a Rest grob or a NoteHead grob
      (note-head (and (not (grob::has-interface parent 'rest-interface)) parent))
-     (is-half-note (and note-head (= 1 (ly:grob-property note-head 'duration-log)))))
+     (semi '())
+     (stem '()))
+    (and note-head
 
-    (if is-half-note
-        (let*
-         ((semi (cn-notehead-semitone note-head))
-          (is-line-note (= 0 (modulo semi 4))))
+         ;; is half note?
+         (= 1 (ly:grob-property note-head 'duration-log))
 
-         (if is-line-note
-             (let*
-              ((note-col (ly:grob-parent note-head X))
-               (stem (ly:grob-object note-col 'stem))
-               (up-stem (and stem
-                             (not (null? stem))
-                             (= 1 (ly:grob-property stem 'direction)))))
+         ;; is line note?
+         (begin (set! semi (cn-notehead-semitone note-head))
+           (= 0 (modulo semi 4)))
 
-              (if up-stem
-                  (let*
-                   ((note-heads (cn-note-heads-from-grob stem '()))
-                    (is-highest (or (= 1 (length note-heads))
-                                    (= semi (cn-highest-semitone note-heads)))))
+         ;; is up-stem?
+         (begin (set! stem (ly:grob-object (ly:grob-parent note-head X) 'stem))
+           stem)
+         (not (null? stem))
+         (= 1 (ly:grob-property stem 'direction))
 
-                   (if is-highest
-                       (let*
-                        ((stem-extent (ly:grob-property stem 'X-extent))
-                         (stem-width (- (cdr stem-extent) (car stem-extent)))
-                         ;; maybe a better calculation is possible based on custom
-                         ;; double stem Staff context properties, but that would
-                         ;; require an engraver, and Dots engraver is in Voice context
-                         (x-offset (* 0.75 stem-width)))
+         ;; is highest note?
+         (let* ((note-heads (cn-note-heads-from-grob stem '())))
+           (or (= 1 (length note-heads))
+               (= semi (cn-highest-semitone note-heads))))
 
-                        (cons x-offset 0))
-                       #f))
-                  #f))
-             #f))
-        #f)))
+         ;; return a pair for Dots.extra-offset
+         ;; maybe a better calculation is possible based on custom
+         ;; double stem Staff context properties, but that would take
+         ;; an engraver to access it, and Dots engraver is in Voice context
+         (let* ((stem-extent (ly:grob-property stem 'X-extent))
+                (stem-width (- (cdr stem-extent) (car stem-extent)))
+                (x-offset (* 0.75 stem-width)))
+           (cons x-offset 0))
+         )))
 
 
 %--- BEAMS ----------------
