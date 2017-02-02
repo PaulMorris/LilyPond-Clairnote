@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160925
+%    Version: 20161207
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -57,6 +57,15 @@
      (if (odd? staff-octaves)
          6
          (if (> staff-octaves 2) 12 0))))
+
+  (define (cn-note-heads-from-grob grob default)
+    "Takes a grob like a stem and returns a list of NoteHead grobs or default."
+    (let* ((heads-array (ly:grob-object grob 'note-heads))
+           (heads-list (if (ly:grob-array? heads-array)
+                           (ly:grob-array->list heads-array)
+                           ;; should never/rarely? happen:
+                           default)))
+      heads-list))
 
   (if (not (defined? 'grob::name))
       ;; TODO: Delete this after we stop supporting LilyPond 2.18
@@ -868,11 +877,7 @@
                   (width-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
                   (stem2-width (* stem-width width-scale))
 
-                  (heads-array (ly:grob-object grob 'note-heads))
-                  (note-heads (if (ly:grob-array? heads-array)
-                                  (ly:grob-array->list heads-array)
-                                  ;; should never happen:
-                                  '()))
+                  (note-heads (cn-note-heads-from-grob grob '()))
                   (nhs-edge (grobs-edge note-heads up-stem))
 
                   (stem-tip (if up-stem (cdr stem-y-extent) (car stem-y-extent)))
@@ -907,6 +912,61 @@
                  (ly:grob-set-property! grob 'X-extent
                    (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
                  ))))))))
+
+
+;;;; DOTS ON DOTTED NOTES
+
+  (define (cn-highest-semitone note-heads)
+    (reduce (lambda (a b) (if (> a b) a b))
+      0
+      (map cn-notehead-semitone note-heads)))
+
+  (define (cn-dots-callback dots-grob)
+    "Avoid collision between double-stem and dots by repositioning dots for
+     double-stemmed half notes only when they are on a staff line, have an
+     up stem, and are the highest note in their column.
+     We use a callback here so that the stem width is already set.
+     Returns a pair of numbers (or #f) for the extra-extent for a dots grob."
+    (let*
+     ((parent (ly:grob-parent dots-grob Y))
+      ;; parent is a Rest grob or a NoteHead grob
+      (note-head (and (not (grob::has-interface parent 'rest-interface)) parent))
+      (is-half-note (and note-head (= 1 (ly:grob-property note-head 'duration-log)))))
+
+     (if is-half-note
+         (let*
+          ((semi (cn-notehead-semitone note-head))
+           (is-line-note (= 0 (modulo semi 4))))
+
+          (if is-line-note
+              (let*
+               ((note-col (ly:grob-parent note-head X))
+                (stem (ly:grob-object note-col 'stem))
+                (up-stem (and stem
+                              (not (null? stem))
+                              (= 1 (ly:grob-property stem 'direction)))))
+
+               (if up-stem
+                   (let*
+                    ((note-heads (cn-note-heads-from-grob stem '()))
+                     (is-highest (or (= 1 (length note-heads))
+                                     (= semi (cn-highest-semitone note-heads)))))
+
+                    (if is-highest
+                        (let*
+                         ((stem-extent (ly:grob-property stem 'X-extent))
+                          (stem-width (- (cdr stem-extent) (car stem-extent)))
+                          ;; maybe a better calculation is possible based on custom
+                          ;; double stem Staff context properties, but that would
+                          ;; require an engraver, and Dots engraver is in Voice context
+                          (x-offset (* 0.75 stem-width)))
+
+                         (cons x-offset 0))
+                        #f))
+                   #f))
+              #f))
+         #f)))
+
 
 ;;;; BEAMS
 
@@ -1368,12 +1428,10 @@ and don't want to pass them as arguments."
       ; "For notes in chords or harmonic intervals that are 2 semitones
       ; apart or less, automatically position them on opposite sides of the stem.
       ; (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
-      (let* ((heads-array (ly:grob-object grob 'note-heads))
-             (nhs-raw
-              (if (ly:grob-array? heads-array)
-                  (ly:grob-array->list heads-array)
-                  ;; rests, no note heads in NoteColumn grob
-                  (list 0))))
+      (let* ((nhs-raw (cn-note-heads-from-grob
+                       grob
+                       ;; when rests, no note heads in NoteColumn grob
+                       '(0))))
         ;; rests and single notes don't need shifting
         (if (> (length nhs-raw) 1)
             (let*
@@ -1496,6 +1554,9 @@ and don't want to pass them as arguments."
     % times the size of the traditional octave (3/4 * 12/7 = 9/7).
     % Adjacent note heads overlap by 0.625 (5/8).
     \override StaffSymbol.staff-space = #0.75
+
+    % adjust x-axis dots position to not collide with double-stemmed half notes
+    \override Dots.extra-offset = #cn-dots-callback
 
     % custom engravers
     \consists \Cn_clef_ottava_engraver
