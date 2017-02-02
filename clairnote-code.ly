@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140601 (2014 June 1)
+%    Version: 20140617 (2014 June 17)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -165,130 +165,119 @@
   (set! clnt-double-flat-sign (draw-double-acc-sign clnt-flat-sign)))
 
 
-#(define (clnt-redo-acc grob mult stil x-ext)
+#(define (clnt-redo-acc grob stil x-ext)
    "Helper for clnt-redo-acc-signs."
-   (ly:grob-set-property! grob 'X-extent x-ext)
-   (ly:grob-set-property! grob 'stencil
-     (ly:stencil-scale stil mult mult)))
+   (let ((mult (magstep (ly:grob-property grob 'font-size 0.0))))
+     (ly:grob-set-property! grob 'X-extent x-ext)
+     (ly:grob-set-property! grob 'stencil
+       (ly:stencil-scale stil mult mult))))
 
-#(define (clnt-redo-acc-signs grob acc mult)
+#(define (clnt-redo-acc-signs grob acc)
    "Replaces the accidental sign stencil and resizes X/Y extents."
    ;; TODO: should natural signs have the same Y-extent as others?
    ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
    (ly:grob-set-property! grob 'Y-extent (cons -0.5 1.2))
    (case acc
-     ((-1/2) (clnt-redo-acc grob mult clnt-flat-sign (cons 0 0.54)))
-     ((1/2) (clnt-redo-acc grob mult clnt-sharp-sign (cons -0.27 0.27)))
-     ((-1) (clnt-redo-acc grob mult clnt-double-flat-sign (cons -0.34 0.67)))
-     ((1) (clnt-redo-acc grob mult clnt-double-sharp-sign (cons -0.54 0.47)))
-     ((0) (clnt-redo-acc grob mult
+     ((-1/2) (clnt-redo-acc grob clnt-flat-sign (cons 0 0.54)))
+     ((1/2) (clnt-redo-acc grob clnt-sharp-sign (cons -0.27 0.27)))
+     ((-1) (clnt-redo-acc grob clnt-double-flat-sign (cons -0.34 0.67)))
+     ((1) (clnt-redo-acc grob clnt-double-sharp-sign (cons -0.54 0.47)))
+     ((0) (clnt-redo-acc grob
             (ly:stencil-scale (ly:grob-property grob 'stencil) 0.65 0.65)
             (cons -0.0 (* 2/3 0.65))))
      (else (ly:grob-property grob 'stencil))))
+
+#(define (pitch-in-key? pitch key-sig)
+   "key-sig is an association list of sharps or flats in the key sig.
+    Example: D major (C#, F#) = ((0 . 1/2) (3 . 1/2))"
+   ;; TODO: handle custom key sigs that have octave values:
+   ;;    "keySignature (list) ... an alist containing (step . alter)
+   ;;    or ((octave . step) . alter)"    <---- not currently handled
+   (let
+    ((note (ly:pitch-notename pitch))
+     (alt (ly:pitch-alteration pitch)))
+    ;; is note-and-alt-pair in the key sig?
+    (if (equal? (cons note alt) (assoc note key-sig))
+        #t ;; yes, sharp/flat in key sig
+        ;; no, is alt non-natural?
+        (if (not (equal? 0 alt))
+            #f ;; yes, sharp/flat not in key sig
+            ;; no, is note in the key sig?
+            (if (assoc-ref key-sig note)
+                #f ;; yes, natural not in key sig
+                #t ;; no, natural in key sig
+                )))))
+
+#(define (clnt-engrave-acc context grob acc-list)
+   "Show an acc sign?  Update clnt-acc-list?
+    SHOW ACC SIGN:
+    1. new acc: an acc not in the acc list
+        add to clnt-acc-list (remove previous acc if replacing it)
+    2. cancel acc: in key, cancels a previous acc in acc list
+        (semi is in clnt-acc-list but the acc does not match)
+        remove acc from clnt-acc-list
+    3. forced acc: acc wouldn't be shown, but it was forced with !
+        no change to clnt-acc-list
+    DON'T SHOW ACC SIGN:
+    4. is an acc but not a new one in this measure
+    5. is not an acc and is not cancelling previous acc
+    6. omit is in effect (stencil is #f)"
+   (let*
+    ((alt (accidental-interface::calc-alteration grob))
+     (stl (ly:grob-property-data grob 'stencil))
+     (note-head (ly:grob-parent grob Y))
+     (pitch (ly:event-property (event-cause note-head) 'pitch))
+     (semi (ly:pitch-semitones pitch))
+     (key-sig (ly:context-property context 'keySignature))
+     (in-the-key (pitch-in-key? pitch key-sig))
+     (in-acc-list (equal? (cons semi alt) (assoc semi acc-list)))
+     (semi-in-acc-list (equal? alt (assoc-ref acc-list semi))))
+    (cond
+     ;; 1. new acc
+     ((and (not in-the-key) (not in-acc-list) stl)
+      (clnt-redo-acc-signs grob alt)
+      (if semi-in-acc-list
+          (ly:context-set-property! context 'clnt-acc-list
+            (assoc-remove! acc-list semi)))
+      (ly:context-set-property! context 'clnt-acc-list
+        (assoc-set! acc-list semi alt)))
+     ;; 2. cancel acc
+     ((and in-the-key (not in-acc-list) semi-in-acc-list stl)
+      (clnt-redo-acc-signs grob alt)
+      (ly:context-set-property! context 'clnt-acc-list
+        (assoc-remove! acc-list semi)))
+     ;; 3. forced acc
+     ((and (equal? #t (ly:grob-property grob 'forced)) stl)
+      (clnt-redo-acc-signs grob alt))
+     ;; 4, 5, 6
+     ;; TODO: does this affect ledger line widths?
+     (else (ly:grob-suicide! grob)))))
 
 #(define Clnt_accidental_engraver
    (make-engraver
     (acknowledgers
      ((accidental-interface engraver grob source-engraver)
       (let*
-       ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
-        (acc (accidental-interface::calc-alteration grob))
-        ;; get the current bar number
-        (context (ly:translator-context engraver))
+       ((context (ly:translator-context engraver))
         ;; (current-bar-num (ly:context-property context 'currentBarNumber))
-        (bar-num (ly:context-property context 'internalBarNumber))
-
-        ;; get a copy of the current acc-list from custom context property
-        (acc-list (ly:context-property context 'clnt-acc-list))
-
-        ;; get the pitch of the note in semitones
-        (note-head (ly:grob-parent grob Y))
-        (pitch (ly:event-property (event-cause note-head) 'pitch))
-        (semi (ly:pitch-semitones pitch))
-        (semi-modulo (modulo semi 12))
-        (stl (ly:grob-property-data grob 'stencil))
-
-        ;; key-sig is an association list of sharps or flats in the key.
-        ;; Example: D major = ((0 . 1/2) (3 . 1/2))
-        (key-sig (ly:context-property context 'keySignature))
-
-        ;; TODO: handle custom key sigs that have octave values:
-        ;;    "keySignature (list) ... an alist containing (step . alter)
-        ;;    or ((octave . step) . alter)"    <---- not currently handled
-
-        ;; nats-list is an association list, a pair for each note in the key with
-        ;; semitone (0-11) and alteration (sharp, flat, or natural) (1/2, -1/2, 0).
-        ;; Diatonic pitch values (0-6) are converted to semitones (0-11).
-        ;; D major example:
-        ;; hypothetical diatonic alist: ((0 . 1/2) (1 . 0) (2 . 0) (3 . 1/2) (4 . 0) (5 . 0) (6 . 0))
-        ;; returns semitone alist: ((1 . 1/2) (2 . 0) (4 . 0) (6 . 1/2) (7 . 0) (9 . 0) (11 . 0))
-        (nats-list
-         (map
-          (lambda (n)
-            (let* ((alt (assoc-ref key-sig n))
-                   (alt (if alt alt 0))
-                   (n-semi (+
-                            (list-ref '(0 2 4 5 7 9 11) n)
-                            (* alt 2))))
-              (cons (modulo n-semi 12) alt)))
-          (iota 7)))
-
-        (in-the-key (equal?
-                     (cons semi-modulo acc)
-                     (assoc semi-modulo nats-list))))
-
-       ;; if we're in a new measure, clear acc lists, and set clnt-bar-num
-       (cond
-        ((not (= bar-num (ly:context-property context 'clnt-bar-num)))
-         (set! acc-list '())
-         (ly:context-set-property! context 'clnt-acc-list '())
-         (ly:context-set-property! context 'clnt-bar-num bar-num)))
-
-       (cond
-        ;; 1. is an accidental and a new accidental in this measure
-        ;; and has not been omitted (stencil is not #f)
-        ;; print sign and add accidental to clnt-acc-list
-        ((and
-          (not in-the-key)
-          (not (equal? (cons semi acc) (assoc semi acc-list)))
-          stl)
-         (clnt-redo-acc-signs grob acc mult)
-         (ly:context-set-property! context 'clnt-acc-list
-           (assoc-set! acc-list semi acc)))
-
-        ;; 2. is not an accidental but is canceling a previous accidental in this measure
-        ;; and has not been omitted (stencil is not #f)
-        ;; (semi is in acc-list (assoc-ref doesn't return #f) but the acc doesn't match)
-        ;; print sign and remove accidental from the acc-list
-        ((and
-          in-the-key
-          (assoc semi acc-list)
-          (not (equal? acc (assoc-ref semi acc-list)))
-          stl)
-         (clnt-redo-acc-signs grob acc mult)
-         (ly:context-set-property! context 'clnt-acc-list
-           (assoc-remove! acc-list semi)))
-
-        ;; 3. acc sign would not normally be shown but it has been forced with "!"
-        ;; just print acc sign, there is no change to acc-list
-        ((ly:grob-property grob 'forced)
-         (clnt-redo-acc-signs grob acc mult))
-
-        ;; 4. is an accidental but not a new accidental in this measure
-        ;; 5. is not an accidental and is not canceling a previous accidental
-        ;; 6. \omit is in effect (stencil is #f)
-        ;; print no acc sign
-        ;; TODO: make sure this does not affect ledger line widths
-        (else
-         (ly:grob-set-property! grob 'stencil #f)
-         (ly:grob-set-property! grob 'X-extent '(0 . 0))
-         (ly:grob-set-property! grob 'Y-extent '(0 . 0)))))))))
+        (bar-num (ly:context-property context 'internalBarNumber)))
+       ;; if we're in a new measure, clear clnt-acc-list, and set clnt-bar-num
+       (if (equal? bar-num (ly:context-property context 'clnt-bar-num))
+           (clnt-engrave-acc context grob
+             (ly:context-property context 'clnt-acc-list))
+           (begin
+            (ly:context-set-property! context 'clnt-acc-list '())
+            (ly:context-set-property! context 'clnt-bar-num bar-num)
+            (clnt-engrave-acc context grob '())) ))))))
 
 
 %% KEY SIGNATURES
 
 % staff definition has: printKeyCancellation = ##f
-% so this engraver doesn't have to deal with key cancellations
+% that prevents all key cancellations except for changing
+% to C major or A minor (when they are printed anyway)
+% so this engraver deals with them anyway
+% TODO: do cancellations ever make sense in Clairnote?
 
 #(define Clnt_key_signature_engraver
    (make-engraver
@@ -296,40 +285,49 @@
      ((key-signature-interface engraver grob source-engraver)
       (let*
        ((context (ly:translator-context engraver))
-        (key-stils (ly:context-property context 'clnt-key-stils))
-        ;; tonic-num: number of the tonic note (0-6), (C=0, B=6)
-        ;; tonic (pitch) --> tonic-num
-        (tonic-num (ly:pitch-notename (ly:context-property context 'tonic)))
-        ;; alt-alist: list of accidentals
-        (alt-alist (ly:grob-property grob 'alteration-alist))
-        ;; alt-count: number of sharps or flats in key sig
-        ;; positive is sharps, negative is flats
-        (alt-count (if (null? alt-alist)
-                       0
-                       (* (length alt-alist) 2 (cdr (car alt-alist)))))
-        ;; create a unique key id (string) for key-stils
-        (key-id
-         (string-append
-          (number->string tonic-num)
-          (if (> alt-count -1) "+" "")
-          (number->string alt-count)))
-        (stil (assoc-ref key-stils key-id))
-        (mult (magstep (ly:grob-property grob 'font-size 0.0))))
+        ;; (pkc (ly:context-property context 'printKeyCancellation))
+        (grob-name (assq-ref (ly:grob-property grob 'meta) 'name))
+        (key-cancellation (equal? 'KeyCancellation grob-name)))
+       (if key-cancellation
+           (ly:grob-set-property! grob 'stencil #f)
+           (clnt-engrave-key-sig context grob)))))))
 
-       (cond
-        ;; 0. \omit is in effect (stencil === #f), do nothing
-        ((not (ly:grob-property-data grob 'stencil))
-         #f)
-        ;; 1. if key stencil is already in key-stils use that
-        ((ly:stencil? stil)
-         (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult)))
-        ;; 2. else new sig, draw stencil, set it, and
-        ;; add to clnt-key-stils custom context property
-        (else
-         (set! stil (clnt-draw-key-stencil grob alt-count tonic-num))
-         (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult))
-         (ly:context-set-property! context 'clnt-key-stils
-           (acons key-id stil key-stils)))) )))))
+#(define (clnt-engrave-key-sig context grob)
+   (let*
+    ((key-stils (ly:context-property context 'clnt-key-stils))
+     ;; tonic-num: number of the tonic note (0-6), (C=0, B=6)
+     ;; tonic (pitch) --> tonic-num
+     (tonic-num (ly:pitch-notename (ly:context-property context 'tonic)))
+     ;; alt-alist: list of accidentals
+     (alt-alist (ly:grob-property grob 'alteration-alist))
+     ;; alt-count: number of sharps or flats in key sig
+     ;; positive is sharps, negative is flats
+     (alt-count (if (null? alt-alist)
+                    0
+                    (* (length alt-alist) 2 (cdr (car alt-alist)))))
+     ;; create a unique key id (string) for key-stils
+     (key-id
+      (string-append
+       (number->string tonic-num)
+       (if (> alt-count -1) "+" "")
+       (number->string alt-count)))
+     (stil (assoc-ref key-stils key-id))
+     (mult (magstep (ly:grob-property grob 'font-size 0.0))))
+
+    (cond
+     ;; 0. \omit is in effect (stencil is #f), do nothing
+     ((not (ly:grob-property-data grob 'stencil))
+      #f)
+     ;; 1. if key stencil is already in key-stils use that
+     ((ly:stencil? stil)
+      (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult)))
+     ;; 2. else new sig, draw stencil, set it, and
+     ;; add to clnt-key-stils custom context property
+     (else
+      (set! stil (clnt-draw-key-stencil grob alt-count tonic-num))
+      (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult))
+      (ly:context-set-property! context 'clnt-key-stils
+        (acons key-id stil key-stils))))))
 
 #(define (clnt-draw-key-stencil grob alt-count tonic-num)
    "Draws Clairnote key signature stencils."
@@ -816,36 +814,36 @@ clefsTrad =
       mus)))
 
 %{
-   % actual expected values and
-   % conversions for clefsTrad function
-   clefPosition
-   ((-5) -2) ;; treble
-   ((5) 2) ;; bass
-   ;; ((0) 0) ;; alto - no change
-   ;; ((0) 2) ;; tenor - conflicts with alto clef
-   middleCClefPosition / clefs.G
-   ((-12) -6) ;; treble ;; -4 + -2
-   ((-24) -13) ;; treble^8
-   ((-36) -20) ;; treble^15
-   ((0) 1) ;; treble_8
-   ((12) 8) ;; treble_15
-   middleCClefPosition / clefs.F
-   ((12) 6) ;; bass ;; 4 + 2
-   ((24) 13) ;; bass_8
-   ((36) 20) ;; bass_15
-   ((0) -1) ;; bass^8
-   ((-12) -8) ;; bass^15
-   middleCClefPosition / clefs.C
-   ;; ((0) 0) ;; alto - no change
-   ((-12) -7) ;; alto^8
-   ((12) 7) ;; alto_8
-   ((-24) -14) ;; alto^15
-   ((24) 14) ;; alto_15
-   clefTransposition
-   ((12) 7) ;; ^8
-   ((-12) -7) ;; _8
-   ((24) 14) ;; ^15
-   ((-24) -14) ;; _15
+       % actual expected values and
+       % conversions for clefsTrad function
+       clefPosition
+       ((-5) -2) ;; treble
+       ((5) 2) ;; bass
+       ;; ((0) 0) ;; alto - no change
+       ;; ((0) 2) ;; tenor - conflicts with alto clef
+       middleCClefPosition / clefs.G
+       ((-12) -6) ;; treble ;; -4 + -2
+       ((-24) -13) ;; treble^8
+       ((-36) -20) ;; treble^15
+       ((0) 1) ;; treble_8
+       ((12) 8) ;; treble_15
+       middleCClefPosition / clefs.F
+       ((12) 6) ;; bass ;; 4 + 2
+       ((24) 13) ;; bass_8
+       ((36) 20) ;; bass_15
+       ((0) -1) ;; bass^8
+       ((-12) -8) ;; bass^15
+       middleCClefPosition / clefs.C
+       ;; ((0) 0) ;; alto - no change
+       ((-12) -7) ;; alto^8
+       ((12) 7) ;; alto_8
+       ((-24) -14) ;; alto^15
+       ((24) 14) ;; alto_15
+       clefTransposition
+       ((12) 7) ;; ^8
+       ((-12) -7) ;; _8
+       ((24) 14) ;; ^15
+       ((-24) -14) ;; _15
 %}
 
 
@@ -1002,8 +1000,8 @@ vertScaleStaff =
     \vertScaleStaff 1.2
     \override NoteHead.before-line-breaking = #clnt-note-heads
 
-    \consists \Clnt_key_signature_engraver
     printKeyCancellation = ##f
+    \consists \Clnt_key_signature_engraver
     % custom context property to store key sig stencils (associative list)
     clnt-key-stils = #'()
 
