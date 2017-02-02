@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140428 (2014 April 28)
+%    Version: 20140429 (2014 April 29)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for three functions
 %    that are in the public domain: clnt-shift-noteheads, setOtherScriptParent,
@@ -659,91 +659,86 @@ adjustStem =
 
 % see /scm/parser-clef.scm
 
-#(define (clnt-set-clefs clefs)
-   "Helper function for modifying clef settings. c0-position is middle c position
-    @var{clefs} is a list of (clef-name clef-glyph clef-position c0-position)
+#(define (set-clairnote-clefs)
+   "Sets (or resets) clef settings for clairnote. (c0-position is middle c position)
     add-new-clef args: clef-name clef-glyph clef-position octavation c0-position"
-   (for-each
-    (lambda (clef)
-      (let ((name (list-ref clef 0))
-            (glyph (list-ref clef 1))
-            (pos (list-ref clef 2))
-            (c0 (list-ref clef 3)))
-        (add-new-clef name glyph pos 0 c0)
-        (cond
-         ((equal? name "bass") (add-new-clef "F" glyph pos 0 c0))
-         ((equal? name "alto") (add-new-clef "C" glyph pos 0 c0))
-         ((equal? name "treble")
-          (add-new-clef "G" glyph pos 0 c0)
-          (add-new-clef "violin" glyph pos 0 c0)))))
-    clefs))
-
-setClairnoteClefs =
-#(define-void-function (parser location) ()
-   "Sets (or resets) clef settings for clairnote."
    ;; To calculate the middle c position subtract the clef position
    ;; from 12 for bass clef or -12 for treble clef (to adjust the clef position
-   ;; without affecting the position of middle c or other notes)"
-   (clnt-set-clefs
-    '(("treble" "clefs.G" -5 -7) ;; -7 = -12 minus -5
-       ("bass" "clefs.F" 5 7) ;; 7 = 12 minus 5
-       ("alto" "clefs.C" 0 0) ;; no change
-       ("tenor" "clefs.C" 0 0) ;; same as alto
-       ("french" "clefs.G" -5 -7) ;; same as treble
-       ("soprano" "clefs.G" -5 -7) ;; same as treble
-       ("mezzosoprano" "clefs.C" 0 0) ;; same as alto
-       ("baritone" "clefs.F" 5 7) ;; same as bass
-       ("varbaritone" "clefs.F" 5 7) ;; same as bass
-       ("subbass" "clefs.F" 5 7) ;; same as bass
-       ("percussion" "clefs.percussion" 0 0)))) % no change
+   ;; without affecting the position of middle c or other notes)
 
-\setClairnoteClefs
+   ;; (add-new-clef "alto" "clefs.C" 0 0 0) ;; no change needed
+   ;; (add-new-clef "C" "clefs.C" 0 0 0) ;; alto synonym, no change needed
+   ;; (add-new-clef "percussion" "clefs.percussion" 0 0 0) ;; no change needed
+   (add-new-clef "treble" "clefs.G" -5 0 -7) ;; -7 = -12 minus -5
+   (add-new-clef "G" "clefs.G" -5 0 -7) ;; treble synonym
+   (add-new-clef "G2" "clefs.G" -5 0 -7) ;; treble synonym
+   (add-new-clef "violin" "clefs.G" -5 0 -7) ;; treble synonym
+   (add-new-clef "bass" "clefs.F" 5 0 7) ;; 7 = 12 minus 5
+   (add-new-clef "F" "clefs.F" 5 0 7) ;; bass synonym
+   (add-new-clef "tenor" "clefs.C" 0 0 0) ;; => alto
+   (add-new-clef "french" "clefs.G" -5 0 -7) ;; => treble
+   (add-new-clef "soprano" "clefs.G" -5 0 -7) ;; => treble
+   (add-new-clef "mezzosoprano" "clefs.C" 0 0 0) ;; => alto
+   (add-new-clef "baritone" "clefs.F" 5 0 7) ;; => bass
+   (add-new-clef "varbaritone" "clefs.F" 5 0 7) ;; => bass
+   (add-new-clef "subbass" "clefs.F" 5 0 7)) % => bass
 
-setTraditionalClefs =
-#(define-void-function (parser location) ()
-   "Sets clef settings back to traditional settings."
-   (clnt-set-clefs
-    '(("treble" "clefs.G" -2 -4)
-      ("bass" "clefs.F" 2 4)
-      ("alto" "clefs.C" 0 0)
-      ("tenor" "clefs.C" 2 2)
-      ("french" "clefs.G" -4 -4)
-      ("soprano" "clefs.C" -4 0)
-      ("mezzosoprano" "clefs.C" -2 0)
-      ("baritone" "clefs.C" 4 0)
-      ("varbaritone" "clefs.F" 0 4)
-      ("subbass" "clefs.F" 4 4)
-      ("percussion" "clefs.percussion" 0 0))))
+#(set-clairnote-clefs)
+
+#(define (set-traditional-clefs)
+   "Sets clef settings back to traditional settings.(c0-position is middle c position)
+    add-new-clef args: clef-name clef-glyph clef-position octavation c0-position"
+   ;; (add-new-clef "alto" "clefs.C" 0 0 0) ;; no change needed
+   ;; (add-new-clef "C" "clefs.C" 0 0 0) ;; alto synonym, no change needed
+   ;; (add-new-clef "percussion" "clefs.percussion" 0 0) ;; no change needed
+   (add-new-clef "treble" "clefs.G" -2 0 -4)
+   (add-new-clef "G" "clefs.G" -2 0 -4) ;; treble synonym
+   (add-new-clef "G2" "clefs.G" -2 0 -4) ;; treble synonym
+   (add-new-clef "violin" "clefs.G" -2 0 -4) ;; treble synonym
+   (add-new-clef "bass" "clefs.F" 2 0 4)
+   (add-new-clef "F" "clefs.F" 2 0 4) ;; bass synonym
+   (add-new-clef "tenor" "clefs.C" 2 0 2)
+   (add-new-clef "french" "clefs.G" -4 0 -4)
+   (add-new-clef "soprano" "clefs.C" -4 0 0)
+   (add-new-clef "mezzosoprano" "clefs.C" -2 0 0)
+   (add-new-clef "baritone" "clefs.C" 4 0 0)
+   (add-new-clef "varbaritone" "clefs.F" 0 0 4)
+   (add-new-clef "subbass" "clefs.F" 4 0 4))
 
 
-%% CLEFS: "TRANSPOSED" CLEFS
+%% CLEFS: TRANSPOSED CLEFS
 
 % see /scm/parser-clef.scm
 % and /ly/music-functions-init.ly
 
 #(use-modules (ice-9 regex))
 
-clef =
-#(define-music-function (parser location type) (string?)
-   "Modify clef transposition number in clef input to fit Clairnote staff.
-    Replaces standard clef command, must be named clef."
+#(define (clnt-clef-transposition type)
+   "Modify clef transposition number for Clairnote staff."
    ;; ex: "treble^8" becomes "treble^13"
    ;; ex: "bass_15" becomes "bass_25"
-   (let ((new-type "")
-         (match (string-match "^(.*[_^][^0-9a-zA-Z]*)([1-9][0-9]*)([^0-9a-zA-Z]*)$" type)))
+   (let ((match (string-match "^(.*[_^][^0-9a-zA-Z]*)([1-9][0-9]*)([^0-9a-zA-Z]*)$" type)))
      (if (and match (match:substring match 2))
-         (set! new-type
-               (string-append
-                (match:substring match 1)
-                (case (string->number (match:substring match 2))
-                  ((8) "13")
-                  ((-8) "-13")
-                  ((15) "25")
-                  ((-15) "-25")
-                  (else (match:substring match 2)))
-                (match:substring match 3)))
-         (set! new-type type))
-     (make-clef-set new-type)))
+         (string-append
+          (match:substring match 1)
+          (let ((num (string->number (match:substring match 2))))
+            (number->string
+             (if (or (= num 13) (= num 25))
+                 num
+                 ;; ((((X - 1) / 7) [round] * 12) + 1)
+                 (+ 1 (* 12 (round (/ (- num 1) 7)))))))
+          (match:substring match 3))
+         type)))
+
+clef =
+#(define-music-function (parser location type) (string?)
+   "Set the current clef to @var{type}. Replaces standard clef."
+   (make-clef-set (clnt-clef-transposition type)))
+
+cueClef =
+#(define-music-function (parser location type) (string?)
+   "Set the current cue clef to @var{type}. Replaces standard cueClef."
+   (make-cue-clef-set (clnt-clef-transposition type)))
 
 
 %% CLEFS: CLEFS FOR StaffTrad
@@ -751,67 +746,72 @@ clef =
 % see /ly/music-functions-init.ly
 
 clefsTrad =
-#(define-music-function (parser location music) (ly:music?)
+#(define-music-function (parser location mus) (ly:music?)
    "Takes music with Clairnote clef settings, and returns music
     with clef settings adjusted for use on a traditional staff."
    (let ((current-glyph ""))
      (music-map
       (lambda (m)
-        (cond
-         ((equal? 'clefGlyph (ly:music-property m 'symbol))
-          (set! current-glyph (ly:music-property m 'value)))
-
-         ((equal? 'clefPosition (ly:music-property m 'symbol))
-          (set! (ly:music-property m 'value)
-                (case (ly:music-property m 'value)
-                  ((-5) -2) ;; treble
-                  ((5) 2) ;; bass
-                  ((0) 0) ;; alto
-                  ;; ((0) 2) ;; tenor - conflicts with alto clef
-                  (else (ly:music-property m 'value)))))
-
-         ((equal? 'clefTransposition (ly:music-property m 'symbol))
-          (set! (ly:music-property m 'value)
-                (case (ly:music-property m 'value)
-                  ((12) 7) ;; ^8
-                  ((-12) -7) ;; _8
-                  ((24) 14) ;; ^15
-                  ((-24) 14) ;; _15
-                  (else (ly:music-property m 'value)))))
-
-         ((equal? 'middleCClefPosition (ly:music-property m 'symbol))
+        (let ((sym (ly:music-property m 'symbol)))
           (cond
-           ((equal? current-glyph "clefs.G")
-            (set! (ly:music-property m 'value)
-                  (case (ly:music-property m 'value)
-                    ((-12) -6) ;; treble ;; -4 + -2
-                    ((-24) -13) ;; treble^8
-                    ((-36) -20) ;; treble^15
-                    ((0) 1) ;; treble_8
-                    ((12) 8) ;; treble_15
-                    (else (ly:music-property m 'value)))))
 
-           ((equal? current-glyph "clefs.F")
-            (set! (ly:music-property m 'value)
-                  (case (ly:music-property m 'value)
-                    ((12) 6) ;; bass ;; 4 + 2
-                    ((24) 13) ;; bass_8
-                    ((36) 20) ;; bass_15
-                    ((0) -1) ;; bass^8
-                    ((-12) -8) ;; bass^15
-                    (else (ly:music-property m 'value)))))
+           ((or (eq? 'clefGlyph sym)
+                (eq? 'cueClefGlyph sym))
+            (set! current-glyph (ly:music-property m 'value)))
 
-           ((equal? current-glyph "clefs.C")
-            (set! (ly:music-property m 'value)
-                  (case (ly:music-property m 'value)
-                    ((0) 0) ;; alto
-                    ((-12) -7) ;; alto^8
-                    ((12) 7) ;; alto_8
-                    ((-24) -14) ;; alto^15
-                    ((24) 14) ;; alto_15
-                    (else (ly:music-property m 'value))))))))
+           ((or (eq? 'clefPosition sym)
+                (eq? 'cueClefPosition sym))
+            (ly:music-set-property! m 'value
+              (* 2/5 (ly:music-property m 'value))))
+
+           ((or (eq? 'middleCClefPosition sym)
+                (eq? 'middleCCuePosition sym))
+            (ly:music-set-property! m 'value
+              (+ (round (* 7/12 (ly:music-property m 'value)))
+                (cond
+                 ((equal? current-glyph "clefs.G") 1)
+                 ((equal? current-glyph "clefs.F") -1)
+                 (else 0))))) ;; includes "clefs.C"
+
+           ((or (eq? 'clefTransposition sym)
+                (eq? 'cueClefTransposition sym))
+            (ly:music-set-property! m 'value
+              (round (* 7/12 (ly:music-property m 'value)))))))
         m)
-      music)))
+      mus)))
+
+%{
+% actual expected values and
+% conversions for clefsTrad function
+clefPosition
+   ((-5) -2) ;; treble
+   ((5) 2) ;; bass
+   ;; ((0) 0) ;; alto - no change
+   ;; ((0) 2) ;; tenor - conflicts with alto clef
+middleCClefPosition / clefs.G
+   ((-12) -6) ;; treble ;; -4 + -2
+   ((-24) -13) ;; treble^8
+   ((-36) -20) ;; treble^15
+   ((0) 1) ;; treble_8
+   ((12) 8) ;; treble_15
+middleCClefPosition / clefs.F
+   ((12) 6) ;; bass ;; 4 + 2
+   ((24) 13) ;; bass_8
+   ((36) 20) ;; bass_15
+   ((0) -1) ;; bass^8
+   ((-12) -8) ;; bass^15
+middleCClefPosition / clefs.C
+   ;; ((0) 0) ;; alto - no change
+   ((-12) -7) ;; alto^8
+   ((12) 7) ;; alto_8
+   ((-24) -14) ;; alto^15
+   ((24) 14) ;; alto_15
+clefTransposition
+   ((12) 7) ;; ^8
+   ((-12) -7) ;; _8
+   ((24) 14) ;; ^15
+   ((-24) -14) ;; _15
+%}
 
 
 %% REPEAT SIGN DOTS (BAR LINES)
@@ -837,12 +837,13 @@ clefsTrad =
 
 #(define (clnt-repeat-dot-bar-procedure grob extent)
    "Based on a staff's line-positions, return a procedure for repeat sign dots."
-   (if (equal?
-        (ly:grob-property (ly:grob-object grob 'staff-symbol) 'line-positions '())
-        '(-4 -2 0 2 4))
-       ;; Traditional five line staff or Clairnote staff
-       ((clnt-make-repeat-dot-bar '(-1 1)) grob extent)
-       ((clnt-make-repeat-dot-bar '(-2 2)) grob extent)))
+   (let ((line-pos (ly:grob-property (ly:grob-object grob 'staff-symbol) 'line-positions '())))
+     (if (and
+          (< 0 (length line-pos))
+          (equal? 4 (abs (- (list-ref line-pos 0) (list-ref line-pos 1)))))
+         ;; Clairnote staff or Traditional five line staff
+         ((clnt-make-repeat-dot-bar '(-2 2)) grob extent)
+         ((clnt-make-repeat-dot-bar '(-1 1)) grob extent))))
 
 #(add-bar-glyph-print-procedure ":" clnt-repeat-dot-bar-procedure)
 
@@ -899,9 +900,6 @@ staffSize =
     \Staff
     \name StaffTrad
     \alias Staff
-    % needed for staff identification for repeat sign dots
-    \override StaffSymbol.line-positions = #'(-4 -2 0 2 4)
-    % \consists \Clnt_clef_corrector
   }
 
   % allow parent contexts to accept \StaffTrad
