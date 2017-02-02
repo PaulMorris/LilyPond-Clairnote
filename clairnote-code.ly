@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150509
+%    Version: 20150510
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -553,118 +553,140 @@
           (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir note-col)))))
 
 
-%% OTTAVA (8VA 8VB 15MA 15MB)
+%% CLEFS AND OTTAVA (8VA 8VB 15MA 15MB)
 
-#(define Cn_ottava_spanner_engraver
-   ;; Override ottava setting 'middleCOffset so that vertical
-   ;; note positions are correct with 8va, 8vb, etc.
-   ;; a closure stores the previous 'ottavation property
-   ;; in order to detect new ottavation settings
+% see /scm/parser-clef.scm and /ly/music-functions-init.ly
+
+#(define (trad-to-cn-clef glyph pos)
+   "Takes trad clef glyph and position and returns a list with Clairnote
+    clefGlyph, clefPosition, and middleCClefPosition."
+   ;; To calculate the clairnote middle c position subtract the clef position
+   ;; from 12 for bass clef or -12 for treble clef (to adjust the clef position
+   ;; without affecting the position of middle c or other notes)
+   (let*
+    ((cn-treble '("clefs.G" -5 -12))
+     (cn-bass '("clefs.F" 5 12))
+     (cn-alto '("clefs.C" 0 0))
+     (cn-percussion '("clefs.percussion" 0 0))
+     (new-clef
+      (cond
+       ((string= "clefs.G" glyph)
+        (case pos
+          ((-4) cn-treble) ;; french => treble
+          ((-2) cn-treble) ;; treble => treble
+          (else #f)))
+
+       ((string= "clefs.C" glyph)
+        (case pos
+          ((-4) cn-treble) ;; soprano => treble
+          ((-2) cn-alto) ;; mezzosoprano => alto
+          ((0) cn-alto) ;; alto => alto (unchanged, but needed)
+          ((2) cn-alto) ;; tenor => alto
+          ((4) cn-bass) ;; baritone => bass
+          (else #f)))
+
+       ((string= "clefs.F" glyph)
+        (case pos
+          ((0) cn-bass) ;; varbaritone => bass
+          ((2) cn-bass) ;; bass => bass
+          ((4) cn-bass) ;; subbass => bass
+          (else #f)))
+
+       ((string= "clefs.percussion" glyph) cn-percussion)
+       (else #f))))
+
+    (if new-clef
+        new-clef
+        (begin
+         (ly:warning "clef unsupported by clairnote-code.ly, using another clef instead.")
+         (cond
+          ((string= "clefs.F" glyph) cn-bass)
+          ((string= "clefs.C" glyph) cn-alto)
+          (else cn-treble))))))
+
+#(define (trad-to-cn-clef-transposition trans)
+   ;; If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
+   ;; else convert from 7 notes per octave to 12.  7-->12, 14-->24. Rounding
+   ;; means only multiples of 12 are ever returned (-24, -12, 0, 12, 24, etc.).
+   (if (= 0 (modulo trans 12))
+       trans
+       (* 12 (round (/ trans 7)))))
+
+#(define Cn_clef_ottava_engraver
+   ;; Override clef and ottava settings. A closure stores the previous
+   ;; properties in order to detect new settings (sigh). Uses listeners
+   ;; to modify context properties before grobs are created.
    (lambda (context)
-     (let ((prev-ottavation '()))
-       (make-engraver
-        (listeners
-         ;; TODO: confirm that rhythmic-event
-         ;; is the best event to listen to.
-         ((rhythmic-event engraver event)
-          (let*
-           ((context (ly:translator-context engraver))
-            (ottavation (ly:context-property context 'ottavation))
-            (mid-c-off (ly:context-property context 'middleCOffset)))
-           (if (and
-                (number? mid-c-off)
-                (not (equal? ottavation prev-ottavation)))
-               (begin
-                (ly:context-set-property! context 'middleCOffset
-                  (* 12/7 mid-c-off))
-                (ly:set-middle-C! context)
-                (set! prev-ottavation ottavation)
-                )))))))))
+     (let*
+      ((prev-ottavation '())
+       ;; clefGlyph clefPosition middleCClefPosition clefTransposition
+       (prev-clef '("clefs.G" -5 -12 0))
+       (prev-cue '(() () () ())))
+      (make-engraver
+       (listeners
+        ;; TODO: confirm that rhythmic-event is best event to listen to.
+        ((rhythmic-event engraver event)
+         (let*
+          ((clef-glyph (ly:context-property context 'clefGlyph))
+           (clef-pos (ly:context-property context 'clefPosition))
+           (mid-c-clef-pos (ly:context-property context 'middleCClefPosition))
+           (clef-transpo (ly:context-property context 'clefTransposition))
+           (current-clef (list clef-glyph clef-pos mid-c-clef-pos clef-transpo))
 
+           (cue-glyph (ly:context-property context 'cueClefGlyph))
+           (cue-pos (ly:context-property context 'cueClefPosition))
+           (cue-transpo (ly:context-property context 'cueClefTransposition))
+           (mid-c-cue-pos (ly:context-property context 'middleCCuePosition))
+           (current-cue (list cue-glyph cue-pos mid-c-cue-pos cue-transpo))
 
-%% CLEFS: CLEF SETTINGS
+           (ottavation (ly:context-property context 'ottavation))
+           (mid-c-off (ly:context-property context 'middleCOffset)))
 
-% see /scm/parser-clef.scm
-% To calculate the clairnote middle c position subtract the clef position
-% from 12 for bass clef or -12 for treble clef (to adjust the clef position
-% without affecting the position of middle c or other notes)
+          (cond
+           ;; new clef?
+           ((not (equal? current-clef prev-clef))
+            (let*
+             ((cn-clef (trad-to-cn-clef clef-glyph clef-pos))
+              (cn-transpo (trad-to-cn-clef-transposition clef-transpo))
+              (new-mid-c (- (third cn-clef) cn-transpo)))
+             (ly:context-set-property! context 'clefGlyph (first cn-clef))
+             (ly:context-set-property! context 'clefPosition (second cn-clef))
+             (ly:context-set-property! context 'middleCClefPosition new-mid-c)
+             (ly:context-set-property! context 'clefTransposition cn-transpo)
+             (ly:set-middle-C! context)
+             (set! prev-clef (list (first cn-clef) (second cn-clef) new-mid-c cn-transpo))))
 
-#(begin
-  (add-new-clef "treble" "clefs.G" -5 0 -7) ;; -7 = -12 minus -5
-  (add-new-clef "G" "clefs.G" -5 0 -7) ;; treble synonym
-  (add-new-clef "G2" "clefs.G" -5 0 -7) ;; treble synonym
-  (add-new-clef "violin" "clefs.G" -5 0 -7) ;; treble synonym
-  (add-new-clef "bass" "clefs.F" 5 0 7) ;; 7 = 12 minus 5
-  (add-new-clef "F" "clefs.F" 5 0 7) ;; bass synonym
-  (add-new-clef "tenor" "clefs.C" 0 0 0) ;; => alto
-  (add-new-clef "french" "clefs.G" -5 0 -7) ;; => treble
-  (add-new-clef "soprano" "clefs.G" -5 0 -7) ;; => treble
-  (add-new-clef "mezzosoprano" "clefs.C" 0 0 0) ;; => alto
-  (add-new-clef "baritone" "clefs.F" 5 0 7) ;; => bass
-  (add-new-clef "varbaritone" "clefs.F" 5 0 7) ;; => bass
-  (add-new-clef "subbass" "clefs.F" 5 0 7)) % => bass
+           ;; or new cue clef?
+           ((not (equal? current-cue prev-cue))
+            (if (equal? current-cue '(() () () ()))
+                ;; \cueClefUnset
+                (set! prev-cue current-cue)
+                ;; else \cueClef
+                (let*
+                 ((cn-cue (trad-to-cn-clef cue-glyph cue-pos))
+                  (cn-cue-transpo  (trad-to-cn-clef-transposition cue-transpo))
+                  (new-mid-c (- (third cn-cue) cn-cue-transpo)))
+                 (ly:context-set-property! context 'cueClefGlyph (first cn-cue))
+                 (ly:context-set-property! context 'cueClefPosition (second cn-cue))
+                 (ly:context-set-property! context 'middleCCuePosition new-mid-c)
+                 (ly:context-set-property! context 'cueClefTransposition cn-cue-transpo)
+                 (ly:set-middle-C! context)
+                 (set! prev-cue
+                       (list (first cn-cue) (second cn-cue) new-mid-c cn-cue-transpo))))))
 
-% No changes needed for these clefs, no need to add them:
-% (add-new-clef "alto" "clefs.C" 0 0 0)
-% (add-new-clef "C" "clefs.C" 0 0 0)
-% (add-new-clef "percussion" "clefs.percussion" 0 0 0)
-
-% TODO: add these clefs that come with LilyPond 2.20
-% need to decide 5th argument and adjust others
-% (add-new-clef "GG" "clefs.GG" -2 0)
-% (add-new-clef "tenorG" "clefs.tenorG" -2 0)
-% (add-new-clef "varC" "clefs.varC" 0 0)
-% (add-new-clef "altovarC" "clefs.varC" 0 0)
-% (add-new-clef "tenorvarC" "clefs.varC" 2 0)
-% (add-new-clef "baritonevarC" "clefs.varC" 4 0)
-% (add-new-clef "baritonevarF" "clefs.F" 0 0)
-% (add-new-clef "varpercussion" "clefs.varpercussion" 0 0)
-% (add-new-clef "tab" "clefs.tab" 0 0)
-
-% TODO: add mensural clefs?
-
-
-%% CLEFS: TRANSPOSED CLEFS
-
-% see /scm/parser-clef.scm
-% and /ly/music-functions-init.ly
-
-#(use-modules (ice-9 regex))
-
-#(define (cn-clef-transposition type)
-   "Modify clef transposition number for Clairnote staff."
-   ;; ex: "treble^8" becomes "treble^13"
-   ;; ex: "bass_15" becomes "bass_25"
-   (let ((match (string-match "^(.*[_^][^0-9a-zA-Z]*)([1-9][0-9]*)([^0-9a-zA-Z]*)$" type)))
-     (if (and match (match:substring match 2))
-         (string-append
-          (match:substring match 1)
-          (let ((num (string->number (match:substring match 2))))
-            (number->string
-             ;; if input is 13 or 25, use that.
-             (if (or (= num 13) (= num 25))
-                 num
-                 ;; else convert from 7 notes per octave to 12
-                 ;; 8-> 13, 15-> 25
-                 ;; ((((X - 1) / 7) [round] * 12) + 1)
-                 (+ 1 (* 12 (round (/ (- num 1) 7)))))))
-          (match:substring match 3))
-         type)))
-
-clef =
-#(define-music-function (parser location type) (string?)
-   "Set the current clef to @var{type}. Replaces standard clef."
-   (make-clef-set (cn-clef-transposition type)))
-
-cueClef =
-#(define-music-function (parser location type) (string?)
-   "Set the current cue clef to @var{type}. Replaces standard cueClef."
-   (make-cue-clef-set (cn-clef-transposition type)))
+          ;; new ottava? (8va 8vb etc.)
+          (if (and (number? mid-c-off) (not (equal? ottavation prev-ottavation)))
+              (begin
+               (ly:context-set-property! context 'middleCOffset (* mid-c-off 12/7))
+               (ly:set-middle-C! context)
+               (set! prev-ottavation ottavation)
+               )))))))))
 
 
 %% REPEAT SIGN DOTS (BAR LINES)
 
 % adjust the position of dots in repeat signs
+% for Clairnote staff or traditional staff
 
 #(define (cn-make-repeat-dot-bar dot-positions)
    "Return a procedure that draws dots (repeat sign dots) at
@@ -682,7 +704,15 @@ cueClef =
         dot-positions)
        stencil)))
 
-#(add-bar-glyph-print-procedure ":" (cn-make-repeat-dot-bar '(-2 2)))
+#(define (cn-repeat-dot-bar-procedure grob extent)
+   "Return a procedure for repeat sign dots based on a custom grob
+    property: StaffSymbol.cn-is-clairnote-staff."
+   (if (cn-staff-symbol-prop grob 'cn-is-clairnote-staff)
+       ;; Clairnote staff or Traditional five line staff
+       ((cn-make-repeat-dot-bar '(-2 2)) grob extent)
+       ((cn-make-repeat-dot-bar '(-1 1)) grob extent)))
+
+#(add-bar-glyph-print-procedure ":" cn-repeat-dot-bar-procedure)
 
 
 %% TIME SIGNATURES
@@ -876,6 +906,9 @@ vertScaleStaff =
    (set-object-property! symbol 'backend-doc "custom grob property")
    symbol)
 
+% StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
+#(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
+
 % StaffSymbol.cn-base-staff-space stores the base staff space
 % given the vertical compression of the Clairnote staff, which
 % may differ from the actual staff-space, with \magnifyStaff, etc.
@@ -889,17 +922,37 @@ vertScaleStaff =
 
 %% STAFF CONTEXT DEFINITION
 
-% customize \Staff to make it a Clairnote staff
 \layout {
+  % copy \Staff context with its standard settings to
+  % a custom staff context called \TradStaff
   \context {
     \Staff
-    staffLineLayoutFunction = #ly:pitch-semitones
-    middleCPosition = -12
-    middleCClefPosition = -12
-    clefPosition = -5
+    \name TradStaff
+    \alias Staff
+    % custom grob property
+    \override StaffSymbol.cn-is-clairnote-staff = ##f
+  }
+  % allow parent contexts to accept \TradStaff
+  \context { \Score \accepts TradStaff }
+  \context { \ChoirStaff \accepts TradStaff }
+  \context { \GrandStaff \accepts TradStaff }
+  \context { \PianoStaff \accepts TradStaff }
+  \context { \StaffGroup \accepts TradStaff }
 
-    % listener engravers:
-    \consists \Cn_ottava_spanner_engraver
+  % customize \Staff to make it a Clairnote staff
+  \context {
+    \Staff
+
+    staffLineLayoutFunction = #ly:pitch-semitones
+
+    % clef settings
+    clefGlyph = "clefs.G"
+    clefPosition = -5
+    middleCClefPosition = -12
+    clefTransposition = 0
+    middleCPosition = -12
+
+    \consists \Cn_clef_ottava_engraver
 
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
@@ -945,4 +998,18 @@ vertScaleStaff =
     #(if (cn-check-ly-version < '(2 19 18))
          #{ \override Dots.before-line-breaking = #cn-note-dots #})
   }
+}
+
+% allow parent contexts to accept \TradStaff in midi output too
+\midi {
+  \context {
+    \Staff
+    \name TradStaff
+    \alias Staff
+  }
+  \context { \Score \accepts TradStaff }
+  \context { \ChoirStaff \accepts TradStaff }
+  \context { \GrandStaff \accepts TradStaff }
+  \context { \PianoStaff \accepts TradStaff }
+  \context { \StaffGroup \accepts TradStaff }
 }
