@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150410
+%    Version: 20150411
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -72,49 +72,29 @@
 
 %% NOTE HEADS AND STEM ATTACHMENT
 
-#(define cn-whole-note-white empty-stencil)
-#(define cn-whole-note-black empty-stencil)
+% when we drop 2.18 support, use make-path-stencil see v.20150410
 
-% make-path-stencil is much nicer syntax, but we're still supporting LilyPond 2.18, see:
-% http://lsr.di.unimi.it/LSR/Item?id=623
-% scm/stencil.scm
-#(let
-  ((whole-note-outline
-    `(moveto 0 0
-       curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432
-       curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784
-       curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432
-       curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0
-       curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448
-       curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768
-       curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448
-       curveto 0.12694192 -0.2800192 0 -0.16054432 0 0
-       closepath)))
+#(define cn-whole-note-black
+   '((moveto 0 0)
+     (curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432)
+     (curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784)
+     (curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432)
+     (curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0)
+     (curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448)
+     (curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768)
+     (curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448)
+     (curveto 0.12694192 -0.2800192 0 -0.16054432 0 0)
+     (closepath)))
 
-  (set! cn-whole-note-black
-        (ly:make-stencil
-         `(path 0.0001
-            `(,@',whole-note-outline)
-            ;; cap style, join style, filled, and X and Y extents
-            'round 'round #t)
-         (cons -0.00005 1.87057768)
-         (cons -0.507818 0.50781784)))
-
-  (set! cn-whole-note-white
-        (ly:make-stencil
-         `(path 0.0001
-            (append
-              `(,@',whole-note-outline)
-              `(moveto 1.06033904 -0.36566768
-                 curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328
-                 curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752
-                 curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312
-                 curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768
-                 closepath))
-            ;; cap style, join style, filled, and X and Y extents
-            'round 'round #t)
-         (cons 0.0 1.87057768)
-         (cons -0.507818 0.50781784))))
+#(define cn-whole-note-white
+   (append
+    cn-whole-note-black
+    '((moveto 1.06033904 -0.36566768)
+      (curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328)
+      (curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752)
+      (curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312)
+      (curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768)
+      (closepath))))
 
 #(define Cn_note_heads_engraver
    ;; Customizes stencil, stem-attachment, rotation.
@@ -139,8 +119,16 @@
              (let ((mag (cn-magnification grob)))
                (ly:grob-set-property! grob 'stencil
                  (if black-note
-                     (ly:stencil-scale cn-whole-note-black mag mag)
-                     (ly:stencil-scale cn-whole-note-white mag mag))))
+                     (ly:stencil-scale
+                      (grob-interpret-markup grob
+                        (markup (#:override '(filled . #t)
+                                  (#:path 0.0001 cn-whole-note-black))))
+                      mag mag)
+                     (ly:stencil-scale
+                      (grob-interpret-markup grob
+                        (markup (#:override '(filled . #t)
+                                  (#:path 0.0001 cn-whole-note-white))))
+                      mag mag))))
 
              ;; not whole note
              (let ((font (ly:grob-default-font grob)))
@@ -277,10 +265,10 @@
               (pitch (cn-notehead-pitch note-head))
               (semi (ly:pitch-semitones pitch))
               (key-alts
-               (if (cn-check-ly-version >= '(2 19 7))
-                   ;; TODO: redo this when we drop support for LilyPond 2.18
-                   (ly:context-property context 'keyAlterations '())
-                   (ly:context-property context 'keySignature '())))
+               ;; redo this when we drop support for LilyPond 2.18
+               (ly:context-property context
+                 (if (cn-check-ly-version >= '(2 19 7)) 'keyAlterations 'keySignature)
+                 '()))
               (in-the-key (cn-pitch-in-key pitch key-alts))
               (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
               (semi-in-alt-list (equal? alt (assoc-ref alt-list semi))))
