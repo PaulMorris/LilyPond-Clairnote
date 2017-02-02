@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160211
+%    Version: 20160213
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -122,93 +122,46 @@
      mag mag)))
 
 #(define (cn-default-note-stencil grob context black-note dur-log)
-   "Default Clairnote note heads.  The glyph shapes are modified
-    versions of the half-note and quarter-note glyphs from the
+   "Default Clairnote note heads.  Shapes for half-note and
+    quarter-note glyphs are modified versions (rotated -4 degrees then
+    scaled vertically by 0.9299) of these glyphs from the
     Bravura font, licensed under the SIL Open Font License (OFL), see:
     http://scripts.sil.org/OFL
     http://www.smufl.org/fonts/
     http://blog.steinberg.net/2013/05/introducing-bravura-music-font/"
    (let*
     ((black-path
-      '((moveto 0.9936261073312174 0.49126210862660535)
-        (curveto 1.1751634048884447 0.46230277806175357
-          1.2952278774943786 0.37714815450926253
-          1.3328553770381721 0.2506702130889238)
-        (curveto 1.3617806307441864 0.15343687593726074
-          1.3339860728120392 0.00898219159077307
-          1.2658565129103114 -0.09769847471781395)
-        (curveto 1.1458845517767848 -0.28551746179669757
-          0.9250596876986774 -0.4238797077365959
-          0.6603062443424859 -0.47711970014017524)
-        (curveto 0.5657595195422307 -0.49613494733828944
-          0.40284578872773597 -0.5008415134928629
-          0.32191366895008766 -0.48690179843849524)
-        (curveto -0.010499581609052296 -0.4296400767529295
-          -0.10276744047234108 -0.13500273605730406
-          0.1269930244931669 0.1355474249646479)
-        (curveto 0.26909886935276317 0.30288160030805233
-          0.5112579274313467 0.4382092989687527
-          0.7466996247079114 0.4818633749902065)
-        (curveto 0.811889375597585 0.4939492609282412
-          0.9450195518231759 0.4990157939015202
-          0.9936240515207195 0.49126750812888575)
+      '((moveto 1.0161518991984164 0.5004939160736768)
+        (curveto 1.1900858991984165 0.45804726744838686 1.3000056991984164 0.36006297281891986 1.3267185991984165 0.22365338254444356)
+        (curveto 1.3472530991984164 0.11878494731492373 1.3090816991984164 -0.03242382812749062 1.2346937991984164 -0.14100554722801906)
+        (curveto 1.1037044991984164 -0.3321698541497182 0.8786728091984164 -0.46440803197455877 0.6176073691984164 -0.5036333230878486)
+        (curveto 0.5243774691984164 -0.517643902935715 0.36590771919841636 -0.5120649140876494 0.28844503919841635 -0.49205136745873423)
+        (curveto -0.029717590801583628 -0.40984214143367353 -0.09642331080158363 -0.0917693764989545 0.14752670919841637 0.17990713903061328)
+        (curveto 0.2984087391984164 0.347937968940766 0.5439097091984164 0.4755783490866303 0.7757855691984165 0.5065506656056886)
+        (curveto 0.8399878691984165 0.5151219432426919 0.9695811491984164 0.5118635199715458 1.0161502991984164 0.5005020382431211)
         (closepath)))
 
      (white-path
-      '((moveto 1.003091581378305 0.49154293301741103)
-        (curveto 1.1995334285067694 0.4675151597452296
-          1.3328732314961858 0.37102520176708054
-          1.3622949488949376 0.23160112262629085)
-        (curveto 1.385936757935614 0.11955250651695282
-          1.3397118817373868 -0.0345582115677322
-          1.2438412623632202 -0.16332907797458618)
-        (curveto 1.1210179527779411 -0.32829549002864683
-          0.9355407655206464 -0.434206674912656
-          0.6885691771390697 -0.4804011939241775)
-        (curveto 0.6268537764954947 -0.49194712392725204
-          0.5897258572542233 -0.49453888401085555
-          0.4809848426192605 -0.49490784982665603)
-        (curveto 0.3630821130286651 -0.495302913214914
-          0.3423163814530238 -0.4937379579651412
-          0.2916190814480975 -0.4809141463872915)
-        (curveto 0.1416888959405714 -0.4429106682867587
-          0.038950844992458676 -0.3594838997025792
-          0.009114881983124715 -0.2515119058000945)
-        (curveto -0.0193478002923682 -0.14851465087321353
-          0.020565740796739417 0.005079515081949704
-          0.10989066278086129 0.13625495864922577)
-        (curveto 0.23542969669159533 0.3206226727248205
-          0.44060977230148934 0.4399399152281438
-          0.6993076979672415 0.4790151940016043)
-        (curveto 0.7938749341299481 0.4932968704746201
-          0.9395999613424565 0.49930831337567516
-          1.0030926092830459 0.491542033100809)
+      '((moveto 1.026468864255086 0.4998680875655276)
+        (curveto 1.215249864255086 0.4618436649454002 1.337174464255086 0.35147108531050375 1.354920364255086 0.20252749405141746)
+        (curveto 1.369178964255086 0.08282868839604651 1.312372764255086 -0.07672001395465605 1.209350364255086 -0.20633856802981299)
+        (curveto 1.077365164255086 -0.37239062345611024 0.889153024255086 -0.47211463127579484 0.6458905642550861 -0.5048878796193299)
+        (curveto 0.585101844255086 -0.5130801213612108 0.548868934255086 -0.5134163330622651 0.443309034255086 -0.5067845101638356)
+        (curveto 0.32885581425508603 -0.49958868733223255 0.30882433425508604 -0.4965974421400958 0.260617494255086 -0.47979947287536673)
+        (curveto 0.118058624255086 -0.4300386473948317 0.024819864255086005 -0.335419029253747 0.0042339542550860025 -0.21961971038330325)
+        (curveto -0.015404825744913999 -0.1091556900709823 0.035236334255086 0.05025573233647185 0.132092634255086 0.18283290751856218)
+        (curveto 0.268217284255086 0.3691712451565947 0.47658985425508604 0.48176186299022195 0.730680684255086 0.5062696961187646)
+        (curveto 0.823563584255086 0.5152225290660725 0.965453244255086 0.5121589666760266 1.026469764255086 0.4998666604401908)
         (closepath)
-        (moveto 0.8782597459293094 0.320214110587533)
-        (curveto 0.7874340830234751 0.29445849743959907
-          0.6607951910399791 0.23454205008147755
-          0.5061243088674269 0.14416522558040445)
-        (curveto 0.19355902497581592 -0.0384809480356515
-          0.10810416434117874 -0.1298944764621759
-          0.15869969149770866 -0.2274823326947092)
-        (curveto 0.1800287148713626 -0.2686175205700433
-          0.20571605434642826 -0.2944091303820553
-          0.24294676406178953 -0.3120474957803609)
-        (curveto 0.33203526795550464 -0.3542715827440597
-          0.44635164818415096 -0.33649822985546096
-          0.6584906286108836 -0.24743348376003751)
-        (curveto 1.0001723319141518 -0.10399307682472542
-          1.2325826217361535 0.06377027602820928
-          1.2325826217361535 0.16696911227392808)
-        (curveto 1.2325826217361535 0.2279024653922581
-          1.1819994294365144 0.2952810212137853
-          1.1149173381407056 0.3237138862525336)
-        (curveto 1.074119798974425 0.3410102833420965
-          1.0674692553008085 0.3419371974421095
-          1.0035243292742235 0.33928244346634406)
-        (curveto 0.9571658254596793 0.3373926186022399
-          0.9172934005602076 0.33127318570895015
-          0.8782576901198277 0.3202222098369506)
+        (moveto 0.8920403042550861 0.32723653716982337)
+        (curveto 0.801899114255086 0.305937547790631 0.674353834255086 0.25092305532124815 0.517242874255086 0.16559336664623436)
+        (curveto 0.199745884255086 -0.006853856240945699 0.109727534255086 -0.09774589911519554 0.151265174255086 -0.2039339094078499)
+        (curveto 0.168776074255086 -0.24869436361851288 0.191705974255086 -0.27755407274963595 0.226470474255086 -0.2985602160096806)
+        (curveto 0.309656374255086 -0.34884402584120455 0.42197617425508605 -0.33748020734960626 0.634757234255086 -0.25724484236248213)
+        (curveto 0.9774722042550861 -0.1280260070658748 1.216026564255086 0.03390026706789495 1.2240259642550861 0.14273918170232358)
+        (curveto 1.2287459642550862 0.20700273076812625 1.184881964255086 0.28132959706261473 1.121983764255086 0.3156476039275703)
+        (curveto 1.083730764255086 0.33652340307350437 1.077348764255086 0.3379303583723863 1.015085564255086 0.3392592023444909)
+        (curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555)
         (closepath)))
 
      (path-to-use (if black-note black-path white-path))
@@ -697,8 +650,10 @@
         ;; TODO: confirm that rhythmic-event is best event to listen to.
         ((rhythmic-event engraver event)
          (let*
-          ((clef-prop-list '(clefGlyph clefPosition middleCClefPosition clefTransposition))
-           (cue-prop-list '(cueClefGlyph cueClefPosition middleCCuePosition cueClefTransposition))
+          ((clef-prop-list
+            '(clefGlyph clefPosition middleCClefPosition clefTransposition))
+           (cue-prop-list
+            '(cueClefGlyph cueClefPosition middleCCuePosition cueClefTransposition))
 
            (get-context-prop (lambda (prop) (ly:context-property context prop)))
            (now-clef (map get-context-prop clef-prop-list))
@@ -725,7 +680,8 @@
           (if changed-staff (set! prev-staff-octaves now-staff-octaves))
 
           (if changed-clef (set! prev-clef-name
-                                 (trad-to-cn-clef (list-ref now-clef 0) (list-ref now-clef 1))))
+                                 (trad-to-cn-clef
+                                  (list-ref now-clef 0) (list-ref now-clef 1))))
 
           (if changed-clef-shift (set! prev-clef-shift now-clef-shift))
 
@@ -734,7 +690,9 @@
                (set! prev-clef (cn-get-clef-props
                                 prev-clef-name
                                 (list-ref now-clef 3)
-                                (cn-get-staff-clef-adjust prev-staff-octaves prev-clef-shift)))
+                                (cn-get-staff-clef-adjust
+                                 prev-staff-octaves prev-clef-shift)))
+
                (set-context-props! context clef-prop-list prev-clef)))
 
           ;; cue clefs
@@ -753,7 +711,9 @@
                    (set! prev-cue (cn-get-clef-props
                                    prev-cue-name
                                    (list-ref now-cue 3)
-                                   (cn-get-staff-clef-adjust prev-staff-octaves prev-clef-shift)))
+                                   (cn-get-staff-clef-adjust
+                                    prev-staff-octaves prev-clef-shift)))
+
                    (set-context-props! context cue-prop-list prev-cue))))
 
           ;; new ottava? (8va 8vb etc.)
@@ -1007,11 +967,16 @@ cnClefPositionShift =
    #})
 
 
-%% USER: FIVE LINE STAFF
+%% USER: ALTERNATE STAVES (EXPERIMENTAL)
 
 cnFiveLineStaff = {
   \cnStaffOctaveSpan 2
   \override Staff.StaffSymbol.line-positions = #'(-8 -4 0 4 8)
+}
+
+cnFourLineStaff = {
+  \cnStaffOctaveSpan 2
+  \override Staff.StaffSymbol.line-positions = #'(-8 -4 0 4)
 }
 
 
@@ -1044,7 +1009,7 @@ cnNoteheadStyle =
     ((equal? style "funksol")
      #{
        \set Staff.cnNoteheadStencilProcedure = #cn-funksol-note-stencil
-       % 1.4 results in about the same funksol width as standard LilyPond noteheads.
+       % 1.4 results in approx. width of standard LilyPond noteheads.
        \set Staff.cnNoteheadWidthScale = #1.35
        \set Staff.cnNoteheadHeightScale = #1
        \set Staff.cnNoteheadRotation = ##f
@@ -1060,15 +1025,6 @@ cnNoteheadStyle =
        % but -18 also works for white notes, currently -9
        \set Staff.cnNoteheadRotation = #-9
        \set Staff.cnStemAttachment = #'((1.04 . 0.3) . (1.06 . 0.3))
-     #})
-
-    ((equal? style "bravura")
-     #{
-       \set Staff.cnNoteheadStencilProcedure = #cn-default-note-stencil
-       \set Staff.cnNoteheadWidthScale = #(/ 1 1.028)
-       \set Staff.cnNoteheadHeightScale = #(/ 1 0.9)
-       \set Staff.cnNoteheadRotation = #0
-       \set Staff.cnStemAttachment = ##f
      #})
 
     (else
