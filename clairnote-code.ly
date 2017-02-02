@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20161208
+%    Version: 20161208-2
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -23,7 +23,7 @@
 \version "2.18.2"
 
 
-%%%% UTILITY FUNCTIONS
+%--- UTILITY FUNCTIONS ----------------
 
 #(define (non-zero? n) (or (positive? n) (negative? n)))
 
@@ -58,7 +58,7 @@
         (if (> staff-octaves 2) 12 0))))
 
 #(define (cn-note-heads-from-grob grob default)
-   "Takes a grob like a stem and returns a list of NoteHead grobs or default."
+   "Takes a grob like a Stem and returns a list of NoteHead grobs or default."
    (let* ((heads-array (ly:grob-object grob 'note-heads))
           (heads-list (if (ly:grob-array? heads-array)
                           (ly:grob-array->list heads-array)
@@ -73,7 +73,7 @@
        (assq-ref (ly:grob-property grob 'meta) 'name)))
 
 
-%%%% LILYPOND VERSION CHECKING
+%--- LILYPOND VERSION CHECKING ----------------
 
 %% copied and modified from openLilyLib, lilypond-version-predicates.ily
 
@@ -92,7 +92,7 @@
      (cn-calculate-version ref-version-list)))
 
 
-%%%% NOTE HEADS AND STEM ATTACHMENT
+%--- NOTE HEADS AND STEM ATTACHMENT ----------------
 
 %% use make-path-stencil when we drop 2.18 support, see v.20150410
 
@@ -263,7 +263,7 @@
              ))))))))
 
 
-%%%% ACCIDENTAL SIGNS
+%--- ACCIDENTAL SIGNS ----------------
 
 #(define cn-acc-sign-stils
    ;; associative list of accidental sign stencils
@@ -400,7 +400,7 @@
                  )))))))))
 
 
-%%%% KEY SIGNATURES
+%--- KEY SIGNATURES ----------------
 
 #(define (cn-get-keysig-alt-count alt-alist)
    "Return number of sharps/flats in key sig, (+) for sharps, (-) for flats."
@@ -557,7 +557,7 @@
          )))))))
 
 
-%%%% CLEFS AND OTTAVA (8VA 8VB 15MA 15MB)
+%--- CLEFS AND OTTAVA (8VA 8VB 15MA 15MB) ----------------
 
 %% see /scm/parser-clef.scm and /ly/music-functions-init.ly
 
@@ -741,7 +741,7 @@
                )))))))))
 
 
-%%%% REPEAT SIGN DOTS (BAR LINES)
+%--- REPEAT SIGN DOTS (BAR LINES) ----------------
 
 %% adjust the position of dots in repeat signs
 %% for Clairnote staff or traditional staff
@@ -776,7 +776,7 @@
        dot-positions))))
 
 
-%%%% TIME SIGNATURES
+%--- TIME SIGNATURES ----------------
 
 #(define Cn_time_signature_engraver
    ;; "Adjust vertical position of time sig based on vertical staff scaling."
@@ -805,7 +805,7 @@
        (ly:grob-set-property! grob 'Y-offset final-y-offset))))))
 
 
-%%%% STEM LENGTH AND DOUBLE STEMS
+%--- STEM LENGTH AND DOUBLE STEMS ----------------
 
 #(define (multiply-details details multiplier skip-list)
    "multiplies each of the values of a details property
@@ -913,7 +913,118 @@
                 ))))))))
 
 
-%%%% DOTS ON DOTTED NOTES
+%--- CROSS-STAFF STEMS ----------------
+
+% needed for cross-staff stems for double stemmed half notes
+% code modified from music-functions.scm -- used with \crossStaff function
+% procedures have been encapsulated inside cn-make-stem-spans!
+
+#(define (cn-make-stem-spans! ctx stems trans)
+   "Create stem spans for cross-staff stems"
+
+   (define (close-enough? x y)
+     "Values are close enough to ignore the difference"
+     (< (abs (- x y)) 0.0001))
+
+   (define (extent-combine extents)
+     "Combine a list of extents"
+     (if (pair? (cdr extents))
+         (interval-union (car extents) (extent-combine (cdr extents)))
+         (car extents)))
+
+   (define ((stem-connectable? ref root) stem)
+     "Check if the stem is connectable to the root"
+     ;; The root is always connectable to itself
+     (or (eq? root stem)
+         (and
+          ;; Horizontal positions of the stems must be almost the same
+          (close-enough? (car (ly:grob-extent root ref X))
+            (car (ly:grob-extent stem ref X)))
+          ;; The stem must be in the direction away from the root's notehead
+          (positive? (* (ly:grob-property root 'direction)
+                       (- (car (ly:grob-extent stem ref Y))
+                         (car (ly:grob-extent root ref Y))))))))
+
+   (define (stem-span-stencil span)
+     "Connect stems if we have at least one stem connectable to the root"
+     (let* ((system (ly:grob-system span))
+            (root (ly:grob-parent span X))
+            (stems (filter (stem-connectable? system root)
+                           (ly:grob-object span 'stems))))
+       (if (<= 2 (length stems))
+           (let* ((yextents (map (lambda (st)
+                                   (ly:grob-extent st system Y)) stems))
+                  (yextent (extent-combine yextents))
+                  (layout (ly:grob-layout root))
+                  (blot (ly:output-def-lookup layout 'blot-diameter))
+
+                  ;; START CLAIRNOTE EDITS
+
+                  ;; we just get the 1st notehead, does it matter which?
+                  (note-head (list-ref (cn-note-heads-from-grob root '()) 0))
+                  (is-half-note (and note-head
+                                     (= 1 (ly:grob-property note-head 'duration-log)))))
+
+             (display (ly:grob-extent root root X))(newline)
+
+             (if is-half-note
+                 ;; TODO: better cross staff double stems for half notes,
+                 ;; and un-hardcode the following stem X extent, works
+                 ;; fine with 'set-global-staff-size' but ugly with 'magnifyStaff'
+                 (ly:round-filled-box '(-0.065 . 0.065) yextent blot)
+
+                 (begin
+                  ;; Hide spanned stems
+                  (for-each (lambda (st)
+                              (set! (ly:grob-property st 'stencil) #f))
+                    stems)
+                  ;; Draw a nice looking stem with rounded corners
+                  (ly:round-filled-box (ly:grob-extent root root X) yextent blot))))
+
+           ;; END CLAIRNOTE EDITS
+
+           ;; Nothing to connect, don't draw the span
+           #f)))
+
+   (define ((make-stem-span! stems trans) root)
+     "Create a stem span as a child of the cross-staff stem (the root)"
+     (let ((span (ly:engraver-make-grob trans 'Stem '())))
+       (ly:grob-set-parent! span X root)
+       (set! (ly:grob-object span 'stems) stems)
+       ;; Suppress positioning, the stem code is confused by this weird stem
+       (set! (ly:grob-property span 'X-offset) 0)
+       (set! (ly:grob-property span 'stencil) stem-span-stencil)))
+
+   (define (stem-is-root? stem)
+     "Check if automatic connecting of the stem was requested.  Stems connected
+      to cross-staff beams are cross-staff, but they should not be connected to
+      other stems just because of that."
+     (eq? cross-staff-connect (ly:grob-property-data stem 'cross-staff)))
+
+   ;; make-stem-spans! continued..
+
+   ;; Cannot do extensive checks here, just make sure there are at least
+   ;; two stems at this musical moment
+   (if (<= 2 (length stems))
+       (let ((roots (filter stem-is-root? stems)))
+         (for-each (make-stem-span! stems trans) roots))))
+
+% overwrites the default engraver
+#(define (Span_stem_engraver ctx)
+   "Connect cross-staff stems to the stems above in the system"
+   (let ((stems '()))
+     (make-engraver
+      ;; Record all stems for the given moment
+      (acknowledgers
+       ((stem-interface trans grob source)
+        (set! stems (cons grob stems))))
+      ;; Process stems and reset the stem list to empty
+      ((process-acknowledged trans)
+       (cn-make-stem-spans! ctx stems trans)
+       (set! stems '())))))
+
+
+%--- DOTS ON DOTTED NOTES ----------------
 
 #(define (cn-highest-semitone note-heads)
    (reduce (lambda (a b) (if (> a b) a b))
@@ -967,7 +1078,7 @@
         #f)))
 
 
-%%%% BEAMS
+%--- BEAMS ----------------
 
 #(define Cn_beam_engraver
    ;; "Adjust size and spacing of beams, needed due to vertically compressed staff."
@@ -989,7 +1100,7 @@
       ))))
 
 
-%%%% LEDGER LINES
+%--- LEDGER LINES ----------------
 
 %% default, gradual, conservative
 #(define cn-ledgers-gradual '(2 2 2 5))
@@ -1072,7 +1183,7 @@
        ledgers2)))
 
 
-%%%% USER: EXTENDING STAVES & STAVES WITH DIFFERENT OCTAVE SPANS
+%--- USER: EXTENDING STAVES & DIFFERENT OCTAVE SPANS ----------------
 
 #(define (cn-get-new-staff-positions posns base-positions going-up going-down)
 
@@ -1172,7 +1283,7 @@
      #{ \set Staff.cnClefShift = #octaves #}))
 
 
-%%%% USER: ALTERNATE STAVES (EXPERIMENTAL)
+%--- USER: ALTERNATE STAVES (EXPERIMENTAL) ----------------
 
 #(define cnFiveLineStaff
    #{
@@ -1187,7 +1298,7 @@
    #})
 
 
-%%%% USER: SET STAFF COMPRESSION
+%--- USER: SET STAFF COMPRESSION ----------------
 
 %% must be used before \magnifyStaff for both to work
 #(define cnStaffCompression
@@ -1207,7 +1318,7 @@
       #})))
 
 
-%%%% USER: CUSTOMIZE NOTEADS
+%--- USER: CUSTOMIZE NOTEADS ----------------
 
 #(define cnNoteheadStyle
    (define-music-function (parser location style) (string?)
@@ -1250,7 +1361,7 @@
       )))
 
 
-%%%% CUSTOM CONTEXT PROPERTIES
+%--- CUSTOM CONTEXT PROPERTIES ----------------
 
 #(let
   ;; translator-property-description function
@@ -1295,7 +1406,7 @@
   (add-prop 'cnClefShift integer?))
 
 
-%%%% CUSTOM GROB PROPERTIES
+%--- CUSTOM GROB PROPERTIES ----------------
 
 #(let
   ;; define-grob-property function
@@ -1313,9 +1424,9 @@
   (add-grob-prop 'cn-ledger-recipe number-list?))
 
 
-%%%% LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC.
+%--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
 
-%%%% DOTS ON DOTTED NOTES
+%--- LEGACY DOTS ON DOTTED NOTES ----------------
 
 #(if (cn-check-ly-version < '(2 19 18))
      ;; TODO: remove when we stop supporting LilyPond 2.18
@@ -1340,7 +1451,7 @@
              )))))))
 
 
-%%%% CHORDS
+%--- LEGACY CHORDS ----------------
 
 %% cn-shift-notehead, copied and modified from the LilyPond Snippet
 %% Repository, snippet 861, "Re-positioning note heads on the
@@ -1452,10 +1563,10 @@
             (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob)))))
    ))
 
-%%%% END LEGACY SUPPORT SECTION
+%--- END LEGACY SUPPORT SECTION ----------------
 
 
-%%%% STAFF CONTEXT DEFINITION
+%--- STAFF CONTEXT DEFINITION ----------------
 
 \layout {
   % copy Staff context with its standard settings to
