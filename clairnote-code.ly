@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140529 (2014 May 29)
+%    Version: 20140601 (2014 June 1)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -269,9 +269,14 @@
          (ly:context-set-property! context 'clnt-acc-list
            (assoc-remove! acc-list semi)))
 
-        ;; 3. is an accidental but not a new accidental in this measure
-        ;; 4. is not an accidental and is not canceling a previous accidental
-        ;; 5. \omit is in effect (stencil is #f)
+        ;; 3. acc sign would not normally be shown but it has been forced with "!"
+        ;; just print acc sign, there is no change to acc-list
+        ((ly:grob-property grob 'forced)
+         (clnt-redo-acc-signs grob acc mult))
+
+        ;; 4. is an accidental but not a new accidental in this measure
+        ;; 5. is not an accidental and is not canceling a previous accidental
+        ;; 6. \omit is in effect (stencil is #f)
         ;; print no acc sign
         ;; TODO: make sure this does not affect ledger line widths
         (else
