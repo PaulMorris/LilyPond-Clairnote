@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140703 (2014 July 03)
+%    Version: 20140714 (2014 July 14)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -57,7 +57,7 @@
      (ly:stencil-add wn
        (ly:stencil-translate
         (make-oval-stencil 0.7 0.58 0.11 #f)
-        '(0.98 . 0))) )))
+        '(0.98 . 0))))))
 
 #(define (cn-note-heads grob)
    "Override note head stencils and other properties."
@@ -75,10 +75,11 @@
         ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
          (whole-note (< (ly:grob-property grob 'duration-log) 1))
          ;; 0 = black note, 1 = white note
-         (note-type (modulo
-                     (ly:pitch-semitones
-                      (ly:event-property (ly:grob-property grob 'cause) 'pitch))
-                     2)))
+         (note-type
+          (modulo
+           (ly:pitch-semitones
+            (ly:event-property (ly:grob-property grob 'cause) 'pitch))
+           2)))
         (if whole-note
             ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
             (set! note-type (+ 2 note-type))
@@ -100,55 +101,6 @@
              'cn-note-head-stencils)
             note-type)
            mult mult)))))
-
-
-%% STEM LENGTH AND DOUBLE STEMS
-
-#(define ((cn-stems mult) grob)
-   "Lengthen all stems and give half notes double stems."
-   ;; make sure \omit is not in effect (i.e. stencil is not #f)
-   (if (ly:grob-property-data grob 'stencil)
-       (begin
-        ;; multiply each of the values in the details property of the stem grob
-        ;; by mult, except for stem-shorten values which remain unchanged
-        (ly:grob-set-property! grob 'details
-          (map
-           (lambda (detail)
-             (let ((head (car detail))
-                   (args (cdr detail)))
-               (if (eq? head 'stem-shorten)
-                   (cons head args)
-                   (cons head
-                     (map
-                      (lambda (arg) (* arg mult))
-                      args)))))
-           (ly:grob-property grob 'details)))
-        ;; double stems for half notes
-        ;; use -0.42 or 0.15 to change which side the 2nd stem appears
-        (if (= 1 (ly:grob-property grob 'duration-log))
-            (ly:grob-set-property! grob 'stencil
-              (ly:stencil-combine-at-edge
-               (ly:stem::print grob)
-               X
-               (- (ly:grob-property grob 'direction))
-               (ly:stem::print grob)
-               -0.42 ))))))
-
-
-%% BEAMS
-
-#(define ((cn-beams staff-spc-inv) grob)
-   "Adjust size and spacing of beams. Needed
-    because of smaller StaffSymbol.staff-space"
-   (let*
-    ((thick (ly:grob-property-data grob 'beam-thickness))
-     (len-frac (ly:grob-property-data grob 'length-fraction))
-     (space (if (number? len-frac) len-frac 1)))
-    (ly:grob-set-property! grob 'beam-thickness
-      (* thick staff-spc-inv))
-    ;; 1.1 adjustment below was visually estimated
-    (ly:grob-set-property! grob 'length-fraction
-      (* space staff-spc-inv 1.1))))
 
 
 %% ACCIDENTAL SIGNS
@@ -892,6 +844,64 @@ clefsTrad =
 #(add-bar-glyph-print-procedure ":" cn-repeat-dot-bar-procedure)
 
 
+%% STEM LENGTH AND DOUBLE STEMS
+
+#(define ((cn-stems mult) grob)
+   "Lengthen all stems and give half notes double stems."
+   ;; make sure \omit is not in effect (i.e. stencil is not #f)
+   (if (ly:grob-property-data grob 'stencil)
+       (begin
+        ;; multiply each of the values in the details property of the stem grob
+        ;; by mult, except for stem-shorten values which remain unchanged
+        (ly:grob-set-property! grob 'details
+          (map
+           (lambda (detail)
+             (let ((head (car detail))
+                   (args (cdr detail)))
+               (if (eq? head 'stem-shorten)
+                   (cons head args)
+                   (cons head
+                     (map
+                      (lambda (arg) (* arg mult))
+                      args)))))
+           (ly:grob-property grob 'details)))
+        ;; double stems for half notes
+        ;; use -0.42 or 0.15 to change which side the 2nd stem appears
+        (if (= 1 (ly:grob-property grob 'duration-log))
+            (ly:grob-set-property! grob 'stencil
+              (ly:stencil-combine-at-edge
+               (ly:stem::print grob)
+               X
+               (- (ly:grob-property grob 'direction))
+               (ly:stem::print grob)
+               -0.42 ))))))
+
+
+%% BEAMS
+
+#(define ((cn-beams staff-spc-inv) grob)
+   "Adjust size and spacing of beams. Needed
+    because of smaller StaffSymbol.staff-space"
+   (let*
+    ((thick (ly:grob-property-data grob 'beam-thickness))
+     (len-frac (ly:grob-property-data grob 'length-fraction))
+     (space (if (number? len-frac) len-frac 1)))
+    (ly:grob-set-property! grob 'beam-thickness
+      (* thick staff-spc-inv))
+    ;; 1.1 adjustment below was visually estimated
+    (ly:grob-set-property! grob 'length-fraction
+      (* space staff-spc-inv 1.1))))
+
+
+%% TIME SIGNATURES
+
+#(define ((cn-timesigs vscale-staff) grob)
+   "Adjust vertical position of time signature based on staff."
+   (ly:grob-set-property! grob 'Y-offset
+     ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
+     (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
+
+
 %% USER STAFF SCALING FUNCTION
 
 staffSize =
@@ -912,52 +922,51 @@ staffSize =
 %% CUSTOM GROB PROPERTIES
 
 % function from "scm/define-grob-properties.scm" (modified)
-#(define (define-grob-property symbol type?)
+#(define (cn-define-grob-property symbol type?)
    (set-object-property! symbol 'backend-type? type?)
    (set-object-property! symbol 'backend-doc "custom grob property")
    symbol)
 
 % StaffSymbol.cn-is-clairnote-staff is set to tell whether
 % a staff is a Clairnote staff or not. Used for repeat sign dots.
-#(define-grob-property 'cn-is-clairnote-staff boolean?)
+#(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
 
 % StaffSymbol.cn-vscale-staff stores the vertical scaling factor of the
 % current staff.  Used for key signatures and staffSize user function.
-#(define-grob-property 'cn-vscale-staff number?)
+#(cn-define-grob-property 'cn-vscale-staff number?)
 
 % StaffSymbol.cn-note-head-stencils stores custom note head
 % stencils, used to override default note head stencils
-#(define-grob-property 'cn-note-head-stencils procedure?)
+#(cn-define-grob-property 'cn-note-head-stencils procedure?)
 
 
 %% CUSTOM CONTEXT PROPERTIES
 
 % function from "scm/define-context-properties.scm" (modified)
-#(define (translator-property-description symbol type?)
+#(define (cn-translator-property-description symbol type?)
    (set-object-property! symbol 'translation-type? type?)
    (set-object-property! symbol 'translation-doc "custom context property")
    (set! all-translation-properties (cons symbol all-translation-properties))
    symbol)
 
 % Store key signature stencils for each staff context.
-#(translator-property-description 'cn-key-stils list?)
+#(cn-translator-property-description 'cn-key-stils list?)
 
 % Used by accidental engraver to tell when a new measure occurs
 % and to track accidentals in the current measure.
-#(translator-property-description 'cn-bar-num number?)
-#(translator-property-description 'cn-acc-list list?)
+#(cn-translator-property-description 'cn-bar-num number?)
+#(cn-translator-property-description 'cn-acc-list list?)
 
 
-%% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
+%% VERTICAL STAFF COMPRESSION
 
 vertScaleStaff =
 #(define-music-function (parser location vscale-staff) (number?)
-   "Change the vertical distance between the staff lines (staff-space)
-    and everything else to match."
+   "Change the staff-space, the vertical distance between the staff
+    lines, and everything else to match."
    ;; vscale-staff = 1 gives a staff with an octave that is the same size
    ;; as on a traditional staff (default is 1.2).
-   ;;  - stems are extended back to their original/traditional size
-   ;;  - beam size and spacing is restored to original size
+   ;;  - stems and beams are restored to their original/traditional size
    ;;  - time signature position is adjusted vertically
    ;;  - elsewhere key signatures are adjusted to fit the staff
    (let* ((staff-spc (* vscale-staff 7/12))
@@ -966,12 +975,7 @@ vertScaleStaff =
        \override StaffSymbol.staff-space = #staff-spc
        \override Stem.before-line-breaking = #(cn-stems staff-spc-inv)
        \override Beam.before-line-breaking = #(cn-beams staff-spc-inv)
-       \override TimeSignature.before-line-breaking =
-       #(lambda (grob)
-          (ly:grob-set-property! grob 'Y-offset
-            ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
-            (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
-
+       \override TimeSignature.before-line-breaking = #(cn-timesigs vscale-staff)
        % StaffSymbol.cn-vscale-staff is a custom grob property that
        % stores the vertical staff scaling value so it can be used with
        % key signatures and staffSize function
@@ -1005,7 +1009,7 @@ vertScaleStaff =
     middleCPosition = -12
     clefPosition = -5
 
-    \override StaffSymbol.line-positions = #'(-8 -4  4 8)
+    \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
     % custom grob properties
