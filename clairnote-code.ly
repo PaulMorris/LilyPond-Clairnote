@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160213
+%    Version: 20160214
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -1319,8 +1319,10 @@ cnNoteheadStyle =
          #{
            \override StaffSymbol.ledger-extra = 2
          #}
-         ;; an empty else clause is needed for 2.18 compatibility
-         #{ #})
+         #{
+           % There's a LilyPond bug with "ledger-extra = 2" before 2.19.36
+           \override StaffSymbol.ledger-extra = 1
+         #})
 
     % NoteColumn override doesn't work as an engraver for some reason,
     % crashes with manual beams on chords.
