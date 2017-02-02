@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160518
+%    Version: 20160601
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -202,7 +202,7 @@
             (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1solFunk"))))
 
   (define Cn_note_heads_engraver
-    ;; Customizes stencil, stencil-width, stem-attachment, rotation.
+    ;; Customizes stencil, stencil-width/height, stem-attachment, rotation.
     (make-engraver
      (acknowledgers
       ((note-head-interface engraver grob source-engraver)
@@ -212,8 +212,8 @@
         (and
          (ly:grob-property-data grob 'stencil)
          (not (memq (ly:grob-property-data grob 'style)
-                (list 'harmonic 'harmonic-black 'harmonic-mixed
-                  'diamond 'cross 'xcircle 'triangle 'slash))))
+                '(harmonic harmonic-black harmonic-mixed
+                   diamond cross xcircle triangle slash))))
         ;; TODO: better handling of various notehead styles
         ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
         ;; output-lib.scm
@@ -224,28 +224,35 @@
           (stil-proc (ly:context-property context 'cnNoteheadStencilProcedure))
           (width-scale (ly:context-property context 'cnNoteheadWidthScale 1))
           (height-scale (ly:context-property context 'cnNoteheadHeightScale 1))
-          (rot (ly:context-property context 'cnNoteheadRotation #f))
+          (rotn (ly:context-property context 'cnNoteheadRotation #f))
           (stem-attach (ly:context-property context 'cnStemAttachment #f)))
 
          (ly:grob-set-property! grob 'stencil
            (stil-proc grob context black-note dur-log))
 
+         ;; if not a whole note (or longer)
+         ;; dur-logs: 0 = whole, 1 = half, 2 = quarter and shorter
          (if (>= dur-log 1)
-             (if (not (and (= 1 width-scale) (= 1 height-scale)))
-                 (ly:grob-set-property! grob 'stencil
-                   (ly:stencil-scale
-                    (ly:grob-property grob 'stencil)
-                    width-scale height-scale))))
+             (begin
 
-         (if (and rot (>= dur-log 1))
-             (ly:grob-set-property! grob 'rotation (list rot 0 0)))
+              ;; width and height
+              (if (not (and (= 1 width-scale) (= 1 height-scale)))
+                  (ly:grob-set-property! grob 'stencil
+                    (ly:stencil-scale
+                     (ly:grob-property grob 'stencil)
+                     width-scale height-scale)))
 
-         (if (and stem-attach (>= dur-log 1))
-             (ly:grob-set-property! grob 'stem-attachment
-               (if black-note
-                   (car stem-attach)
-                   (cdr stem-attach))))
-         ))))))
+              ;; rotation
+              (if rotn
+                  (ly:grob-set-property! grob 'rotation (list rotn 0 0)))
+
+              ;; stem attachment
+              (if stem-attach
+                  (ly:grob-set-property! grob 'stem-attachment
+                    (if black-note
+                        (car stem-attach)
+                        (cdr stem-attach))))
+              ))))))))
 
 
 ;;;; ACCIDENTAL SIGNS
@@ -897,9 +904,9 @@
 
       ;; list of positions from 0 to base, cycling at 8 and 12 (E and G#/Ab)
       (lrs (reverse (merge
-            (iota (quotient base 12) 12 12)
-            (iota (quotient (+ 4 base) 12) 8 12)
-            <)))
+                     (iota (quotient base 12) 12 12)
+                     (iota (quotient (+ 4 base) 12) 8 12)
+                     <)))
 
       (get-ledger (lambda (pos extra rem base)
                     (if (<= (- pos extra) rem)
