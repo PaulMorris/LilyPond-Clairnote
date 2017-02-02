@@ -1,8 +1,8 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20141125 (2014 Nov 25)
+%    Version: 20150216
 %
-%    Copyright © 2013, 2014 Paul Morris, except for five functions:
+%    Copyright © 2013, 2014, 2015 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
 %    define-grob-property and translator-property-description
 %    B. three functions in the public domain: cn-shift-noteheads,
@@ -42,10 +42,6 @@
 #(define (cn-notehead-semitone grob)
    "Takes a note head grob and returns its semitone."
    (ly:pitch-semitones (cn-notehead-pitch grob)))
-
-#(define (cn-grob-name grob)
-   "Takes a grob and returns its name."
-   (assq-ref (ly:grob-property grob 'meta) 'name))
 
 #(define (cn-staff-symbol-prop grob prop)
    "Gets custom StaffSymbol props. Takes a grob and
@@ -116,7 +112,7 @@
    "Adjust vertical position of dots for certain notes."
    (let* ((parent (ly:grob-parent grob Y))
           ;; parent is a Rest grob or a NoteHead grob
-          (semi (if (equal? 'Rest (cn-grob-name parent))
+          (semi (if (grob::has-interface parent 'rest-interface)
                     #f
                     (modulo (cn-notehead-semitone parent) 12))))
      (cond
@@ -375,7 +371,7 @@
      ((key-signature-interface engraver grob source-engraver)
       (cond
        ;; key cancellation?
-       ((equal? 'KeyCancellation (cn-grob-name grob))
+       ((grob::has-interface grob 'key-cancellation-interface)
         (ly:grob-set-property! grob 'stencil #f))
        ;; omitted?
        ((equal? #f (ly:grob-property-data grob 'stencil)) #f)
