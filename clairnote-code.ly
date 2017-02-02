@@ -1,6 +1,6 @@
 \version "2.18.0"
 
-% clairnote.ily version: 20140118 (2014 Jan 18)
+% clairnote.ily version: 20140125 (2014 Jan 25)
 
 % Absolute value helper function
 % when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
@@ -60,6 +60,7 @@
               (* xmod mult)
               (* ymod mult)))
 
+       ;; for testing
        ;; (set! (ly:grob-property grob 'color) (case note-type ((0) blue) ((1) blue)))
 
        ;; STEM ATTACHMENT
@@ -75,34 +76,19 @@
 % lengthen all stems and give half notes double stems
 %
 #(define ((stem-lengthen mult) grob)
-   ;; inner recursive function
-   (define (mod-args args mult)
-     (if (pair? args)
-         (cons
-          (* (car args) mult)
-          (mod-args (cdr args) mult))
-         '()))
-   ;; outer recursive function
-   (define (mod-list exps mult)
-     (if (pair? exps)
-         (let* ((expn (car exps))
-                (head (car expn))
-                (args (cdr expn))
-                (new-args
-                 (if (eq? head 'stem-shorten)
-                     args
-                     (mod-args args mult))))
-           (cons (cons head new-args)
-             (mod-list (cdr exps) mult)))
-         '()))
-   ;; stem length
-   ;; use the recursive functions above to modify all the
-   ;; relevant values in 'details to extend stem lengths to proper length
-   (set!
-    (ly:grob-property grob 'details)
-    (mod-list
-     (ly:grob-property grob 'details)
-     mult))
+   ;; multiply each of the values in the details propert of the stem grob by mult,
+   ;; except for stem-shorten values which remain unchanged
+   (set! (ly:grob-property grob 'details)
+         (map (lambda (detail)
+                (let ((head (car detail))
+                      (args (cdr detail)))
+                  (if (eq? head 'stem-shorten)
+                      (cons head args)
+                      (cons head
+                        (map
+                         (lambda (arg) (* arg mult))
+                         args)))))
+           (ly:grob-property grob 'details)))
    ;; double stems for half notes
    ;; use -0.42 or 0.15 to change which side the 2nd stem appears
    (if (= 1 (ly:grob-property grob 'duration-log))
@@ -287,7 +273,8 @@ key-stil-bank = #'()
 %    acc-list: list of accidentals,
 %    nats-list: list of naturals
 %    key-acc-type: the accidental sign type, 1/2=sharp, -1/2=flat
-%    acc-count: the number of accidentals in the key signature, positive is sharps, negative is flats
+%    acc-count: the number of accidentals in the key signature,
+%      positive is sharps, negative is flats
 %    tonic-num: number of the tonic note 0-6, C=0, B=6
 %
 #(define Clairnote_key_signature_engraver
@@ -344,46 +331,15 @@ key-stil-bank = #'()
 %    tonic-lr: whether the tonic indicator is left or right of the sig, -1.2=left 1.2=right
 %
 #(define (draw-key-stencil grob acc-count tonic-num)
-
-   ;; recursive function for drawing the stack of circles
-   (define (draw-circles sig solid-dot? counter ypos xpos mode-num)
-     ;; add a circle
-     (set! sig
-           (ly:stencil-add sig
-             (ly:stencil-translate
-              (if (= mode-num counter)
-                  (if solid-dot?
-                      (make-oval-stencil 0.55 0.38 0.001 #t)
-                      (make-oval-stencil 0.55 0.33 0.15 #f))
-                  (if solid-dot?
-                      (make-circle-stencil 0.3 0.001 #t)
-                      (make-circle-stencil 0.25 0.15 #f)))
-              (cons xpos ypos))))
-     (if (= counter 6)
-         ;; return the stencil or recurse
-         sig
-         (draw-circles sig
-           (if (= counter 2)
-               (not solid-dot?)
-               solid-dot?)
-           (+ 1 counter)
-           (if (= counter 2)
-               (+ ypos 0.335)
-               (+ ypos 0.67))
-           (if (= counter 2)
-               (+ xpos 0.60)
-               xpos)
-           mode-num)))
-
    (let* ((maj-num (case acc-count
                      ((0) 0)
                      ((1) 4)  ((2) 1)  ((3) 5)   ((4) 2)  ((5) 6)  ((6) 3)  ((7) 0)
                      ((-1) 3) ((-2) 6) ((-3) 2) ((-4) 5) ((-5) 1) ((-6) 4) ((-7) 0)))
           (mode-num (modulo (- tonic-num maj-num) 7))
-          ;; set vertical position of the sig
+          ;; calculate vertical position of the sig
           (note-space 0.335)
           (vert-adj (case acc-count
-                      ((0) (* note-space -12)) ;; -12
+                      ((0) (* note-space -12))
                       ((1) (* note-space -5))
                       ((2) (* note-space -10))
                       ((3) (* note-space -3))
@@ -399,11 +355,6 @@ key-stil-bank = #'()
                       ((-6) (* note-space -6))
                       ((-7) (* note-space -1))))
           (sig-type (modulo acc-count 2)) ;; 0 = C, D, E   1 = F, G, A, B
-          (sig (ly:stencil-translate (draw-circles
-                                      (make-circle-stencil 0.0 0.0 #t)
-                                      (if (= sig-type 0) #t #f)
-                                      0 0 0 mode-num)
-                 (cons 0 vert-adj)))
           ;; create sig-head (that floats at top of key sig)
           (sig-head-acc (cond
                          ((> acc-count 0) (make-sharp-flat-stencil #t))
@@ -420,7 +371,43 @@ key-stil-bank = #'()
                      (ly:stencil-aligned-to sig-head-acc Y CENTER)
                      0 1
                      (ly:stencil-aligned-to sig-head-num Y CENTER)
-                     0.3)))
+                     0.3))
+          ;; just to get the sig started
+          (sig (make-circle-stencil 0.0 0.0 #f))
+          (xpos 0)
+          (ypos 0)
+          (solid-dot? (= sig-type 0)))
+
+     ;; create the the sig (as a stack of circles and an oval)
+     (for-each
+      (lambda (n)
+        ;; add the next circle (or oval) to the sig
+        (set! sig
+              (ly:stencil-add sig
+                (ly:stencil-translate
+                 (if (= n mode-num)
+                     ;; make tonic oval
+                     (if solid-dot?
+                         (make-oval-stencil 0.55 0.38 0.001 #t)
+                         (make-oval-stencil 0.55 0.33 0.15 #f))
+                     ;; make regular circle
+                     (if solid-dot?
+                         (make-circle-stencil 0.3 0.001 #t)
+                         (make-circle-stencil 0.25 0.15 #f)))
+                 (cons xpos ypos))))
+        ;; adjust values for next circle (or oval),
+        ;; switching things up after the 3rd one
+        (cond
+         ((= n 2)
+          (set! solid-dot? (not solid-dot?))
+          (set! xpos (+ xpos 0.60))
+          (set! ypos (+ ypos 0.335)))
+         (else
+          (set! ypos (+ ypos 0.67)))))
+      (iota 7))
+
+     ;; position the sig vertically
+     (set! sig (ly:stencil-translate sig (cons 0 vert-adj)))
 
      ;; add the head to the sig
      (set! sig (ly:stencil-add
@@ -758,6 +745,9 @@ adjustStem =
    (add-new-clef "C" "clefs.C" alto-pos 0 alto-c))
 
 % set (or reset) clef settings for clairnote
+% subtracting the clef position as part of the calculation of
+% the middle c position lets us adjust the clef position here
+% without changing the position of middle c (or other notes)
 #(define (set-clairnote-clefs)
    (let* ((treble-pos -5)
           (treble-c (- -12 treble-pos))
