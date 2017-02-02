@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160517
+%    Version: 20160518
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -731,35 +731,34 @@
   ;; adjust the position of dots in repeat signs
   ;; for Clairnote staff or traditional staff
 
-  (define (cn-make-colon-bar-line grob extent)
-    "A procedure that draws dots (repeat sign dots) at
-    @code{dot-positions}. The coordinates are the same as
-    @code{StaffSymbol.line-positions}, a dot-position of X
-    is equivalent to a line-position of X."
-    (let*
-     ((staff-sym (ly:grob-object grob 'staff-symbol))
-      (is-clairnote-staff
-       (if (ly:grob? staff-sym)
-           (ly:grob-property staff-sym 'cn-is-clairnote-staff)
-           #t))
-      (odd-octaves
-       (if (ly:grob? staff-sym)
-           (member -2 (ly:grob-property staff-sym 'line-positions))
-           #f))
-      (dot-positions
-       (if is-clairnote-staff
-           (if odd-octaves '(4 8) '(-2 2))
-           '(-1 1)))
-      (staff-space (ly:staff-symbol-staff-space grob))
-      (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
-     (fold
-      (lambda (dp prev)
-        (ly:stencil-add prev
-          (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
-      empty-stencil
-      dot-positions)))
-
-  (add-bar-glyph-print-procedure ":" cn-make-colon-bar-line)
+  (add-bar-glyph-print-procedure ":"
+    (lambda (grob extent)
+      "A procedure that draws repeat sign dots at
+       @code{dot-positions}. The coordinates are the same as
+       @code{StaffSymbol.line-positions}, a dot-position of X
+       is equivalent to a line-position of X."
+      (let*
+       ((staff-sym (ly:grob-object grob 'staff-symbol))
+        (is-clairnote-staff
+         (if (ly:grob? staff-sym)
+             (ly:grob-property staff-sym 'cn-is-clairnote-staff)
+             #t))
+        (odd-octaves
+         (if (ly:grob? staff-sym)
+             (member -2 (ly:grob-property staff-sym 'line-positions))
+             #f))
+        (dot-positions
+         (if is-clairnote-staff
+             (if odd-octaves '(4 8) '(-2 2))
+             '(-1 1)))
+        (staff-space (ly:staff-symbol-staff-space grob))
+        (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
+       (fold
+        (lambda (dp prev)
+          (ly:stencil-add prev
+            (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
+        empty-stencil
+        dot-positions))))
 
 
 ;;;; TIME SIGNATURES
@@ -847,7 +846,7 @@
 ;;;; BEAMS
 
   (define Cn_beam_engraver
-    ; "Adjust size and spacing of beams, needed due to vertically compressed staff."
+    ;; "Adjust size and spacing of beams, needed due to vertically compressed staff."
     (make-engraver
      (acknowledgers
       ((beam-interface engraver grob source-engraver)
@@ -872,11 +871,8 @@
   (define cn-ledgers-gradual '(2 2 2 5))
 
   ;; jumps to two ledger lines immediately,
-  ;; omits c ledger line quickly, no overlap
+  ;; omits c ledger line quickly
   (define cn-ledgers-less-gradual '(2 2 5 2))
-
-  ;; minimal ledger lines
-  (define cn-ledgers-minimal '(2 2 1 2))
 
   ;; no ledger-extra, solid notes in center of spaces don't get
   ;; a ledger beyond them, but float in space.
@@ -900,10 +896,10 @@
       (base (* 12 (quotient dist 12)))
 
       ;; list of positions from 0 to base, cycling at 8 and 12 (E and G#/Ab)
-      (lrs (merge
+      (lrs (reverse (merge
             (iota (quotient base 12) 12 12)
             (iota (quotient (+ 4 base) 12) 8 12)
-            <))
+            <)))
 
       (get-ledger (lambda (pos extra rem base)
                     (if (<= (- pos extra) rem)
@@ -917,7 +913,7 @@
                (get-ledger 4 extra-4 rem base)
                '()))
 
-      (result (append lrs lr4 lr8 lr12)))
+      (result (append lr12 lr8 lr4 lrs)))
      result))
 
   (define cn-ledger-positions
@@ -949,8 +945,6 @@
          ;; remove any ledgers that would fall on staff lines
          (ledgers2 (filter (lambda (n) (not (member n lines)))
                            ledgers1)))
-
-        ;; (display dist)(display ledgers2)(newline)
         ledgers2)))
 
 
@@ -1031,7 +1025,6 @@
   (define cnExtendStaffDown #{ \cnStaffExtender ##f 0 1 #})
   (define cnUnextendStaffUp #{ \cnStaffExtender ##f -1 0 #})
   (define cnUnextendStaffDown #{ \cnStaffExtender ##f 0 -1 #})
-
 
   (define cnStaffOctaveSpan
     (define-music-function (parser location octaves) (positive-integer?)
