@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150516
+%    Version: 20150524
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -39,7 +39,7 @@
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
 #(define (cn-get-is-clairnote-staff grob)
-    "Takes a grob and returns the custom StaffSymbol property
+   "Takes a grob and returns the custom StaffSymbol property
     cn-is-clairnote-staff.  Silently falls back to the default of #t."
    (define staff-sym (ly:grob-object grob 'staff-symbol))
    (if (ly:grob? staff-sym)
@@ -634,7 +634,7 @@
    ;; to modify context properties before grobs are created.
    (lambda (context)
      (let*
-      ((prev-ottavation '())
+      ((prev-mid-c-off '())
        ;; clefGlyph clefPosition middleCClefPosition clefTransposition
        (prev-clef '("clefs.G" -5 -12 0))
        (prev-cue '(() () () ())))
@@ -655,7 +655,6 @@
            (mid-c-cue-pos (ly:context-property context 'middleCCuePosition))
            (current-cue (list cue-glyph cue-pos mid-c-cue-pos cue-transpo))
 
-           (ottavation (ly:context-property context 'ottavation))
            (mid-c-off (ly:context-property context 'middleCOffset)))
 
           (cond
@@ -691,12 +690,12 @@
                        (list (list-ref cn-cue 0) (list-ref cn-cue 1) new-mid-c cn-cue-transpo))))))
 
           ;; new ottava? (8va 8vb etc.)
-          (if (and (number? mid-c-off) (not (equal? ottavation prev-ottavation)))
-              (begin
-               (ly:context-set-property! context 'middleCOffset (* mid-c-off 12/7))
-               (ly:set-middle-C! context)
-               (set! prev-ottavation ottavation)
-               )))))))))
+          (if (not (equal? mid-c-off prev-mid-c-off))
+              (let ((new-mid-c-off (* mid-c-off 12/7)))
+                (ly:context-set-property! context 'middleCOffset new-mid-c-off)
+                (ly:set-middle-C! context)
+                (set! prev-mid-c-off new-mid-c-off)
+                )))))))))
 
 
 %% REPEAT SIGN DOTS (BAR LINES)
