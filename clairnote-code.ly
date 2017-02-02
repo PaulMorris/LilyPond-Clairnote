@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150324
+%    Version: 20150325
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for:
 %    A. functions copied and modified from LilyPond source code:
@@ -43,6 +43,11 @@
    "Gets custom StaffSymbol props. Takes a grob and
     a property name and returns that StaffSymbol property."
    (ly:grob-property (ly:grob-object grob 'staff-symbol) prop))
+
+#(define-public (grob::name grob)
+   "Return the name of the grob @var{grob} as a symbol.
+    TODO: Delete this after LilyPond 2.20 arrives."
+   (assq-ref (ly:grob-property grob 'meta) 'name))
 
 
 %% NOTE HEADS AND STEM ATTACHMENT
@@ -467,7 +472,6 @@
                (ly:grob-array->list heads-array)
                ;; rests, no note heads in NoteColumn grob
                (list 0))))
-     (display note-heads-raw)(newline)
      ;; rests and single notes don't need shifting
      (if (> (length note-heads-raw) 1)
          (let*
@@ -780,58 +784,91 @@ staffSize =
 %% USER STAFF EXTENSION FUNCTIONS
 
 cn-extend-staff =
-#(lambda (upwards)
-   ;; upwards is a boolean
+#(lambda (upwards extend)
+   ;; upwards and extend are booleans
    (lambda (grob)
      (let*
-      ((positions (sort (ly:grob-property grob 'line-positions) <))
+      ((vertical-axis-group (ly:grob-parent grob Y))
+       (positions (sort (ly:grob-property vertical-axis-group 'cn-staff-lines) <))
        (furthest (if upwards
                      (last positions)
                      (first positions)))
        (new-positions
-        (if upwards
-            ;; extendStaffUp
-            (append positions (list (+ 8 furthest) (+ 12 furthest)))
-            ;; extendStaffDown
-            (append (list (+ -12 furthest) (+ -8 furthest)) positions))))
+        (if extend
+            ;; extend
+            (if upwards
+                ;; extendStaffUp
+                (append positions (list (+ 8 furthest) (+ 12 furthest)))
+                ;; extendStaffDown
+                (append (list (+ -12 furthest) (+ -8 furthest)) positions))
+            ;; unextend
+            (if (> (length positions) 2)
+                (if upwards
+                    ;; unextendStaffUp
+                    (drop-right positions 2)
+                    ;; unextendStaffDown
+                    (drop positions 2))
+                positions))))
+      (if (not (eq? (grob::name vertical-axis-group) 'VerticalAxisGroup))
+          (ly:warning "clairnote-code.ly cannot find VerticalAxisGroup"))
+      ;; store current positions in custom property VerticalAxisGroup.cn-staff-lines
+      ;; so that they are accessible after \stopStaff \startStaff
+      (ly:grob-set-property! vertical-axis-group 'cn-staff-lines new-positions)
       (ly:grob-set-property! grob 'line-positions new-positions))))
 
 extendStaffUp = {
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #t)
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #t #t)
 }
 
 extendStaffDown = {
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #f)
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #f #t)
 }
 
-unextendStaff = {
+unextendStaffUp = {
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #t #f)
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking = #'()
+}
+
+unextendStaffDown = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #f #f)
 }
 
 
 %% USER SHORTCUTS FOR DIFFERENT STAFF CONFIGURATIONS
 
+cn-set-staff-lines =
+#(lambda (positions)
+   ;; positions is a list of staff line positions
+   (lambda (grob)
+     (let ((vertical-axis-group (ly:grob-parent grob Y)))
+       (if (not (eq? (grob::name vertical-axis-group) 'VerticalAxisGroup))
+           (ly:warning "clairnote-code.ly cannot find VerticalAxisGroup"))
+       ;; store current positions in custom property VerticalAxisGroup.cn-staff-lines
+       ;; so that they are accessible after \stopStaff \startStaff
+       (ly:grob-set-property! vertical-axis-group 'cn-staff-lines positions)
+       (ly:grob-set-property! grob 'line-positions positions))))
+
 oneOctaveStaff = {
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.line-positions = #'(-8 -4)
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-set-staff-lines '(-8 -4))
 }
 
 twoOctaveStaff = {
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.line-positions = #'(-8 -4 4 8)
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-set-staff-lines '(-8 -4 4 8))
 }
 
 threeOctaveStaff = {
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.line-positions = #'(-20 -16 -8 -4 4 8)
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-set-staff-lines '(-20 -16 -8 -4 4 8))
 }
 
 fourOctaveStaff = {
   \stopStaff \startStaff
-  \override Staff.StaffSymbol.line-positions = #'(-20 -16 -8 -4 4 8 16 20)
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-set-staff-lines '(-20 -16 -8 -4 4 8 16 20))
 }
 
 
@@ -848,6 +885,11 @@ fourOctaveStaff = {
 
 % StaffSymbol.cn-vscale-staff stores the vertical scaling factor for the staff.
 #(cn-define-grob-property 'cn-vscale-staff number?)
+
+% VerticalAxisGroup.cn-staff-lines stores the staff line positions, stored
+% in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
+% Used with user functions for extending the staff, etc.
+#(cn-define-grob-property 'cn-staff-lines list?)
 
 
 %% STAFF DEFINITIONS
@@ -880,6 +922,7 @@ fourOctaveStaff = {
     \override StaffSymbol.ledger-extra = 1
 
     % custom grob properties
+    \override VerticalAxisGroup.cn-staff-lines = #'(-8 -4 4 8)
     \override StaffSymbol.cn-is-clairnote-staff = ##t
     \override StaffSymbol.cn-vscale-staff = #1.2
     % StaffSymbol.cn-vscale-staff stores the vertical staff scaling value.
