@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160106
+%    Version: 20160109
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -1178,6 +1178,7 @@ cnNoteheadWidth =
     \override Stem.no-stem-extend = ##t
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
+    \override KeySignature.horizontal-skylines = #'()
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
