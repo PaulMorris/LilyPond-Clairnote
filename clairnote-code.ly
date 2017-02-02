@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160104
+%    Version: 20160105
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -331,7 +331,7 @@
        (modulo (- (/ (+ alt-count 1) 2) 4) 7)
        (modulo (/ alt-count 2) 7)))
 
-#(define (cn-make-keysig-stack mode alt-list note-space black-tonic)
+#(define (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num)
    "Create the stack of circles (and tonic oval) for the key sig."
    (define y-posn-recurser
      (lambda (prev pattern result)
@@ -363,49 +363,41 @@
      (xposns (map (lambda (n) (if (equal? n first-item) 0 0.6)) pattern))
      (raw-yposns (y-posn-recurser (car pattern) (cdr pattern) '(0)))
      (yposns (map (lambda (p) (* p note-space)) raw-yposns))
-     (stack-list
-      (map (lambda (x y bw)
-             (ly:stencil-translate
-              (if bw
-                  (make-circle-stencil 0.3 0.001 #t)
-                  (make-circle-stencil 0.25 0.15 #f))
-              (cons x y)))
-        xposns yposns pattern)))
-    (fold ly:stencil-add empty-stencil stack-list)))
 
-#(define (cn-make-keysig-head grob mag alt-count)
-   "Make sig-head, the acc-sign and number at top of key sig."
-   (let*
-    ((num-scale (/ 0.6 mag))
-     (acc-scale (/ 0.65 mag))
-     (acc (cond
-           ((> alt-count 0) (assoc-ref cn-acc-sign-stils 1/2))
-           ((< alt-count 0) (assoc-ref cn-acc-sign-stils -1/2))
-           ((= alt-count 0) (ly:stencil-scale
-                             (grob-interpret-markup grob (markup #:natural))
-                             acc-scale acc-scale))))
-     (num (ly:stencil-scale
-           (grob-interpret-markup grob
-             (markup (number->string (abs alt-count))))
-           num-scale num-scale)))
-    (ly:stencil-combine-at-edge
-     (ly:stencil-aligned-to acc Y CENTER) 0 1
-     (ly:stencil-aligned-to num Y CENTER) 0.3)))
+     (black-dot (make-circle-stencil 0.3 0.001 #t))
+     (white-dot (make-circle-stencil 0.25 0.15 #f))
 
-#(define (cn-make-keysig-head-stack head stack tonic-semi
-           note-space staff-clef-adjust)
-   (let*
-    ((spacing (+ 11.5
-                (case tonic-semi
-                  ((9) 1)
-                  ((10) 2)
-                  ((11) 3)
-                  (else 0))))
-     (final-spacing (* note-space (+ spacing staff-clef-adjust))))
-    (ly:stencil-add
-     (ly:stencil-aligned-to stack X CENTER)
-     (ly:stencil-translate-axis
-      (ly:stencil-aligned-to head X CENTER) final-spacing Y))))
+     (stack-list (map (lambda (x y bw)
+                        (ly:stencil-translate
+                         (if bw black-dot white-dot)
+                         (cons x y)))
+                   xposns yposns pattern))
+
+     ;; alterations - convert alt-list to relative tonic = 0 basis
+     (relative-alt-list (map (lambda (n)
+                               (cons (modulo (- (car n) tonic-num) 7) (cdr n))) alt-list))
+     (full-alt-list (map (lambda (n)
+                           (assoc-ref relative-alt-list n)) '(0 1 2 3 4 5 6)))
+
+     (sharp-line (ly:stencil-translate-axis
+                  (make-connected-path-stencil '((-0.7  -0.7)) 0.2 1 1 #f #f)
+                  -0.2 Y))
+     (flat-line (ly:stencil-translate-axis
+                 (make-connected-path-stencil '((-0.7  0.7)) 0.2 1 1 #f #f)
+                 0.2 Y))
+     (alt-stack-list (map (lambda (stil alt y)
+                            (cond
+                             ((equal? alt -1/2)
+                              (ly:stencil-combine-at-edge stil X -1
+                                (ly:stencil-translate-axis flat-line y Y)
+                                -0.2))
+                             ((equal? alt 1/2)
+                              (ly:stencil-combine-at-edge stil X -1
+                                (ly:stencil-translate-axis sharp-line y Y)
+                                -0.2))
+                             (else stil)))
+                       stack-list full-alt-list yposns)))
+    (fold ly:stencil-add empty-stencil alt-stack-list)))
 
 #(define (cn-draw-keysig grob context)
    "Draws Clairnote key signature stencils."
@@ -426,7 +418,7 @@
      ;; the distance between two adjacent notes given vertical staff compression
      (note-space (* 0.5 base-staff-space))
      (black-tonic (equal? 0 (modulo tonic-semi 2)))
-     (raw-stack (cn-make-keysig-stack mode alt-list note-space black-tonic))
+     (raw-stack (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num))
 
      ;; position the sig vertically
      (base-vert-adj (- tonic-semi 12))
@@ -435,16 +427,11 @@
                          (ly:context-property context 'cnStaffOctaves)
                          (ly:context-property context 'cnClefShift)))
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
-
-     (stack (ly:stencil-translate-axis raw-stack vert-adj Y))
-     (head (cn-make-keysig-head grob mag alt-count))
-     ;; add the head to the stack
-     (head-stack (cn-make-keysig-head-stack
-                  head stack tonic-semi note-space staff-clef-adjust)))
+     (stack (ly:stencil-translate-axis raw-stack vert-adj Y)))
     ;; shift the sig to the right for better spacing
     (if (> mode 2)
-        (ly:stencil-translate-axis head-stack 0.35 X)
-        (ly:stencil-translate-axis head-stack 0.9 X))))
+        (ly:stencil-translate-axis stack 0.35 X)
+        (ly:stencil-translate-axis stack 0.9 X))))
 
 #(define Cn_key_signature_engraver
    ;; Clairnote's staff definition has printKeyCancellation = ##f, which
