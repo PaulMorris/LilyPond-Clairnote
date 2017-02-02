@@ -1,10 +1,10 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140423 (2014 April 23)
+%    Version: 20140425 (2014 April 25)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for three functions
-%    that are in the public domain: shift-noteheads, setOtherScriptParent,
+%    that are in the public domain: clnt-shift-noteheads, setOtherScriptParent,
 %    and adjustStem, copied (and edited slightly) from the LilyPond Snippet
 %    Repository, snippet 861, "Re-positioning note heads on the opposite side
 %    of the stem" http://lsr.di.unimi.it/LSR/Item?id=861 Thanks to David Nalesnik
@@ -28,12 +28,14 @@
 \version "2.18.2"
 
 % Absolute value helper function
-% when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
+% Guile 2.0 has an "abs" function built in, so when
+% LilyPond upgrades to it, remove this
 #(define (abs x) (if (> x 0) x (- 0 x)))
+
 
 %% NOTE HEADS AND STEM ATTACHMENT
 
-#(define (clairnoteNoteHeads cfill xmod ymod)
+#(define (clnt-note-heads cfill xmod ymod)
    (lambda (grob)
      (let* ((fsz  (ly:grob-property grob 'font-size 0.0))
             (mult (magstep fsz))
@@ -42,7 +44,7 @@
             (semi (ly:pitch-semitones ptch))
             (note-type (modulo (+ semi cfill) 2))
             (dur-log (ly:grob-property grob 'duration-log))
-            (whole-note? (if (< dur-log 1) #t #f))
+            (whole-note (if (< dur-log 1) #t #f))
 
             (notecol (ly:grob-parent grob X))
             (stm (ly:grob-object notecol 'stem))
@@ -50,373 +52,377 @@
             (fnt (ly:grob-default-font grob)))
 
        ;; black notes can be rotated to -27, but -18 also works for white notes
-       ;; currently -9 which is half of -18
-       (if (not whole-note?)
-           (set! (ly:grob-property grob 'rotation) '(-9 0 0)))
+       ;; currently -9, half of -18
+       (if (not whole-note)
+           (ly:grob-set-property! grob 'rotation '(-9 0 0)))
 
-       ;; NOTE HEADS
-       (set! (ly:grob-property grob 'stencil)
-             (ly:stencil-scale
-              (case note-type
-                ;; white note
-                ((0) (if whole-note?
-                         ;; white whole note
-                         ;; thicken top and bottom using an oval path so no white space shows
-                         ;; through above and below staff lines for hollow whole notes
-                         (ly:stencil-add
-                          (ly:stencil-translate
-                           (make-oval-stencil 0.7 0.58 0.11 #f)
-                           '(0.98 . 0))
-                          (ly:font-get-glyph fnt "noteheads.s0"))
-                         ;; white non-whole note
-                         ;; scale hollow note heads horizontally so they match solid ones
-                         (ly:stencil-scale
-                          (ly:font-get-glyph fnt "noteheads.s1")
-                          0.945 1)))
-                ;; black note
-                ((1) (if whole-note?
-                         ;; black whole note
-                         ;; add a little black circle to make solid whole notes
-                         (ly:stencil-add
-                          (ly:font-get-glyph fnt "noteheads.s0")
-                          (ly:stencil-translate (make-circle-stencil 0.47 0.1 #t) '(0.95 . 0)))
-                         ;; black non-whole note
-                         (ly:font-get-glyph fnt "noteheads.s2"))))
-              (* xmod mult)
-              (* ymod mult)))
+       ;; Note Heads
+       (ly:grob-set-property! grob 'stencil
+         (ly:stencil-scale
+          (case note-type
+            ;; white note
+            ((0) (if whole-note
+                     ;; white whole note
+                     ;; thicken top and bottom using an oval path so no white space shows
+                     ;; through above and below staff lines for hollow whole notes
+                     (ly:stencil-add
+                      (ly:stencil-translate
+                       (make-oval-stencil 0.7 0.58 0.11 #f)
+                       '(0.98 . 0))
+                      (ly:font-get-glyph fnt "noteheads.s0"))
+                     ;; white non-whole note
+                     ;; scale hollow note heads horizontally so they match solid ones
+                     (ly:stencil-scale
+                      (ly:font-get-glyph fnt "noteheads.s1")
+                      0.945 1)))
+            ;; black note
+            ((1) (if whole-note
+                     ;; black whole note
+                     ;; add a little black circle to make solid whole notes
+                     (ly:stencil-add
+                      (ly:font-get-glyph fnt "noteheads.s0")
+                      (ly:stencil-translate (make-circle-stencil 0.47 0.1 #t) '(0.95 . 0)))
+                     ;; black non-whole note
+                     (ly:font-get-glyph fnt "noteheads.s2"))))
+          (* xmod mult)
+          (* ymod mult)))
 
        ;; for testing
-       ;; (set! (ly:grob-property grob 'color) (case note-type ((0) blue) ((1) blue)))
+       ;; (ly:grob-set-property! grob 'color (case note-type ((0) red) ((1) blue)))
 
-       ;; STEM ATTACHMENT
-       (set! (ly:grob-property grob 'stem-attachment)
-             (if (= (remainder (abs semi) 2) 1)
-                 ;; white notes: f g a b c# d#
-                 (cons 1.06  0.3)
-                 ;; black notes: c d e f# g# a#
-                 (cons 1.04 0.3))))))
+       ;; Stem Attachment
+       (ly:grob-set-property! grob 'stem-attachment
+         (if (= (remainder (abs semi) 2) 1)
+             ;; white notes: f g a b c# d#
+             (cons 1.06  0.3)
+             ;; black notes: c d e f# g# a#
+             (cons 1.04 0.3))))))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
 % lengthen all stems and give half notes double stems
 
-#(define ((stem-lengthen mult) grob)
-   ;; multiply each of the values in the details propert of the stem grob by mult,
-   ;; except for stem-shorten values which remain unchanged
-   (set! (ly:grob-property grob 'details)
-         (map (lambda (detail)
-                (let ((head (car detail))
-                      (args (cdr detail)))
-                  (if (eq? head 'stem-shorten)
-                      (cons head args)
-                      (cons head
-                        (map
-                         (lambda (arg) (* arg mult))
-                         args)))))
-           (ly:grob-property grob 'details)))
+#(define ((clnt-stems mult) grob)
+   ;; multiply each of the values in the details property of the stem grob
+   ;; by mult, except for stem-shorten values which remain unchanged
+   (ly:grob-set-property! grob 'details
+     (map
+      (lambda (detail)
+        (let ((head (car detail))
+              (args (cdr detail)))
+          (if (eq? head 'stem-shorten)
+              (cons head args)
+              (cons head
+                (map
+                 (lambda (arg) (* arg mult))
+                 args)))))
+      (ly:grob-property grob 'details)))
    ;; double stems for half notes
    ;; use -0.42 or 0.15 to change which side the 2nd stem appears
    (if (= 1 (ly:grob-property grob 'duration-log))
-       (set! (ly:grob-property grob 'stencil)
-             (ly:stencil-combine-at-edge
-              (ly:stem::print grob)
-              X
-              (- (ly:grob-property grob 'direction))
-              (ly:stem::print grob)
-              -0.42 ))))
+       (ly:grob-set-property! grob 'stencil
+         (ly:stencil-combine-at-edge
+          (ly:stem::print grob)
+          X
+          (- (ly:grob-property grob 'direction))
+          (ly:stem::print grob)
+          -0.42 ))))
 
 
-%% ACCIDENTALS
+%% ACCIDENTAL SIGNS
 
-#(define (make-sharp-flat-stencil isSharp)
-   (let*((ln (ly:stencil-translate
-              (make-connected-path-stencil
-               '((0  1.0)) 0.2 1 1 #f #f)
-              (cons 0 -0.5)))
-         (crcl (make-circle-stencil 0.24 0.01 #t)))
-     (if isSharp
-         (ly:stencil-add ln (ly:stencil-translate crcl (cons 0  0.5))) ;; sharp
-         (ly:stencil-add ln (ly:stencil-translate crcl (cons 0 -0.5)))))) % flat
+% use a closure
+#(define Clnt_accidental_engraver #f)
+% these two stencils are global, used by key sig engraver
+#(define clnt-sharp-sign empty-stencil)
+#(define clnt-flat-sign empty-stencil)
 
-#(define (make-double-sharp-flat-stencil isSharp)
-   (ly:stencil-add
-    (ly:stencil-translate (make-sharp-flat-stencil isSharp) (cons -0.25 0))
-    (ly:stencil-translate (make-sharp-flat-stencil isSharp) (cons  0.25 0))))
+#(let ((clnt-double-sharp-sign empty-stencil)
+       (clnt-double-flat-sign empty-stencil)
+       ;; bar-num and acc-list, for storing the currently
+       ;; active accidentals in the current bar/measure
+       (bar-num 0)
+       (acc-list '()))
 
-#(define (redraw-acc-sign grob acc mult)
-   "Changes and resizes an accidental stencil."
-   ;; set the 'X-extent and 'Y-extent
-   (ly:grob-set-property! grob 'Y-extent (cons -0.5 1.2))
-   (ly:grob-set-property! grob 'X-extent
+   (define (draw-acc-sign is-sharp)
+     "Return a sharp or flat sign stencil. @var{is-sharp} is boolean"
+     (let ((line (ly:stencil-translate
+                  (make-connected-path-stencil '((0  1.0)) 0.2 1 1 #f #f)
+                  (cons 0 -0.5)))
+           (circ (make-circle-stencil 0.24 0.01 #t)))
+       (ly:stencil-add line
+         (ly:stencil-translate circ (cons 0 (if is-sharp 0.5 -0.5))))))
+
+   (define (draw-double-acc-sign acc-sign)
+     "Return a double sharp or double flat sign stencil."
+     (ly:stencil-add
+      (ly:stencil-translate acc-sign (cons -0.25 0))
+      (ly:stencil-translate acc-sign (cons  0.25 0))))
+
+   (define (redo-acc grob mult stil x-ext)
+     "Helper for redo-acc-signs."
+     (ly:grob-set-property! grob 'X-extent x-ext)
+     (ly:grob-set-property! grob 'stencil
+       (ly:stencil-scale stil mult mult)))
+
+   (define (redo-acc-signs grob acc mult)
+     "Replaces the accidental sign stencil and resizes X/Y extents."
+     ;; TODO: should natural signs have the same Y-extent as others?
+     ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
+     (ly:grob-set-property! grob 'Y-extent (cons -0.5 1.2))
      (case acc
-       ((-1/2) (cons 0 0.54)) ;; flat
-       ((1/2) (cons -0.27 0.27)) ;; sharp
-       ((0) (cons -0.0  (* 0.666666 0.65))) ;; natural
-       ((-1) (cons -0.34 0.67)) ;; double flat
-       ((1) (cons -0.54 0.47)))) ;; double sharp
-   ;; set the stencil
-   (ly:grob-set-property! grob 'stencil
-     (ly:stencil-scale
-      (case acc
-        ((-1/2) (make-sharp-flat-stencil #f))
-        ((1/2) (make-sharp-flat-stencil #t))
-        ((0) (ly:stencil-scale (ly:grob-property grob 'stencil) 0.65 0.65 ))
-        ((-1) (make-double-sharp-flat-stencil #f))
-        ((1) (make-double-sharp-flat-stencil #t))
-        (else (ly:grob-property grob 'stencil)))
-      mult mult)))
+       ((-1/2) (redo-acc grob mult clnt-flat-sign (cons 0 0.54)))
+       ((1/2) (redo-acc grob mult clnt-sharp-sign (cons -0.27 0.27)))
+       ((-1) (redo-acc grob mult clnt-double-flat-sign (cons -0.34 0.67)))
+       ((1) (redo-acc grob mult clnt-double-sharp-sign (cons -0.54 0.47)))
+       ((0) (redo-acc grob mult
+              (ly:stencil-scale (ly:grob-property grob 'stencil) 0.65 0.65)
+              (cons -0.0 (* 2/3 0.65))))
+       (else (ly:grob-property grob 'stencil))))
 
-% TODO: handle custom keysigs that have octave values:
-% "keySignature (list) ... an alist containing (step . alter) or ((octave . step) . alter)"
-% currently we don't handle the latter.
+   (set! clnt-sharp-sign (draw-acc-sign #t))
+   (set! clnt-flat-sign (draw-acc-sign #f))
+   (set! clnt-double-sharp-sign (draw-double-acc-sign clnt-sharp-sign))
+   (set! clnt-double-flat-sign (draw-double-acc-sign clnt-flat-sign))
+   ;; TODO: add clnt-natural-sign, have to use the font glyph.
+   ;; (grob-interpret-markup grob (markup #:natural))
 
-#(define (make-nats-list key-alt-list)
-   "Takes a list of sharps or flats in a key sig (key-alt-list) and returns a list of
-    natural notes in the key and whether they are sharp, flat, or natural (1/2, -1/2, 0).
-    Converts diatonic pitch values (0-6) to semitone values (0-11)."
-   (let ((nats-list '((0 . 0) (1 . 0) (2 . 0) (3 . 0) (4 . 0) (5 . 0) (6 . 0)))
-         (to-semi '((0 . 0) (1 . 2) (2 . 4) (3 . 5) (4 . 7) (5 . 9) (6 . 11))))
-     ;; add sharps or flats from key sig to list of diatonic naturals (0-6)
-     ;; D major example: ((0 . 1/2) (1 . 0) (2 . 0) (3 . 1/2) (4 . 0) (5 . 0) (6 . 0))
-     (for-each
-      (lambda (key-alt)
-        (set! nats-list
-              (assoc-set! nats-list (car key-alt) (cdr key-alt))))
-      key-alt-list)
-     ;; convert to semitone values
-     ;; D major example: ((1 . 1/2) (2 . 0) (4 . 0) (6 . 1/2) (7 . 0) (9 . 0) (11 . 0))
-     (map
-      (lambda (nat)
-        (let* ((acc (cdr nat))
-               (semi (assoc-ref to-semi (car nat)))
-               (semi-acc (+ semi (* 2 acc))))
-          (cons (modulo semi-acc 12) acc)))
-      nats-list)))
+   (set! Clnt_accidental_engraver
+         (make-engraver
+          (acknowledgers
+           ((accidental-interface engraver grob source-engraver)
+            (let* ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
+                   (acc (accidental-interface::calc-alteration grob))
+                   ;; get the current bar number
+                   (context (ly:translator-context engraver))
+                   ;; (current-bar-num (ly:context-property context 'currentBarNumber))
+                   (internal-bar-num (ly:context-property context 'internalBarNumber))
+                   ;; get the pitch of the note in semitones
+                   (note-head (ly:grob-parent grob Y))
+                   (pitch (ly:event-property (event-cause note-head) 'pitch))
+                   (semi (ly:pitch-semitones pitch))
+                   (semi-modulo (modulo semi 12))
 
-% for storing the bar number and the
-% accidentals in the current bar/measure so far
-clnt-barnum = 0
-clnt-acc-list = #'()
+                   ;; key-sig is an association list of sharps or flats in the key.
+                   ;; Example: D major = ((0 . 1/2) (3 . 1/2))
+                   (key-sig (ly:context-property context 'keySignature))
 
-#(define Clairnote_accidental_engraver
-   (make-engraver
-    (acknowledgers
-     ((accidental-interface engraver grob source-engraver)
-      (let* ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
-             (acc (accidental-interface::calc-alteration grob))
-             ;; get the current bar number
-             (context (ly:translator-context engraver))
-             ;; (curr-barnum (ly:context-property context 'currentBarNumber))
-             (internal-barnum (ly:context-property context 'internalBarNumber))
-             ;; get the pitch of the note in semitones
-             (note-head (ly:grob-parent grob Y))
-             (pitch (ly:event-property (event-cause note-head) 'pitch))
-             (semi (ly:pitch-semitones pitch))
-             (semi-modulo (modulo semi 12))
-             (key-sig (ly:context-property context 'keySignature))
-             ;; nats-list is an association list of naturals in the current key by semitone (0-11)
-             ;; and if they are sharp, flat, or natural. D major example:
-             ;; ((1 . 1/2) (2 . 0) (4 . 0) (6 . 1/2) (7 . 0) (9 . 0) (11 . 0))
-             (nats-list (make-nats-list key-sig))
-             (in-the-key (equal? (cons semi-modulo acc) (assoc semi-modulo nats-list))))
+                   ;; TODO: handle custom key sigs that have octave values:
+                   ;;    "keySignature (list) ... an alist containing (step . alter)
+                   ;;    or ((octave . step) . alter)"    <---- not currently handled
 
-        ;; if we're in a new measure, clear clnt-acc-list, and set clnt-barnum
-        (cond ((not (= clnt-barnum internal-barnum))
-               (set! clnt-acc-list '())
-               (set! clnt-barnum internal-barnum)))
+                   ;; nats-list is an association list, a pair for each note in the key with
+                   ;; semitone (0-11) and alteration (sharp, flat, or natural) (1/2, -1/2, 0).
+                   ;; Diatonic pitch values (0-6) are converted to semitones (0-11).
+                   ;; D major example:
+                   ;; hypothetical diatonic alist: ((0 . 1/2) (1 . 0) (2 . 0) (3 . 1/2) (4 . 0) (5 . 0) (6 . 0))
+                   ;; returns semitone alist: ((1 . 1/2) (2 . 0) (4 . 0) (6 . 1/2) (7 . 0) (9 . 0) (11 . 0))
+                   (nats-list
+                    (map
+                     (lambda (n)
+                       (let* ((alt (assoc-ref key-sig n))
+                              (alt (if alt alt 0))
+                              (n-semi (+
+                                       (list-ref '(0 2 4 5 7 9 11) n)
+                                       (* alt 2))))
+                         (cons (modulo n-semi 12) alt)))
+                     (iota 7)))
 
-        (cond
-         ;; 1. is an accidental and a new accidental in this measure
-         ;; print sign and add accidental to clnt-acc-list
-         ((and
-           (not in-the-key)
-           (not (equal? (cons semi acc) (assoc semi clnt-acc-list))))
-          (redraw-acc-sign grob acc mult)
-          (set! clnt-acc-list (assoc-set! clnt-acc-list semi acc)))
-         ;; 2. is not an accidental but is canceling a previous accidental in this measure
-         ;; (semi is in clnt-acc-list (assoc doesn't return #f) but the acc doesn't match)
-         ;; print sign and remove accidental from the acc-list
-         ((and
-           in-the-key
-           (assoc semi clnt-acc-list)
-           (not (equal? acc (assoc-ref semi clnt-acc-list))))
-          (redraw-acc-sign grob acc mult)
-          (set! clnt-acc-list (assoc-remove! clnt-acc-list semi)))
-         ;; 3. is an accidental but not a new accidental in this measure
-         ;; 4. is not an accidental and is not canceling a previous accidental
-         ;; print no sign
-         ;; TODO: make sure this does not affect ledger line widths
-         (else
-          (ly:grob-set-property! grob 'stencil #f)
-          (ly:grob-set-property! grob 'X-extent '(0 . 0))
-          (ly:grob-set-property! grob 'Y-extent '(0 . 0)))))))))
+                   (in-the-key (equal?
+                                (cons semi-modulo acc)
+                                (assoc semi-modulo nats-list))))
+
+              ;; if we're in a new measure, clear acc-list, and set bar-num
+              (cond ((not (= bar-num internal-bar-num))
+                     (set! acc-list '())
+                     (set! bar-num internal-bar-num)))
+
+              (cond
+               ;; 1. is an accidental and a new accidental in this measure
+               ;; print sign and add accidental to acc-list
+               ((and
+                 (not in-the-key)
+                 (not (equal? (cons semi acc) (assoc semi acc-list))))
+                (redo-acc-signs grob acc mult)
+                (set! acc-list (assoc-set! acc-list semi acc)))
+               ;; 2. is not an accidental but is canceling a previous accidental in this measure
+               ;; (semi is in acc-list (assoc-ref doesn't return #f) but the acc doesn't match)
+               ;; print sign and remove accidental from the acc-list
+               ((and
+                 in-the-key
+                 (assoc semi acc-list)
+                 (not (equal? acc (assoc-ref semi acc-list))))
+                (redo-acc-signs grob acc mult)
+                (set! acc-list (assoc-remove! acc-list semi)))
+               ;; 3. is an accidental but not a new accidental in this measure
+               ;; 4. is not an accidental and is not canceling a previous accidental
+               ;; print no acc sign
+               ;; TODO: make sure this does not affect ledger line widths
+               (else
+                (ly:grob-set-property! grob 'stencil #f)
+                (ly:grob-set-property! grob 'X-extent '(0 . 0))
+                (ly:grob-set-property! grob 'Y-extent '(0 . 0))))))))))
 
 
-%% KEY SIGNATURES ENGRAVER
+%% KEY SIGNATURES
 
-% associative list for storing key signature stencils
-key-stil-bank = #'()
+% use a closure
+#(define Clnt_key_signature_engraver #f)
 
-%    acc-list: list of accidentals,
-%    nats-list: list of naturals
-%    key-acc-type: the accidental sign type, 1/2=sharp, -1/2=flat
-%    acc-count: the number of accidentals in the key signature,
-%      positive is sharps, negative is flats
-%    tonic-num: number of the tonic note 0-6, C=0, B=6
-%
-#(define Clairnote_key_signature_engraver
-   (make-engraver
-    (acknowledgers
-     ((key-signature-interface engraver grob source-engraver)
-      (let* ((grob-name (assq-ref (ly:grob-property grob 'meta) 'name))
-             (context (ly:translator-context engraver))
-             (tonic-pitch (ly:context-property context 'tonic))
-             (tonic-num (ly:pitch-notename tonic-pitch))
-             (acc-list (ly:grob-property grob 'alteration-alist))
-             ;; the key type: sharp (1/2), flat (-1/2), or natural (0)
-             (key-acc-type (if (null? acc-list) 0 (cdr (list-ref acc-list 0))))
-             (acc-count (* (length acc-list) (if (< key-acc-type 0) -1 1)))
-             (sig #f)
-             ;; create a unique key id (string) for key-stil-bank
-             (key-id (string-append
-                      (number->string tonic-num)
-                      (if (> acc-count -1) "+" "")
-                      (number->string acc-count)))
-             (mult (magstep (ly:grob-property grob 'font-size 0.0))))
+% key-stils, an associative list for storing key sig stencils
+#(let ((key-stils '()))
 
-        ;; set the key signature stencil
-        (cond
-         ;; print nothing for key cancellations
-         ((equal? 'KeyCancellation grob-name)
-          (ly:grob-set-property! grob 'stencil #f)
-          (set! sig #f))
-         ;; new sig, create stil and add it to key-stil-bank
-         ((equal? #f (assoc key-id key-stil-bank))
-          (set! sig (draw-key-stencil grob acc-count tonic-num))
-          (set! key-stil-bank (acons key-id sig key-stil-bank)))
-         ;; else already in key-stil-bank, so use it
-         (else
-          (set! sig (cdr (assoc key-id key-stil-bank)))))
+   (define (draw-key-stencil grob alt-count tonic-num)
+     "Draws Clairnote key signature stencils."
+     (let* (;; maj-num: number of the tonic note 0-6, if the key sig were major
+            ;; (alt-count maj-num)
+            ;; (-7 0) (-5 1) (-3 2) (-1 3) (1 4) (3 5) (5 6) (7 0)
+            ;; (-6 4) (-4 5) (-2 6) (0 0) (2 1) (4 2) (6 3)
+            (maj-num
+             (if (odd? alt-count)
+                 (modulo (- (/ (+ alt-count 1) 2) 4) 7)
+                 (modulo (/ alt-count 2) 7)))
+            ;; mode-num: number of the mode (0-6)
+            (mode-num (modulo (- tonic-num maj-num) 7))
+            ;; note-space: calculate the distance between notes based on
+            ;; vertical staff scaling. (foo - (((foo - 1.2) * 0.7) + 0.85))
+            (note-space (- clnt-vscale-staff (+ (* (- clnt-vscale-staff 1.2) 0.7) 0.85)))
+            ;; vert-adj: calculate vertical position of the sig
+            ;; (alt-count  X)
+            ;; (-7 -1) (-5 -11) (-3 -9) (-1 -7) (1 -5) (3 -3) (5 -1) (7 -11)
+            ;; (-6 -6) (-4 -4) (-2 -2) (0 -12) (2 -10) (4 -8) (6 -6)
+            ;; --> (X * note-space = vert-adj)
+            (vert-adj
+             (* note-space
+               (+ -12
+                 (modulo
+                  (if (odd? alt-count) (+ alt-count 6) alt-count)
+                  12))))
+            ;; sig-type: position of black or white notes (0 = 3B 4W, 1 = 3W 4B)
+            (sig-type (modulo alt-count 2))
+            ;; create sig-head, the acc-sign and number at top of key sig
+            (sig-head-acc
+             (cond
+              ((> alt-count 0) clnt-sharp-sign)
+              ((< alt-count 0) clnt-flat-sign)
+              ((= alt-count 0) (ly:stencil-scale
+                                (grob-interpret-markup grob (markup #:natural))
+                                0.65 0.65))))
+            (sig-head-num
+             (ly:stencil-scale
+              (grob-interpret-markup grob
+                (markup (number->string (abs alt-count))))
+              0.6 0.6))
+            (sig-head
+             (ly:stencil-combine-at-edge
+              (ly:stencil-aligned-to sig-head-acc Y CENTER) 0 1
+              (ly:stencil-aligned-to sig-head-num Y CENTER) 0.3))
+            (sig empty-stencil)
+            (xpos 0)
+            (ypos 0)
+            (solid-dot? (= sig-type 0)))
 
-        ;; resize stil per current font size and set it
-        (if (ly:stencil? sig)
-            (ly:grob-set-property! grob 'stencil (ly:stencil-scale sig mult mult))))))))
+       ;; create the sig (as a stack of circles and an oval)
+       (for-each
+        (lambda (n)
+          ;; add a circle (or oval) to the sig
+          (set! sig
+                (ly:stencil-add sig
+                  (ly:stencil-translate
+                   (if (= n mode-num)
+                       ;; make tonic oval
+                       (if solid-dot?
+                           (make-oval-stencil 0.55 0.38 0.001 #t)
+                           (make-oval-stencil 0.55 0.33 0.15 #f))
+                       ;; make regular circle
+                       (if solid-dot?
+                           (make-circle-stencil 0.3 0.001 #t)
+                           (make-circle-stencil 0.25 0.15 #f)))
+                   (cons xpos ypos))))
+          ;; adjust values for next circle (or oval),
+          ;; switching things up after the 3rd one
+          (cond
+           ((= n 2)
+            (set! solid-dot? (not solid-dot?))
+            (set! xpos (+ xpos 0.60))
+            (set! ypos (+ ypos note-space))) ;; +0.335
+           (else (set! ypos (+ ypos (* 2 note-space)))))) ;; +0.67
+        (iota 7))
 
-% DRAW KEY SIGNATURE STENCIL
-%
-%    maj-num: number of the tonic note 0-6, if the key sig were major
-%    sig-type: position of black or white notes: 0=starts with black, 1=starts with white
-%    mode-num: number of the mode 0-6
-%    tonic-psn: vertical position of the tonic/mode indicator within the key sig
-%    tonic-lr: whether the tonic indicator is left or right of the sig, -1.2=left 1.2=right
-%
-#(define (draw-key-stencil grob acc-count tonic-num)
-   (let* ((maj-num (case acc-count
-                     ((0) 0)
-                     ((1) 4)  ((2) 1)  ((3) 5)   ((4) 2)  ((5) 6)  ((6) 3)  ((7) 0)
-                     ((-1) 3) ((-2) 6) ((-3) 2) ((-4) 5) ((-5) 1) ((-6) 4) ((-7) 0)))
-          (mode-num (modulo (- tonic-num maj-num) 7))
-          ;; calculate the distance between notes based on vertical staff scaling
-          ;; (foo - (((foo - 1.2) * 0.7) + 0.85))
-          (note-space (- clnt-vscale-staff (+ (* (- clnt-vscale-staff 1.2) 0.7) 0.85)))
-          ;; calculate vertical position of the sig
-          (vert-adj (case acc-count
-                      ((0) (* note-space -12))
-                      ((1) (* note-space -5))
-                      ((2) (* note-space -10))
-                      ((3) (* note-space -3))
-                      ((4) (* note-space -8))
-                      ((5) (* note-space -1))
-                      ((6) (* note-space -6))
-                      ((7) (* note-space -11))
-                      ((-1) (* note-space -7))
-                      ((-2) (* note-space -2))
-                      ((-3) (* note-space -9))
-                      ((-4) (* note-space -4))
-                      ((-5) (* note-space -11))
-                      ((-6) (* note-space -6))
-                      ((-7) (* note-space -1))))
-          (sig-type (modulo acc-count 2)) ;; 0 = C, D, E   1 = F, G, A, B
-          ;; create sig-head (that floats at top of key sig)
-          (sig-head-acc (cond
-                         ((> acc-count 0) (make-sharp-flat-stencil #t))
-                         ((< acc-count 0) (make-sharp-flat-stencil #f))
-                         ((= acc-count 0) (ly:stencil-scale
-                                           (grob-interpret-markup grob (markup #:natural))
-                                           0.65 0.65))))
-          (sig-head-num
-           (ly:stencil-scale
-            (grob-interpret-markup grob
-              (markup (number->string (abs acc-count))))
-            0.6 0.6))
-          (sig-head (ly:stencil-combine-at-edge
-                     (ly:stencil-aligned-to sig-head-acc Y CENTER)
-                     0 1
-                     (ly:stencil-aligned-to sig-head-num Y CENTER)
-                     0.3))
-          (sig empty-stencil)
-          (xpos 0)
-          (ypos 0)
-          (solid-dot? (= sig-type 0)))
+       ;; position the sig vertically
+       (set! sig (ly:stencil-translate-axis sig vert-adj Y))
 
-     ;; create the the sig (as a stack of circles and an oval)
-     (for-each
-      (lambda (n)
-        ;; add the next circle (or oval) to the sig
-        (set! sig
-              (ly:stencil-add sig
-                (ly:stencil-translate
-                 (if (= n mode-num)
-                     ;; make tonic oval
-                     (if solid-dot?
-                         (make-oval-stencil 0.55 0.38 0.001 #t)
-                         (make-oval-stencil 0.55 0.33 0.15 #f))
-                     ;; make regular circle
-                     (if solid-dot?
-                         (make-circle-stencil 0.3 0.001 #t)
-                         (make-circle-stencil 0.25 0.15 #f)))
-                 (cons xpos ypos))))
-        ;; adjust values for next circle (or oval),
-        ;; switching things up after the 3rd one
-        (cond
-         ((= n 2)
-          (set! solid-dot? (not solid-dot?))
-          (set! xpos (+ xpos 0.60))
-          (set! ypos (+ ypos note-space))) ;; +0.335
-         (else
-          (set! ypos (+ ypos (* 2 note-space)))))) ;; +0.67
-      (iota 7))
+       ;; add the head to the sig
+       (set! sig
+             (ly:stencil-add
+              (ly:stencil-aligned-to sig X CENTER)
+              (ly:stencil-translate-axis
+               (ly:stencil-aligned-to sig-head X CENTER)
+               (case alt-count
+                 ((3) (* note-space 12.5))
+                 ((5) (* note-space 14.5))
+                 ((-2) (* note-space 13.5))
+                 ((-7) (* note-space 14.5))
+                 (else (* note-space 11.5)))
+               Y)))
 
-     ;; position the sig vertically
-     (set! sig (ly:stencil-translate sig (cons 0 vert-adj)))
-
-     ;; add the head to the sig
-     (set! sig (ly:stencil-add
-                (ly:stencil-aligned-to sig X CENTER)
-                (ly:stencil-translate
-                 (ly:stencil-aligned-to sig-head X CENTER)
-                 (cons 0
-                   (case acc-count
-                     ((3) (* note-space 12.5))
-                     ((5) (* note-space 14.5))
-                     ((-2) (* note-space 13.5))
-                     ((-7) (* note-space 14.5))
-                     (else (* note-space 11.5)))))))
-
-     ;; shift the whole sig to the right for proper spacing with clef
-     (if (> mode-num 2)
-         (set! sig (ly:stencil-translate sig (cons 0.35 0)))
-         (set! sig (ly:stencil-translate sig (cons 0.9 0))))
-     ;; return the sig stencil
-     sig))
+       ;; shift the whole sig to the right for proper spacing with clef
+       ;; and return the sig stencil
+       (if (> mode-num 2)
+           (ly:stencil-translate-axis sig 0.35 X)
+           (ly:stencil-translate-axis sig 0.9 X))))
 
 
-%% CHORDS - AUTO
-% automatically place note heads in chords/harmonies on
-% the correct side of stem, needed for 2 semitone intervals
+   (set! Clnt_key_signature_engraver
+         (make-engraver
+          (acknowledgers
+           ((key-signature-interface engraver grob source-engraver)
+            (let* (;; tonic-num: number of the tonic note (0-6), (C=0, B=6)
+                   ;; engraver --> context --> tonic (pitch) --> tonic-num
+                   (tonic-num
+                    (ly:pitch-notename
+                     (ly:context-property
+                      (ly:translator-context engraver)
+                      'tonic)))
+                   ;; grob-name not needed (was for KeyCancellations)
+                   ;; (grob-name (assq-ref (ly:grob-property grob 'meta) 'name))
+                   ;; alt-alist: list of accidentals
+                   (alt-alist (ly:grob-property grob 'alteration-alist))
+                   ;; alt-count: number of sharps or flats in key sig
+                   ;; positive is sharps, negative is flats
+                   (alt-count (if (null? alt-alist)
+                                  0
+                                  (* (length alt-alist) 2 (cdr (car alt-alist)))))
+                   ;; create a unique key id (string) for key-stils
+                   (key-id
+                    (string-append
+                     (number->string tonic-num)
+                     (if (> alt-count -1) "+" "")
+                     (number->string alt-count)))
+                   (stil (assoc-ref key-id key-stils))
+                   (mult (magstep (ly:grob-property grob 'font-size 0.0))))
 
-% Step 1 of 3
-#(define (chord-handler grob)
+              (cond
+               ;; 1. print nothing for key cancellations
+               ;; not needed, staff definition has: printKeyCancellation = ##f
+               ;; ((equal? 'KeyCancellation grob-name)
+               ;; (ly:grob-set-property! grob 'stencil #f))
+               ;; 2. if key stencil is already in key-stils use that
+               ((ly:stencil? stil)
+                (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult)))
+               ;; 3. else new sig, draw stencil, set it, and add to key-stils
+               (else
+                (set! stil (draw-key-stencil grob alt-count tonic-num))
+                (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult))
+                (set! key-stils (acons key-id stil key-stils)))) ))))))
+
+
+%% CHORDS
+
+#(define (clnt-chords-one grob)
+   "Step 1 of 4. For notes in chords or harmonic intervals
+    that are 2 semitones apart, automatically place them
+    on opposite sides of the stem."
    (let* ((heads-array (ly:grob-object grob 'note-heads))
           (note-heads (if (ly:grob-array? heads-array)
                           (ly:grob-array->list heads-array)
@@ -424,15 +430,17 @@ key-stil-bank = #'()
                           (list 0))))
      ;; rests and single notes don't need offsetting
      (if (> (length note-heads) 1)
-         (chord-handler-two grob note-heads))))
+         (clnt-chords-two grob note-heads))))
 
-% Step 2 of 3
-#(define (chord-handler-two grob note-heads)
+
+#(define (clnt-chords-two grob note-heads)
+   "Step 2 of 4."
    (let* (;; create a list of the semitones of each note in the chord
-          (semitones (map (lambda (head-grob)
-                            (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
-                       note-heads))
-          ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) (3 5)...)
+          (semitones
+           (map (lambda (head-grob)
+                  (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
+             note-heads))
+          ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) ...)
           (semi-lists (zip (iota (length note-heads)) semitones))
           ;; sort both by semitones, ascending
           (semitones-sorted (sort-list semitones <))
@@ -447,56 +455,59 @@ key-stil-bank = #'()
      ;; no 2 semitone intervals? then there is no need to offset
      ;; any notes since standard layout is already correct
      (if (memq 2 int-list)
-         (chord-handler-three grob note-heads int-list semi-lists-sorted))))
+         (clnt-chords-three grob note-heads int-list semi-lists-sorted))))
 
-% Step 3 of 3
-#(define (chord-handler-three grob note-heads int-list semi-lists-sorted)
 
-   ;; recursive function for converting interval list into a list of clusters of notes
-   (define (get-clusters int-list n)
-     ;; (display int-list)(display "int-list") (newline)
-     (if (pair? int-list)
-         ;; notes 2 semitones apart or less are in the same cluster
-         (if (> (car int-list) 2)
-             ;; note is not in previous cluster
-             ;; add previous count to list and reset count to 1
-             (cons n (get-clusters (cdr int-list) 1))
-             ;; note is in current cluster so just add one to the count
-             (get-clusters (cdr int-list) (+ 1 n)))
-         (cons n '())))
+#(define (clnt-chords-three grob note-heads int-list semi-lists-sorted)
+   "Step 3 of 4."
+   (let* ((cluster-list
+           ;; convert interval list into a list of clusters of notes
+           ;; ex: (4 3 2 2 5) --> (1 1 3 1)
+           (fold-right
+            (lambda (int clust-list)
+              ;; notes 2 semitones apart or less are in the same cluster
+              ;; if not in previous cluster, start new cluster at 1
+              ;; else in current cluster, add 1 to current cluster
+              (if (> int 2)
+                  (cons 1 clust-list )
+                  (cons (+ 1 (car clust-list)) (cdr clust-list))))
+            '(1)
+            int-list))
 
-   ;; recursive function to calculate correct stemsides from cluster list
-   (define (get-stemsides clust-list stmdir)
-     ;; (display clust-list)(display "clust-list") (newline)
-     (if (pair? clust-list)
-         (let* ((clust-count (car clust-list))
-                ;; if down-stem and odd-numbered cluster (or single note, since 1 = odd)
-                ;; then first/lowest head is on right side of stem
-                ;; else first/lowest head is on left side of stem
-                (stemside (if (and (= stmdir -1) (odd? clust-count)) 1 -1)))
-           (cons
-            ;; for each note in this cluster add a 1 or -1 to the list and
-            ;; putting every other note on the opposite side of the stem
-            (map-in-order (lambda (x)
-                            (if (even? x)
-                                stemside
-                                (* stemside -1)))
-              (iota clust-count))
-            (get-stemsides (cdr clust-list) stmdir)))
-         '()))
-
-   (let* ((cluster-list (get-clusters int-list 1))
           ;; stem direction, 1 is up, -1 is down
           (stmdir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
+          ;; convert cluster-list to stemsides list:
           ;; new, desired note placements (-1 left, 1 right)
-          (stemsides (concatenate (get-stemsides cluster-list stmdir)))
+          ;; ex: (1 1 3 1) --> upstem: (-1 -1 -1 1 -1 -1) or downstem: (1 1 1 -1 1 1)
+          (stemsides
+           (concatenate
+            (fold-right
+             (lambda (cluster stemside-list)
+               ;; only with a down-stem and odd-numbered cluster
+               ;; (or single note, 1 = odd) is the first/lowest head on the
+               ;; right side of stem, else it is always on left side of stem
+               (let ((stemside (if (and (= stmdir -1) (odd? cluster)) 1 -1)))
+                 ;; for each note in a cluster alternate between -1 and 1
+                 ;; putting every other note on the opposite side of the stem
+                 (cons
+                  (map-in-order
+                   (lambda (n)
+                     (if (even? n)
+                         stemside
+                         (* stemside -1)))
+                   (iota cluster))
+                  stemside-list)))
+             '()
+             cluster-list)))
+
           ;; get the order the notes were entered in the input file and
-          ;; assemble list of lists zipping the new-stemsides to their input positions
+          ;; assemble list of lists zipping the new stemsides to their input positions
           ;; sort stemsides by order notes were entered in the input file
           (input-order-sorted (unzip1 semi-lists-sorted))
-          (stemsides-B (zip input-order-sorted stemsides))
-          (stemsides-sorted (sort! stemsides-B
-                              (lambda (a b) (< (list-ref a 0) (list-ref b 0)))))
+          (stemsides-zip (zip input-order-sorted stemsides))
+          (stemsides-sorted
+           (sort! stemsides-zip
+             (lambda (a b) (< (list-ref a 0) (list-ref b 0)))))
           ;; get old default stem-side positions
           (old-stemsides
            (map-in-order
@@ -512,30 +523,27 @@ key-stil-bank = #'()
           ;; generate offsets
           ;; if old-stemside and stemside-sorted are the same,
           ;; 0 is the offset, else use -1 or 1 from stemsides-sorted
-          (offset-list
+          (offsets
            (map-in-order
             (lambda (a b) (if (= a b ) 0 b ))
             old-stemsides
             (concatenate (map cdr stemsides-sorted)))))
-     ;; call the manual offset function if there's anything to offset
-     ;; no need to send ( 0 0 0 0 )
+
+     ;; is there anything to offset?  no need to send ( 0 0 0 0 )
      (if (or
-          (memq 1 offset-list)
-          (memq -1 offset-list))
-         ((shift-noteheads offset-list) grob))))
+          (memq 1 offsets)
+          (memq -1 offsets))
+         ((clnt-shift-noteheads offsets) grob))))
 
 
-%% CHORDS - MANUAL
-% For chords and intervals, manually shift note heads to left or right of stem.
-%
 % Credit goes to David Nalesnik and Thomas Morley for these three functions:
-% shift-noteheads, setOtherScriptParent, and adjustStem, copied (and edited slightly)
+% clnt-shift-noteheads, setOtherScriptParent, and adjustStem, copied (and edited slightly)
 % from the LilyPond Snippet Repository, snippet 861, "Re-positioning note heads on
 % the opposite side of the stem" http://lsr.di.unimi.it/LSR/Item?id=861
 % The code for these three functions is in the public domain.
 
-#(define ((shift-noteheads offsets) grob)
-   "Defines how NoteHeads should be moved according to the given list of offsets."
+#(define ((clnt-shift-noteheads offsets) grob)
+   "Step 4 of 4. Moves NoteHeads according to a list of @var{offsets}."
    (let* (
            ;; NoteHeads
            ;; Get the NoteHeads of the NoteColumn
@@ -597,12 +605,11 @@ key-stil-bank = #'()
             (ly:grob-translate-axis! nh (* off (- nh-x-length x-corr)) X)))
       note-heads stencils-x-lengths offsets stem-x-corr)))
 
-% shift note heads
 snhs =
 #(define-music-function (parser location offsets) (list?)
-   " Moves the NoteHeads, using (shift-noteheads offsets) "
+   "To manually shift note heads (snhs) to the other side of the stem."
    #{
-     \once \override NoteColumn.before-line-breaking = #(shift-noteheads offsets)
+     \once \override NoteColumn.before-line-breaking = #(clnt-shift-noteheads offsets)
    #})
 
 setOtherScriptParent =
@@ -650,61 +657,57 @@ adjustStem =
 
 %% CLEF SETTINGS
 
-#(define (set-clefs treble-pos treble-c bass-pos bass-c alto-pos alto-c)
-   "Helper function for modifying clef settings."
-   ;; add-new-clef args:  clef-name  clef-glyph  clef-position  octavation  c0-position
-   (add-new-clef "treble" "clefs.G" treble-pos 0 treble-c)
-   (add-new-clef "G" "clefs.G" treble-pos 0 treble-c)
-   (add-new-clef "violin" "clefs.G" treble-pos 0 treble-c)
-   (add-new-clef "bass" "clefs.F" bass-pos 0 bass-c)
-   (add-new-clef "F" "clefs.F" bass-pos 0 bass-c)
-   (add-new-clef "alto" "clefs.C" alto-pos 0 alto-c)
-   (add-new-clef "C" "clefs.C" alto-pos 0 alto-c))
+#(define (clnt-set-clefs clefs)
+   "Helper function for modifying clef settings. c0-position is middle c position
+    @var{clefs} is a list of (clef-name clef-glyph clef-position c0-position)
+    add-new-clef args: clef-name clef-glyph clef-position octavation c0-position"
+   (for-each
+    (lambda (clef)
+      (let ((name (list-ref clef 0))
+            (glyph (list-ref clef 1))
+            (pos (list-ref clef 2))
+            (c0 (list-ref clef 3)))
+        (add-new-clef name glyph pos 0 c0)
+        (cond
+         ((equal? name "bass") (add-new-clef "F" glyph pos 0 c0))
+         ((equal? name "alto") (add-new-clef "C" glyph pos 0 c0))
+         ((equal? name "treble") (add-new-clef "G" glyph pos 0 c0)
+           (add-new-clef "violin" glyph pos 0 c0)))))
+    clefs))
 
-% set (or reset) clef settings for clairnote
-% subtracting the clef position (i.e. treble-pos) in the calculation of
-% the middle c position (i.e. treble-c) lets us adjust the clef position
-% without affecting the position of middle c (or other notes)
-#(define (set-clairnote-clefs)
-   (let* ((treble-pos -5)
-          (treble-c (- -12 treble-pos))
-          (bass-pos 5)
-          (bass-c (- 12 bass-pos))
-          (alto-pos 0)
-          (alto-c (- 0 alto-pos)))
-     (set-clefs
-      treble-pos treble-c
-      bass-pos bass-c
-      alto-pos alto-c)))
+setClairnoteClefs =
+#(define-void-function (parser location) ()
+   "Sets (or resets) clef settings for clairnote.
+    To calculate the middle c position subtract the clef position
+    from 12 for bass clef or -12 for treble clef (to adjust the clef position
+    without affecting the position of middle c or other notes)"
+   (clnt-set-clefs
+    '(("treble" "clefs.G" -5 -7) ;; -7 = -12 minus -5
+       ("bass" "clefs.F" 5 7) ;; 7 = 12 minus 5
+       ("alto" "clefs.C" 0 0))))
 
-#(set-clairnote-clefs)
+\setClairnoteClefs
 
-% use this function to set clefs back to traditional settings to
-% include both traditional notation and Clairnote in the same file
-#(define (set-traditional-clefs)
-   (let* ((treble-pos -2)
-          (treble-c -4)
-          (bass-pos 2)
-          (bass-c 4)
-          (alto-pos 0)
-          (alto-c 0))
-     (set-clefs
-      treble-pos treble-c
-      bass-pos bass-c
-      alto-pos alto-c)))
+setTraditionalClefs =
+#(define-void-function (parser location) ()
+   "Sets clef settings back to traditional settings when including
+    both traditional notation and Clairnote in the same file."
+   (clnt-set-clefs
+    '(("treble" "clefs.G" -2 -4)
+      ("bass" "clefs.F" 2 4)
+      ("alto" "clefs.C" 0 0))))
 
 
-% REPEAT SIGN DOTS / BAR LINES
+%% REPEAT SIGN DOTS (BAR LINES)
 
 % adjust the position of dots in repeat signs
-% for Clairnote staves or a traditional staves
+% for Clairnote staff or traditional staff
 
-#(define ((make-custom-dot-bar-line dot-positions) grob extent)
-
+#(define ((clnt-make-repeat-dot-bar dot-positions) grob extent)
    "Draw dots (repeat sign dots) at @var{dot-positions}. The
-coordinates of @var{dot-positions} are equivalent to the
-coordinates of @code{StaffSymbol.line-positions}, a dot-position
-of X and a line-position of X indicate the same vertical position."
+    coordinates of @var{dot-positions} are equivalent to the
+    coordinates of @code{StaffSymbol.line-positions}, a dot-position
+    of X and a line-position of X indicate the same vertical position."
 
    (let* ((staff-space (ly:staff-symbol-staff-space grob))
           (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot"))
@@ -716,24 +719,23 @@ of X and a line-position of X indicate the same vertical position."
       dot-positions)
      stencil))
 
-#(define (select-dot-bar-line-procedure grob extent)
+#(define (clnt-repeat-dot-bar-procedure grob extent)
    "Based on a staff's line-positions, return a procedure for repeat sign dots."
-     (if (equal?
-          (ly:grob-property (ly:grob-object grob 'staff-symbol) 'line-positions '())
-          '(-4 -2 0 2 4))
-         ;; Traditional five line staff
-         ((make-custom-dot-bar-line '(-1 1)) grob extent)
-         ;; Clairnote staff
-         ((make-custom-dot-bar-line '(-2 2)) grob extent)))
+   (if (equal?
+        (ly:grob-property (ly:grob-object grob 'staff-symbol) 'line-positions '())
+        '(-4 -2 0 2 4))
+       ;; Traditional five line staff or Clairnote staff
+       ((clnt-make-repeat-dot-bar '(-1 1)) grob extent)
+       ((clnt-make-repeat-dot-bar '(-2 2)) grob extent)))
 
-#(add-bar-glyph-print-procedure ":" select-dot-bar-line-procedure)
+#(add-bar-glyph-print-procedure ":" clnt-repeat-dot-bar-procedure)
 
 
 %% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
 
 % global variable holding the default vertical scaling value
 % so it can be used with key signatures and staffSize function
-% TODO: how to store this per-staff rather than globally?
+% TODO: a way to store this per-staff rather than globally?
 
 clnt-vscale-staff = 1.2
 
@@ -748,20 +750,19 @@ vertScaleStaff =
    (set! clnt-vscale-staff vscale-staff)
    #{
      \override StaffSymbol.staff-space = #(* vscale-staff 7/12)
-     \override Stem.before-line-breaking = #(stem-lengthen (/ 1 (* vscale-staff 7/12)))
+     \override Stem.before-line-breaking = #(clnt-stems (/ 1 (* vscale-staff 7/12)))
      \override TimeSignature.before-line-breaking =
      #(lambda (grob)
-        (set! (ly:grob-property grob 'Y-offset)
-              ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
-              (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
+        (ly:grob-set-property! grob 'Y-offset
+          ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
+          (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
    #})
 
 
 %% USER STAFF SCALING FUNCTION
 
 % helper macro lets user zoom a single staff size
-% TODO: can this be improved?
-% it does not work perfectly combined with vertScaleStaff
+% TODO: this does not work perfectly combined with vertScaleStaff
 % especially key signatures and time signatures
 staffSize =
 #(define-music-function (parser location new-size) (number?)
@@ -772,12 +773,12 @@ staffSize =
    #})
 
 
-%% CLAIRNOTE STAFF DEFINITIONS
+%% STAFF DEFINITIONS
 
 \layout {
 
-  % copy \Staff with its standard settings to a custom
-  % staff context called \StaffTrad
+  % copy \Staff context with its standard settings to
+  % a custom staff context called \StaffTrad
   \context {
     \Staff
     \name StaffTrad
@@ -807,22 +808,21 @@ staffSize =
 
     \vertScaleStaff 1.2
     % to vertically scale noteheads change the last argument here:
-    \override NoteHead.before-line-breaking = #(clairnoteNoteHeads 1 1 1)
+    \override NoteHead.before-line-breaking = #(clnt-note-heads 1 1 1)
 
-    \consists \Clairnote_key_signature_engraver
+    \consists \Clnt_key_signature_engraver
     printKeyCancellation = ##f
 
-    \consists \Clairnote_accidental_engraver
+    \consists \Clnt_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
 
-    \override NoteColumn.before-line-breaking = #chord-handler
+    \override NoteColumn.before-line-breaking = #clnt-chords-one
     \numericTimeSignature
   }
 }
 
-% to prevent logging errors, also allow parent contexts
-% to accept \StaffTrad in midi output.
+% allow parent contexts to accept \StaffTrad in midi output too
 \midi {
   \context {
     \Staff
