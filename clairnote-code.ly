@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151006
+%    Version: 20151017
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -184,22 +184,25 @@
 
 #(if (cn-check-ly-version < '(2 19 18))
      ;; TODO: remove when we stop supporting LilyPond 2.18
-     (define (cn-note-dots grob)
-       "Adjust vertical position of dots for certain notes."
-       (let* ((parent (ly:grob-parent grob Y))
-              ;; parent is a Rest grob or a NoteHead grob
-              (semi (if (grob::has-interface parent 'rest-interface)
-                        #f
-                        (modulo (cn-notehead-semitone parent) 12))))
-         (cond
-          ((equal? semi 0)
-           (ly:grob-set-property! grob 'staff-position
-             (if (equal? -1 (ly:grob-property grob 'direction))
-                 -1 ;; down
-                 1))) ;; up or neutral
-          ((member semi '(2 6 10))
-           (ly:grob-set-property! grob 'Y-offset -0.36))
-          ))))
+     (define Cn_dots_engraver
+       ;; "Adjust vertical position of dots for certain notes."
+       (make-engraver
+        (acknowledgers
+         ((dots-interface engraver grob source-engraver)
+          (let* ((parent (ly:grob-parent grob Y))
+                 ;; parent is a Rest grob or a NoteHead grob
+                 (semi (if (grob::has-interface parent 'rest-interface)
+                           #f
+                           (modulo (cn-notehead-semitone parent) 12))))
+            (cond
+             ((equal? semi 0)
+              (ly:grob-set-property! grob 'staff-position
+                (if (equal? -1 (ly:grob-property grob 'direction))
+                    -1 ;; down
+                    1))) ;; up or neutral
+             ((member semi '(2 6 10))
+              (ly:grob-set-property! grob 'Y-offset -0.36))
+             )))))))
 
 
 %% ACCIDENTAL SIGNS
@@ -555,35 +558,40 @@
    ;; start the loop
    (loop note-heads first-semi #t))
 
-#(define (cn-chords note-col)
-   "For notes in chords or harmonic intervals that are 2 semitones
-    apart or less, automatically position them on opposite sides of the stem.
-    (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
-   (let* ((heads-array (ly:grob-object note-col 'note-heads))
-          (nhs-raw
-           (if (ly:grob-array? heads-array)
-               (ly:grob-array->list heads-array)
-               ;; rests, no note heads in NoteColumn grob
-               (list 0))))
-     ;; rests and single notes don't need shifting
-     (if (> (length nhs-raw) 1)
-         (let*
-          ((nhs-sorted
-            (sort-list nhs-raw
-              (lambda (a b)
-                (< (cn-notehead-semitone a)
-                   (cn-notehead-semitone b)))))
-           ;; stem direction, 1 is up, -1 is down
-           (stem-dir (ly:grob-property (ly:grob-object note-col 'stem) 'direction))
-           ;; if stem is down then reverse the order
-           (nhs-cooked
-            (if (< stem-dir 0)
-                (reverse nhs-sorted)
-                nhs-sorted))
-           (first-semi (cn-notehead-semitone (car nhs-cooked))))
 
-          ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
-          (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir note-col)))))
+#(define Cn_note_column_engraver
+   ; "For notes in chords or harmonic intervals that are 2 semitones
+   ; apart or less, automatically position them on opposite sides of the stem.
+   ; (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
+   (make-engraver
+    (acknowledgers
+     ((note-column-interface engraver grob source-engraver)
+      (let* ((heads-array (ly:grob-object grob 'note-heads))
+             (nhs-raw
+              (if (ly:grob-array? heads-array)
+                  (ly:grob-array->list heads-array)
+                  ;; rests, no note heads in NoteColumn grob
+                  (list 0))))
+        ;; rests and single notes don't need shifting
+        (if (> (length nhs-raw) 1)
+            (let*
+             ((nhs-sorted
+               (sort-list nhs-raw
+                 (lambda (a b)
+                   (< (cn-notehead-semitone a)
+                      (cn-notehead-semitone b)))))
+              ;; stem direction, 1 is up, -1 is down
+              (stem-dir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
+              ;; if stem is down then reverse the order
+              (nhs-cooked
+               (if (< stem-dir 0)
+                   (reverse nhs-sorted)
+                   nhs-sorted))
+              (first-semi (cn-notehead-semitone (car nhs-cooked))))
+
+             ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
+             (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob))))
+      ))))
 
 
 %% CLEFS AND OTTAVA (8VA 8VB 15MA 15MB)
@@ -749,147 +757,162 @@
 
 %% TIME SIGNATURES
 
-#(define (cn-timesigs grob)
-   "Adjust vertical position of time sig based on vertical staff scaling."
-   (let*
-    ((base-staff-space (cn-get-base-staff-space grob))
-     (vscale-staff (* 12/7 base-staff-space))
-     (basic-y-offset (* (- vscale-staff 0.9) -2.5))
-     ;; adjustment for \magnifyStaff
-     (mag (cn-magnification grob)))
-    (ly:grob-set-property! grob 'Y-offset
-      (* basic-y-offset mag))))
+#(define Cn_time_signature_engraver
+   ; "Adjust vertical position of time sig based on vertical staff scaling."
+   (make-engraver
+    (acknowledgers
+     ((time-signature-interface engraver grob source-engraver)
+      (let*
+       ((base-staff-space (cn-get-base-staff-space grob))
+        (vscale-staff (* 12/7 base-staff-space))
+        (basic-y-offset (* (- vscale-staff 0.9) -2.5))
+        ;; adjustment for \magnifyStaff
+        (mag (cn-magnification grob)))
+       (ly:grob-set-property! grob 'Y-offset
+         (* basic-y-offset mag)))
+      ))))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
 
-#(define (cn-stems grob)
-   "Lengthen all stems and give half notes double stems."
-   ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
-   ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
-   (if (and (ly:grob-property-data grob 'stencil)
-            (not (equal? '() (ly:grob-object grob 'note-heads))))
-       (let
-        ((bss-inverse (/ 1 (cn-get-base-staff-space grob))))
-        ;; multiply each of the values in the details property of the stem grob
-        ;; by bss-inverse, except for stem-shorten values
-        (ly:grob-set-property! grob 'details
-          (map
-           (lambda (detail)
-             (let ((head (car detail))
-                   (args (cdr detail)))
-               (if (eq? head 'stem-shorten)
-                   (cons head args)
-                   (cons head
-                     (map
-                      (lambda (arg) (* arg bss-inverse))
-                      args)))))
-           (ly:grob-property grob 'details)))
+#(define Cn_stem_engraver
+   ; "Lengthen all stems and give half notes double stems."
+   (make-engraver
+    (acknowledgers
+     ((stem-interface engraver grob source-engraver)
+      ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
+      ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
+      (if (and (ly:grob-property-data grob 'stencil)
+               (not (equal? '() (ly:grob-object grob 'note-heads))))
+          (let
+           ((bss-inverse (/ 1 (cn-get-base-staff-space grob))))
+           ;; multiply each of the values in the details property of the stem grob
+           ;; by bss-inverse, except for stem-shorten values
+           (ly:grob-set-property! grob 'details
+             (map
+              (lambda (detail)
+                (let ((head (car detail))
+                      (args (cdr detail)))
+                  (if (eq? head 'stem-shorten)
+                      (cons head args)
+                      (cons head
+                        (map
+                         (lambda (arg) (* arg bss-inverse))
+                         args)))))
+              (ly:grob-property grob 'details)))
 
-        ;; double stems for half notes
-        (if (= 1 (ly:grob-property grob 'duration-log))
-            (let*
-             ((stem (ly:stem::print grob))
-              ;; second stem is 1.5 times as thick as standard stem by default
-              (thick-scale (cn-staff-symbol-property 'cn-double-stem-thickness 1.5 grob))
-              (thick-stem (ly:stencil-scale stem thick-scale 1))
-              (dir (- (ly:grob-property grob 'direction)))
-              (stem-extent (ly:stencil-extent stem X))
-              (stem-width (- (car stem-extent) (cdr stem-extent)))
-              ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
-              ;; 4.5 * stem-width = -0.585
-              (spacing-scale (cn-staff-symbol-property 'cn-double-stem-spacing 4.5 grob))
-              (spacing (* spacing-scale stem-width)))
+           ;; double stems for half notes
+           (if (= 1 (ly:grob-property grob 'duration-log))
+               (let*
+                ((stem (ly:stem::print grob))
+                 ;; second stem is 1.5 times as thick as standard stem by default
+                 (thick-scale (cn-staff-symbol-property 'cn-double-stem-thickness 1.5 grob))
+                 (thick-stem (ly:stencil-scale stem thick-scale 1))
+                 (dir (- (ly:grob-property grob 'direction)))
+                 (stem-extent (ly:stencil-extent stem X))
+                 (stem-width (- (car stem-extent) (cdr stem-extent)))
+                 ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
+                 ;; 4.5 * stem-width = -0.585
+                 (spacing-scale (cn-staff-symbol-property 'cn-double-stem-spacing 4.5 grob))
+                 (spacing (* spacing-scale stem-width)))
 
-             (ly:grob-set-property! grob 'stencil
-               (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
-             ;; X-extent needs to be set here because its usual callback
-             ;; ly:stem::width doesn't take the actual stencil width into account
-             (ly:grob-set-property! grob 'X-extent
-               (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
-             )))))
+                (ly:grob-set-property! grob 'stencil
+                  (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
+                ;; X-extent needs to be set here because its usual callback
+                ;; ly:stem::width doesn't take the actual stencil width into account
+                (ly:grob-set-property! grob 'X-extent
+                  (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
+                ))))))))
 
 
 %% BEAMS
 
-#(define (cn-beams grob)
-   "Adjust size and spacing of beams, needed due to vertically compressed staff."
-   (let*
-    ((base-staff-space-inverse
-      (/ 1 (cn-get-base-staff-space grob)))
-     (thick (ly:grob-property-data grob 'beam-thickness))
-     (len-frac (ly:grob-property-data grob 'length-fraction))
-     (space (if (number? len-frac) len-frac 1)))
-    (ly:grob-set-property! grob 'beam-thickness
-      (* thick base-staff-space-inverse))
-    ;; TODO: the 1.1 adjustment below was just visually estimated
-    (ly:grob-set-property! grob 'length-fraction
-      (* space 1.1 base-staff-space-inverse))))
+#(define Cn_beam_engraver
+   ; "Adjust size and spacing of beams, needed due to vertically compressed staff."
+   (make-engraver
+    (acknowledgers
+     ((beam-interface engraver grob source-engraver)
+      (let*
+       ((base-staff-space-inverse
+         (/ 1 (cn-get-base-staff-space grob)))
+        (thick (ly:grob-property-data grob 'beam-thickness))
+        (len-frac (ly:grob-property-data grob 'length-fraction))
+        (space (if (number? len-frac) len-frac 1)))
+       (ly:grob-set-property! grob 'beam-thickness
+         (* thick base-staff-space-inverse))
+       ;; TODO: the 1.1 adjustment below was just visually estimated
+       (ly:grob-set-property! grob 'length-fraction
+         (* space 1.1 base-staff-space-inverse)))
+      ))))
 
 
 %% USER SHORTCUTS FOR EXTENDING STAVES
 %% AND FOR DIFFERENT SIZE STAVES
+
+#(define (cn-get-new-staff-positions posns base-positions going-up going-down)
+
+   (define recurser (lambda (proc posns extension n)
+                      (if (<= n 0)
+                          posns
+                          (recurser proc (proc posns extension) extension (- n 1)))))
+
+   (define (extend-up posns extension)
+     (let ((furthest (reduce max '() posns)))
+       (append posns (map (lambda (ext) (+ furthest ext)) extension))))
+
+   (define (extend-down posns extension)
+     (let ((furthest (reduce min '() posns)))
+       (append (map (lambda (ext) (- furthest ext)) extension) posns)))
+
+   (let*
+    ((max-bp (reduce max '() base-positions))
+     (min-bp (reduce min '() base-positions))
+     ;; the number of empty positions between staves from one octave to the next
+     ;; 8 for Clairnote
+     (gap (+ min-bp (- 12 max-bp)))
+
+     ;; relative locations of a new octave of staff lines,
+     ;; as if 0 is the the furthest current staff line.  '(8 12) for Clairnote
+     (extension (map (lambda (bp) (+ bp gap (- min-bp))) base-positions))
+     (extension-length (length extension))
+
+     (posns-up
+      (cond
+       ((positive? going-up) (recurser extend-up posns extension going-up))
+       ((negative? going-up)
+        (if (> (length posns) extension-length)
+            (drop-right (sort posns <) extension-length)
+            (begin (ly:warning "\\cnUnextendStaffUp failed, not enough staff to unextend") posns)))
+       (else posns)))
+
+     (posns-down
+      (cond
+       ((positive? going-down) (recurser extend-down posns-up extension going-down))
+       ((negative? going-down)
+        (if (> (length posns) extension-length)
+            (drop (sort posns <) extension-length)
+            (begin (ly:warning "\\cnUnextendStaffDown failed, not enough staff to unextend") posns)))
+       (else posns-up))))
+
+    posns-down))
 
 #(define (cn-extend-staff reset going-up going-down)
    ;; reset is boolean, going-up and going-down are integers
    ;; of the number of octaves to extend up or down, negative
    ;; values unextend the staff one octave only
    (lambda (grob)
-
-     (define recurser (lambda (proc posns extension  n)
-                        (if (<= n 0)
-                            posns
-                            (recurser proc (proc posns extension) extension (- n 1)))))
-
-     (define (extend-up posns extension)
-       (let ((furthest (reduce max '() posns)))
-         (append posns (map (lambda (ext) (+ furthest ext)) extension))))
-
-     (define (extend-down posns extension)
-       (let ((furthest (reduce min '() posns)))
-         (append (map (lambda (ext) (- furthest ext)) extension) posns)))
-
      (let ((vertical-axis-group (ly:grob-parent grob Y)))
        (if (not (eq? (grob::name vertical-axis-group) 'VerticalAxisGroup))
            (ly:warning "cannot find VerticalAxisGroup")
            (let*
             ((base-positions (ly:grob-property vertical-axis-group 'cn-base-staff-lines))
-             (max-bp (reduce max '() base-positions))
-             (min-bp (reduce min '() base-positions))
-             ;; the number of empty positions between staves from one octave to the next
-             ;; 8 for Clairnote
-             (gap (+ min-bp (- 12 max-bp)))
-
-             ;; relative locations of a new octave of staff lines,
-             ;; as if 0 is the the furthest current staff line.  '(8 12) for Clairnote
-             (extension (map (lambda (bp) (+ bp gap (- min-bp))) base-positions))
-             (extension-length (length extension))
-
              (current-positions (ly:grob-property vertical-axis-group 'cn-current-staff-lines))
              (posns (if reset base-positions current-positions))
-
-             (posns-up
-              (cond
-               ((positive? going-up) (recurser extend-up posns extension going-up))
-               ((negative? going-up)
-                (if (> (length current-positions) extension-length)
-                    (drop-right (sort current-positions <) extension-length)
-                    (begin (ly:warning "\\cnUnextendStaffUp failed, not enough staff to unextend") posns)))
-               (else posns)))
-
-             (posns-down
-              (cond
-               ((positive? going-down) (recurser extend-down posns-up extension going-down))
-               ((negative? going-down)
-                (if (> (length current-positions) extension-length)
-                    (drop (sort current-positions <) extension-length)
-                    (begin (ly:warning "\\cnUnextendStaffDown failed, not enough staff to unextend") posns)))
-               (else posns-up))))
-
+             (new-posns (cn-get-new-staff-positions posns base-positions going-up going-down)))
             ;; store current positions in custom property VerticalAxisGroup.cn-current-staff-lines
             ;; so that they are accessible after \stopStaff \startStaff
-            (ly:grob-set-property! vertical-axis-group 'cn-current-staff-lines posns-down)
-            (ly:grob-set-property! grob 'line-positions posns-down)
+            (ly:grob-set-property! vertical-axis-group 'cn-current-staff-lines new-posns)
+            (ly:grob-set-property! grob 'line-positions new-posns)
             )))))
 
 cnExtendStaff =
@@ -1047,26 +1070,27 @@ cnNoteheadWidth =
     \override VerticalAxisGroup.cn-current-staff-lines = #'(-8 -4 4 8)
     \override VerticalAxisGroup.cn-base-staff-lines = #'(-8 -4)
 
-    \override TimeSignature.before-line-breaking = #cn-timesigs
+    \consists \Cn_time_signature_engraver
     % stems and beams restored to their pre-staff-compression size
-    \override Stem.before-line-breaking = #cn-stems
-    \override Beam.before-line-breaking = #cn-beams
+    \consists \Cn_stem_engraver
+    \consists \Cn_beam_engraver
 
     \consists \Cn_note_heads_engraver
     \override Stem.no-stem-extend = ##t
     \override StaffSymbol.cn-double-stem-spacing = #4.5
     \override StaffSymbol.cn-double-stem-thickness = #1.5
 
-    % Cn_key_signature_engraver has to come before
-    % Cn_accidental_engraver or we get a segfault crash
+    % Cn_key_signature_engraver and Cn_note_column_engraver have
+    % to come before Cn_accidental_engraver or we get a segfault crash
     \consists \Cn_key_signature_engraver
     printKeyCancellation = ##f
+    \consists \Cn_note_column_engraver
 
     \consists \Cn_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
 
-    \override NoteColumn.before-line-breaking = #cn-chords
+    % \consists \Cn_note_column_engraver
 
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
@@ -1074,7 +1098,7 @@ cnNoteheadWidth =
     \numericTimeSignature
 
     #(if (cn-check-ly-version < '(2 19 18))
-         #{ \override Dots.before-line-breaking = #cn-note-dots #})
+         #{ \with { \consists \Cn_dots_engraver } #})
   }
 }
 
