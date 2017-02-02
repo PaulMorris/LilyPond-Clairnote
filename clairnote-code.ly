@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140526 (2014 May 26)
+%    Version: 20140529 (2014 May 29)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -995,7 +995,6 @@ vertScaleStaff =
     \override Stem.no-stem-extend = ##t
 
     \vertScaleStaff 1.2
-    % to vertically scale noteheads change the last argument here:
     \override NoteHead.before-line-breaking = #clnt-note-heads
 
     \consists \Clnt_key_signature_engraver
@@ -1006,12 +1005,15 @@ vertScaleStaff =
     \consists \Clnt_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
-    % custom context properties to track accidentals in the
+    % custom context properties to track accidental signs in the
     % current measure, used by accidental engraver
     clnt-bar-num = #0
     clnt-acc-list = #'()
 
     \override NoteColumn.before-line-breaking = #clnt-chords-one
+
+    \override LedgerLineSpanner.length-fraction = 0.45
+    \override LedgerLineSpanner.minimum-length-fraction = 0.35
     \numericTimeSignature
   }
 }
