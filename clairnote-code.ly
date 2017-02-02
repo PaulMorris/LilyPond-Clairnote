@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140422 (2014 April 22)
+%    Version: 20140423 (2014 April 23)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for three functions
 %    that are in the public domain: shift-noteheads, setOtherScriptParent,
@@ -429,20 +429,20 @@ key-stil-bank = #'()
 % Step 2 of 3
 #(define (chord-handler-two grob note-heads)
    (let* (;; create a list of the semitones of each note in the chord
-           (semitones (map (lambda (head-grob)
-                             (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
-                        note-heads))
-           ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) (3 5)...)
-           (semi-lists (zip (iota (length note-heads)) semitones))
-           ;; sort both by semitones, ascending
-           (semitones-sorted (sort-list semitones <))
-           (semi-lists-sorted
-            (sort! semi-lists (lambda (a b) (< (list-ref a 1) (list-ref b 1)))))
+          (semitones (map (lambda (head-grob)
+                            (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
+                       note-heads))
+          ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) (3 5)...)
+          (semi-lists (zip (iota (length note-heads)) semitones))
+          ;; sort both by semitones, ascending
+          (semitones-sorted (sort-list semitones <))
+          (semi-lists-sorted
+           (sort! semi-lists (lambda (a b) (< (list-ref a 1) (list-ref b 1)))))
 
-           ;; calculate the intervals between the notes, uses a second copy
-           ;; of the list with its first value dropped so the previous values are
-           ;; in place to be subtracted from the next
-           (int-list (map - (cdr semitones-sorted) semitones-sorted)))
+          ;; calculate the intervals between the notes, uses a second copy
+          ;; of the list with its first value dropped so the previous values are
+          ;; in place to be subtracted from the next
+          (int-list (map - (cdr semitones-sorted) semitones-sorted)))
 
      ;; no 2 semitone intervals? then there is no need to offset
      ;; any notes since standard layout is already correct
@@ -679,18 +679,35 @@ adjustStem =
 
 #(set-clairnote-clefs)
 
+% use this function to set clefs back to traditional settings to
+% include both traditional notation and Clairnote in the same file
+#(define (set-traditional-clefs)
+   (let* ((treble-pos -2)
+          (treble-c -4)
+          (bass-pos 2)
+          (bass-c 4)
+          (alto-pos 0)
+          (alto-c 0))
+     (set-clefs
+      treble-pos treble-c
+      bass-pos bass-c
+      alto-pos alto-c)))
 
-% REPEAT BARLINES / DOTS
-% customize the colon bar line (":" the repeat dots)
 
-#(define ((make-custom-colon-bar-line dot-positions) grob extent)
-   "Draw repeat dots, placed at @var{dot-positions}.
-The coordinates of @var{dot-positions} are equivalent to
-those of StaffSymbol.line-positions, a dot-position of X
-and a line-position of X indicate the same vertical position."
+% REPEAT SIGN DOTS / BAR LINES
 
-   (let* ((dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot"))
-          (staff-space (ly:staff-symbol-staff-space grob))
+% adjust the position of dots in repeat signs
+% for Clairnote staves or a traditional staves
+
+#(define ((make-custom-dot-bar-line dot-positions) grob extent)
+
+   "Draw dots (repeat sign dots) at @var{dot-positions}. The
+coordinates of @var{dot-positions} are equivalent to the
+coordinates of @code{StaffSymbol.line-positions}, a dot-position
+of X and a line-position of X indicate the same vertical position."
+
+   (let* ((staff-space (ly:staff-symbol-staff-space grob))
+          (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot"))
           (stencil empty-stencil))
      (for-each
       (lambda (dp)
@@ -699,7 +716,17 @@ and a line-position of X indicate the same vertical position."
       dot-positions)
      stencil))
 
-#(add-bar-glyph-print-procedure ":" (make-custom-colon-bar-line '(-2 2)))
+#(define (select-dot-bar-line-procedure grob extent)
+   "Based on a staff's line-positions, return a procedure for repeat sign dots."
+     (if (equal?
+          (ly:grob-property (ly:grob-object grob 'staff-symbol) 'line-positions '())
+          '(-4 -2 0 2 4))
+         ;; Traditional five line staff
+         ((make-custom-dot-bar-line '(-1 1)) grob extent)
+         ;; Clairnote staff
+         ((make-custom-dot-bar-line '(-2 2)) grob extent)))
+
+#(add-bar-glyph-print-procedure ":" select-dot-bar-line-procedure)
 
 
 %% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
@@ -755,6 +782,8 @@ staffSize =
     \Staff
     \name StaffTrad
     \alias Staff
+    % needed for staff identification for repeat sign dots
+    \override StaffSymbol.line-positions = #'(-4 -2 0 2 4)
   }
 
   % allow parent contexts to accept \StaffTrad
