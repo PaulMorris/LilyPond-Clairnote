@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140429 (2014 April 29)
+%    Version: 20140515 (2014 May 15)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for three functions
 %    that are in the public domain: clnt-shift-noteheads, setOtherScriptParent,
@@ -131,7 +131,7 @@
 
 %% ACCIDENTAL SIGNS
 
-% use a closure
+% using a closure
 #(define Clnt_accidental_engraver #f)
 % these two stencils are global, used by key sig engraver
 #(define clnt-sharp-sign empty-stencil)
@@ -266,7 +266,7 @@
 
 %% KEY SIGNATURES
 
-% use a closure
+% using a closure
 #(define Clnt_key_signature_engraver #f)
 
 % key-stils, an associative list for storing key sig stencils
@@ -284,9 +284,11 @@
                  (modulo (/ alt-count 2) 7)))
             ;; mode-num: number of the mode (0-6)
             (mode-num (modulo (- tonic-num maj-num) 7))
+            ;; get vertical staff scaling factor from custom grob property in staff-symbol grob
+            (vscale-staff (ly:grob-property (ly:grob-object grob 'staff-symbol) 'clnt-vscale-staff '()))
             ;; note-space: calculate the distance between notes based on
             ;; vertical staff scaling. (foo - (((foo - 1.2) * 0.7) + 0.85))
-            (note-space (- clnt-vscale-staff (+ (* (- clnt-vscale-staff 1.2) 0.7) 0.85)))
+            (note-space (- vscale-staff (+ (* (- vscale-staff 1.2) 0.7) 0.85)))
             ;; vert-adj: calculate vertical position of the sig
             ;; (alt-count  X)
             ;; (-7 -1) (-5 -11) (-3 -9) (-1 -7) (1 -5) (3 -3) (5 -1) (7 -11)
@@ -814,6 +816,28 @@ clefTransposition
 %}
 
 
+%% DEFINE CUSTOM GROB PROPERTIES
+
+% copied from "scm/define-grob-properties.scm"
+#(define (define-grob-property symbol type? description)
+   (if (not (equal? (object-property symbol 'backend-doc) #f))
+       (ly:error (_ "symbol ~S redefined") symbol))
+
+   (set-object-property! symbol 'backend-type? type?)
+   (set-object-property! symbol 'backend-doc description)
+   symbol)
+
+% StaffSymbol.clnt-is-clairnote-staff is set to tell whether
+% a staff is a Clairnote staff or not. Used for repeat sign dots.
+#(define-grob-property 'clnt-is-clairnote-staff boolean?
+   "Is this staff a Clairnote staff?")
+
+% StaffSymbol.clnt-vscale-staff is set to store the vertical scaling factor
+% of the current staff.  Used for key signatures and staffSize user function.
+#(define-grob-property 'clnt-vscale-staff number?
+   "Vertical scaling factor for a given Clairnote staff, default is 1.2")
+
+
 %% REPEAT SIGN DOTS (BAR LINES)
 
 % adjust the position of dots in repeat signs
@@ -836,24 +860,17 @@ clefTransposition
      stencil))
 
 #(define (clnt-repeat-dot-bar-procedure grob extent)
-   "Based on a staff's line-positions, return a procedure for repeat sign dots."
-   (let ((line-pos (ly:grob-property (ly:grob-object grob 'staff-symbol) 'line-positions '())))
-     (if (and
-          (< 0 (length line-pos))
-          (equal? 4 (abs (- (list-ref line-pos 0) (list-ref line-pos 1)))))
-         ;; Clairnote staff or Traditional five line staff
-         ((clnt-make-repeat-dot-bar '(-2 2)) grob extent)
-         ((clnt-make-repeat-dot-bar '(-1 1)) grob extent))))
+   "Return a procedure for repeat sign dots based on a custom grob property
+    set in 'staff-symbol that tells us whether the staff is a Clairnote staff."
+   (if (ly:grob-property (ly:grob-object grob 'staff-symbol) 'clnt-is-clairnote-staff '())
+       ;; Clairnote staff or Traditional five line staff
+       ((clnt-make-repeat-dot-bar '(-2 2)) grob extent)
+       ((clnt-make-repeat-dot-bar '(-1 1)) grob extent)))
 
 #(add-bar-glyph-print-procedure ":" clnt-repeat-dot-bar-procedure)
 
 
 %% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
-
-% clnt-vscale-staff is a global variable holding the default vertical scaling
-% value so it can be used with key signatures and staffSize function
-% TODO: a way to store this per-staff rather than globally?
-clnt-vscale-staff = 1.2
 
 vertScaleStaff =
 #(define-music-function (parser location vscale-staff) (number?)
@@ -864,7 +881,6 @@ vertScaleStaff =
    ;;  - stems are extended back to their original/traditional size
    ;;  - time signature position is adjusted vertically
    ;;  - elsewhere key signatures are adjusted to fit the staff
-   (set! clnt-vscale-staff vscale-staff)
    #{
      \override StaffSymbol.staff-space = #(* vscale-staff 7/12)
      \override Stem.before-line-breaking = #(clnt-stems (/ 1 (* vscale-staff 7/12)))
@@ -873,6 +889,11 @@ vertScaleStaff =
         (ly:grob-set-property! grob 'Y-offset
           ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
           (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
+
+     % StaffSymbol.clnt-vscale-staff is a custom grob property that
+     % stores the vertical staff scaling value so it can be used with
+     % key signatures and staffSize function
+     \override StaffSymbol.clnt-vscale-staff = #vscale-staff
    #})
 
 
@@ -882,11 +903,14 @@ staffSize =
 #(define-music-function (parser location new-size) (number?)
    "Helper macro that lets the user zoom a single staff size."
    ;; TODO: this does not work perfectly combined with vertScaleStaff
-   ;; especially key signatures and time signatures
+   ;; see especially key signatures and time signatures
    #{
      \set fontSize = #new-size
-     \override StaffSymbol.staff-space = #(*  clnt-vscale-staff 7/12 (magstep new-size))
      \override StaffSymbol.thickness = #(magstep new-size)
+     \override StaffSymbol.staff-space =
+     #(lambda (grob)
+        (* 7/12 (magstep new-size)
+          (ly:grob-property grob 'clnt-vscale-staff)))
    #})
 
 
@@ -900,6 +924,8 @@ staffSize =
     \Staff
     \name StaffTrad
     \alias Staff
+    % custom grob property
+    \override StaffSymbol.clnt-is-clairnote-staff = ##f
   }
 
   % allow parent contexts to accept \StaffTrad
@@ -919,6 +945,8 @@ staffSize =
     \override StaffSymbol.line-positions = #'(-8 -4  4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
+    % custom grob property
+    \override StaffSymbol.clnt-is-clairnote-staff = ##t
     \override Stem.no-stem-extend = ##t
 
     \vertScaleStaff 1.2
