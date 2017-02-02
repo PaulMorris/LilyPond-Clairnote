@@ -1,6 +1,31 @@
-\version "2.18.0"
+%
+%    This file "clairnote-code.ly" is a LilyPond include file for producing
+%    sheet music in Clairnote music notation (http://clairnote.org).
+%    Version: 20140420 (2014 April 20)
+%
+%    Copyright © 2013, 2014 Paul Morris, except for three functions
+%    that are in the public domain: shift-noteheads, setOtherScriptParent,
+%    and adjustStem, copied (and edited slightly) from the LilyPond Snippet
+%    Repository, snippet 861, "Re-positioning note heads on the opposite side
+%    of the stem" http://lsr.di.unimi.it/LSR/Item?id=861 Thanks to David Nalesnik
+%    and Thomas Morley for writing these functions.
+%
+%    Contact information: http://clairnote.org/about/
+%
+%    This file is free software: you can redistribute it and/or modify
+%    it under the terms of the GNU General Public License as published by
+%    the Free Software Foundation, either version 3 of the License, or
+%    (at your option) any later version.
+%
+%    This file is distributed in the hope that it will be useful,
+%    but WITHOUT ANY WARRANTY; without even the implied warranty of
+%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%    GNU General Public License for more details.
+%
+%    You should have received a copy of the GNU General Public License
+%    along with this file.  If not, see <http://www.gnu.org/licenses/>.
 
-% clairnote-code.ly version: 20140314 (2014 March 14)
+\version "2.18.2"
 
 % Absolute value helper function
 % when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
@@ -36,8 +61,8 @@
                 ;; white note
                 ((0) (if whole-note?
                          ;; white whole note
-                         ;; thicken top and bottom using an oval path so no white space shows through
-                         ;; above and below staff lines for hollow whole notes
+                         ;; thicken top and bottom using an oval path so no white space shows
+                         ;; through above and below staff lines for hollow whole notes
                          (ly:stencil-add
                           (ly:stencil-translate
                            (make-oval-stencil 0.7 0.58 0.11 #f)
@@ -123,22 +148,22 @@
    ;; set the 'X-extent and 'Y-extent
    (ly:grob-set-property! grob 'Y-extent (cons -0.5 1.2))
    (ly:grob-set-property! grob 'X-extent
-     (cond
-      ((= acc -1) (cons -0.34 0.67)) ;; double flat
-      ((= acc 1) (cons -0.54 0.47)) ;; double sharp
-      ((= acc -0.5) (cons 0 0.54)) ;; flat
-      ((= acc 0.5) (cons -0.27 0.27)) ;; sharp
-      ((= acc 0) (cons -0.0  (* 0.666666 0.65))))) ;; natural
+     (case acc
+       ((-1/2) (cons 0 0.54)) ;; flat
+       ((1/2) (cons -0.27 0.27)) ;; sharp
+       ((0) (cons -0.0  (* 0.666666 0.65))) ;; natural
+       ((-1) (cons -0.34 0.67)) ;; double flat
+       ((1) (cons -0.54 0.47)))) ;; double sharp
    ;; set the stencil
    (ly:grob-set-property! grob 'stencil
      (ly:stencil-scale
-      (cond
-       ((= acc -1) (make-double-sharp-flat-stencil #f))
-       ((= acc -0.5) (make-sharp-flat-stencil #f))
-       ((= acc 0) (ly:stencil-scale (ly:grob-property grob 'stencil) 0.65 0.65 ))
-       ((= acc 0.5) (make-sharp-flat-stencil #t))
-       ((= acc 1) (make-double-sharp-flat-stencil #t))
-       (else (ly:grob-property grob 'stencil)))
+      (case acc
+        ((-1/2) (make-sharp-flat-stencil #f))
+        ((1/2) (make-sharp-flat-stencil #t))
+        ((0) (ly:stencil-scale (ly:grob-property grob 'stencil) 0.65 0.65 ))
+        ((-1) (make-double-sharp-flat-stencil #f))
+        ((1) (make-double-sharp-flat-stencil #t))
+        (else (ly:grob-property grob 'stencil)))
       mult mult)))
 
 % TODO: handle custom keysigs that have octave values:
@@ -329,8 +354,7 @@ key-stil-bank = #'()
                      0 1
                      (ly:stencil-aligned-to sig-head-num Y CENTER)
                      0.3))
-          ;; just to get the sig started
-          (sig (make-circle-stencil 0.0 0.0 #f))
+          (sig empty-stencil)
           (xpos 0)
           (ypos 0)
           (solid-dot? (= sig-type 0)))
@@ -404,8 +428,7 @@ key-stil-bank = #'()
 
 % Step 2 of 3
 #(define (chord-handler-two grob note-heads)
-   (let* (
-           ;; create a list of the semitones of each note in the chord
+   (let* (;; create a list of the semitones of each note in the chord
            (semitones (map (lambda (head-grob)
                              (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
                         note-heads))
@@ -503,8 +526,13 @@ key-stil-bank = #'()
 
 
 %% CHORDS - MANUAL
-% For chords and intervals, manually shift note heads to left or right of stem
-% Credit goes to Thomas Morley for this code and related helper functions below
+% For chords and intervals, manually shift note heads to left or right of stem.
+%
+% Credit goes to David Nalesnik and Thomas Morley for these three functions:
+% shift-noteheads, setOtherScriptParent, and adjustStem, copied (and edited slightly)
+% from the LilyPond Snippet Repository, snippet 861, "Re-positioning note heads on
+% the opposite side of the stem" http://lsr.di.unimi.it/LSR/Item?id=861
+% The code for these three functions is in the public domain.
 
 #(define ((shift-noteheads offsets) grob)
    "Defines how NoteHeads should be moved according to the given list of offsets."
@@ -620,74 +648,10 @@ adjustStem =
    #})
 
 
-%% CLEFS
-% Clairnote clef engraver - currently not used
-%{
-  #(define Clairnote_clef_engraver
-  (make-engraver
-  (acknowledgers
-  ((clef-interface engraver grob source-engraver)
-  (let* (
-  (glyph-name (ly:grob-property grob 'glyph-name))
-  (mult (magstep (ly:grob-property grob 'font-size 0.0)))
-  (clef-minus-one (markup #:bold #:magnify 0.63 "-1"))
-  (clef-minus-two (markup #:bold #:magnify 0.63 "-2")))
-
-  (set! (ly:grob-property grob 'Y-offset) 0.35)
-  ;; 0.7 centers on G# line  -0.7 the E line  0.35 the G space
-
-  (cond
-  ;; G / Treble clef
-  ((equal? glyph-name "clefs.G")
-  (set! (ly:grob-property grob 'stencil)
-  (ly:font-get-glyph (ly:grob-default-font grob) "clefs.G_change")))
-  ;; F / Bass clef
-  ((or
-  (equal? glyph-name "clefs.F_change")
-  (equal? glyph-name "clefs.F"))
-  (set! (ly:grob-property grob 'stencil)
-  (ly:stencil-combine-at-edge
-  (ly:stencil-translate
-  (ly:font-get-glyph (ly:grob-default-font grob) "clefs.G_change")
-  (cons 0 0))
-  1 -1
-  (ly:stencil-translate
-  (grob-interpret-markup grob clef-minus-two)
-  (cons 0.2 0))
-  0.08)))
-  ;; C / Alto etc clef
-  ((or
-  (equal? glyph-name "clefs.C_change")
-  (equal? glyph-name "clefs.C"))
-  (set! (ly:grob-property grob 'stencil)
-  (ly:stencil-combine-at-edge
-  (ly:stencil-translate
-  (ly:font-get-glyph (ly:grob-default-font grob) "clefs.G_change")
-  (cons 0 0))
-  1 -1
-  (ly:stencil-translate
-  (grob-interpret-markup grob clef-minus-one)
-  (cons 0.2 0))
-  0.08)))
-  (else
-  (set! (ly:grob-property grob 'stencil)
-  (ly:grob-property grob 'stencil)))))))))
-%}
-%{
-  %  for larger, regular size clefs, if we ever get them working
-  ;;  ((equal? glyph-name "clefs.F")
-  ;;  (ly:stencil-combine-at-edge
-  ;;    (ly:stencil-translate (ly:font-get-glyph (ly:grob-default-font grob) "clefs.G") (cons 0 -2))
-  ;;    1 -1
-  ;;    (ly:stencil-translate (grob-interpret-markup grob clef-fifteen) (cons 0.5 0))
-  ;;    0.005 ))
-%}
-
-
 %% CLEF SETTINGS
 
-% helper function for modifying clef settings
 #(define (set-clefs treble-pos treble-c bass-pos bass-c alto-pos alto-c)
+   "Helper function for modifying clef settings."
    ;; add-new-clef args:  clef-name  clef-glyph  clef-position  octavation  c0-position
    (add-new-clef "treble" "clefs.G" treble-pos 0 treble-c)
    (add-new-clef "G" "clefs.G" treble-pos 0 treble-c)
@@ -698,9 +662,9 @@ adjustStem =
    (add-new-clef "C" "clefs.C" alto-pos 0 alto-c))
 
 % set (or reset) clef settings for clairnote
-% subtracting the clef position as part of the calculation of
-% the middle c position lets us adjust the clef position here
-% without changing the position of middle c (or other notes)
+% subtracting the clef position (i.e. treble-pos) in the calculation of
+% the middle c position (i.e. treble-c) lets us adjust the clef position
+% without affecting the position of middle c (or other notes)
 #(define (set-clairnote-clefs)
    (let* ((treble-pos -5)
           (treble-c (- -12 treble-pos))
@@ -715,20 +679,27 @@ adjustStem =
 
 #(set-clairnote-clefs)
 
-% use this function to reset clefs back to traditional settings
-% if you want to include music in both traditional notation
-% and Clairnote in the same file (i.e. for comparison)
-#(define (set-traditional-clefs)
-   (let* ((treble-pos -2)
-          (treble-c -4)
-          (bass-pos 2)
-          (bass-c 4)
-          (alto-pos 0)
-          (alto-c 0))
-     (set-clefs
-      treble-pos treble-c
-      bass-pos bass-c
-      alto-pos alto-c)))
+
+% REPEAT BARLINES / DOTS
+% customize the colon bar line (":" the repeat dots)
+
+#(define ((make-custom-colon-bar-line dot-positions) grob extent)
+   "Draw repeat dots, placed at @var{dot-positions}.
+The coordinates of @var{dot-positions} are equivalent to
+those of StaffSymbol.line-positions, a dot-position of X
+and a line-position of X indicate the same vertical position."
+
+   (let* ((dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot"))
+          (staff-space (ly:staff-symbol-staff-space grob))
+          (stencil empty-stencil))
+     (for-each
+      (lambda (dp)
+        (set! stencil (ly:stencil-add stencil
+                        (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y))))
+      dot-positions)
+     stencil))
+
+#(add-bar-glyph-print-procedure ":" (make-custom-colon-bar-line '(-2 2)))
 
 
 %% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
