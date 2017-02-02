@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160109
+%    Version: 20160201
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -1174,7 +1174,6 @@ cnNoteheadWidth =
     % grob property overrides
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
-    \override StaffSymbol.ledger-extra = 1
     \override Stem.no-stem-extend = ##t
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
@@ -1187,6 +1186,13 @@ cnNoteheadWidth =
          #{
            \override Stem.note-collision-threshold = 2
            \override NoteCollision.note-collision-threshold = 2
+         #}
+         ;; an empty else clause is needed for 2.18 compatibility
+         #{ #})
+
+    #(if (cn-check-ly-version >= '(2 19 36))
+         #{
+           \override StaffSymbol.ledger-extra = 2
          #}
          ;; an empty else clause is needed for 2.18 compatibility
          #{ #})
