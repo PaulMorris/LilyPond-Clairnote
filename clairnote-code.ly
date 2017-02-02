@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160221
+%    Version: 20160515
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -865,6 +865,96 @@
       ))))
 
 
+%% LEDGER LINES
+
+#(define (cn-ledger-pattern dist ledger-args)
+   "Produces the ledger line pattern for a given note."
+   ;; dist is distance of note from the closest staff line
+   ;; extra-4, extra-8, extra-12 work like LilyPond's ledger-extra property
+   ;; but tied to their specific ledger lines. They determine when ledgers
+   ;; start to appear beyond the note (default is 2, other good values are 1, 5, 6).
+   ;; hide-4 determines when 4-position lines (C) start to disappear
+   ;; (2 or 5 make sense, 0-7 are possible)
+   ;; TODO? provide a way to show all C ledgers?
+   (let*
+    ((extra-4 (list-ref ledger-args 0))
+     (extra-8 (list-ref ledger-args 1))
+     (extra-12 (list-ref ledger-args 2))
+     (hide-4 (list-ref ledger-args 3))
+     (rem (remainder dist 12))
+     (base (* 12 (quotient dist 12)))
+
+     ;; list of positions from 0 to base, cycling at 8 and 12 (E and G#/Ab)
+     (lrs (merge
+           (iota (quotient base 12) 12 12)
+           (iota (quotient (+ 4 base) 12) 8 12)
+           <))
+
+     (get-ledger (lambda (pos extra rem base)
+                   (if (<= (- pos extra) rem)
+                       (list (+ pos base))
+                       '())))
+
+     (lr12 (get-ledger 12 extra-12 rem base))
+     (lr8 (get-ledger 8 extra-8 rem base))
+
+     (lr4 (if (<= rem (+ 4 hide-4))
+              (get-ledger 4 extra-4 rem base)
+              '()))
+
+     (result (append lrs lr4 lr8 lr12)))
+    result))
+
+
+#(define (cn-ledger-positions ledger-args)
+   "Returns a function that takes a StaffSymbol grob and a vertical
+    position of a note head and returns a list of ledger line positions,
+    based on ledger-args."
+   `(lambda (staff-symbol pos)
+      (let*
+       ((lr-args ',ledger-args)
+        (lines (ly:grob-property staff-symbol 'line-positions '(-8 -4 4 8)))
+
+        (nearest-line
+         (fold (lambda (line prev)
+                 (if (< (abs (- line pos)) (abs (- prev pos)))
+                     line
+                     prev))
+           (car lines)
+           (cdr lines)))
+
+        (diff (- pos nearest-line))
+        (dist (abs diff))
+        (dir (if (negative? diff) -1 1))
+
+        ;; get generic ledger positions and then transform them so
+        ;; they are relative to nearest-line and in the right direction
+        (ledgers0 (cn-ledger-pattern dist lr-args))
+        (ledgers1 (map (lambda (n) (+ nearest-line (* dir n)))
+                    ledgers0))
+
+        ;; remove any ledgers that would fall on staff lines
+        (ledgers2 (filter (lambda (n) (not (member n lines)))
+                          ledgers1)))
+
+       ;; (display dist)(display ledgers2)(newline)
+       ledgers2)))
+
+
+% default, gradual, conservative
+#(define cn-ledgers-gradual '(2 2 2 5))
+
+% jumps to two ledger lines immediately,
+% omits c ledger line quickly, no overlap
+#(define cn-ledgers-less-gradual '(2 2 5 2))
+
+% minimal ledger lines
+#(define cn-ledgers-minimal '(2 2 1 2))
+
+% no ledger-extra, solid notes in center of spaces don't get
+% a ledger beyond them, but float in space.
+
+
 %% USER: EXTENDING STAVES & STAVES WITH DIFFERENT OCTAVE SPANS
 
 #(define (cn-get-new-staff-positions posns base-positions going-up going-down)
@@ -1308,29 +1398,36 @@ cnNoteheadStyle =
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
 
+    % empty else clauses are needed for 2.18 compatibility
     #(if (cn-check-ly-version >= '(2 19 34))
          #{
            \override Stem.note-collision-threshold = 2
            \override NoteCollision.note-collision-threshold = 2
          #}
-         ;; an empty else clause is needed for 2.18 compatibility
          #{ #})
 
+    % LilyPond bug with "ledger-extra = 2" before 2.19.36
     #(if (cn-check-ly-version >= '(2 19 36))
          #{
            \override StaffSymbol.ledger-extra = 2
          #}
          #{
-           % There's a LilyPond bug with "ledger-extra = 2" before 2.19.36
            \override StaffSymbol.ledger-extra = 1
          #})
+
+    #(if (cn-check-ly-version >= '(2 19 42))
+         #{
+           \override StaffSymbol.ledger-positions-function =
+           #(cn-ledger-positions cn-ledgers-less-gradual)
+         #}
+         #{ #})
 
     % NoteColumn override doesn't work as an engraver for some reason,
     % crashes with manual beams on chords.
     #(if (cn-check-ly-version < '(2 19 34))
-         #{ \with {
+         #{
            \override NoteColumn.before-line-breaking = #cn-note-column-callback
-         } #})
+         #})
 
     % staff-space reflects vertical compression of Clairnote staff.
     % Default of 0.75 makes the Clairnote octave 1.28571428571429
