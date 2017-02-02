@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150403
+%    Version: 20150406
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code or from the LilyPond Snippet
@@ -187,18 +187,18 @@
     ((note (ly:pitch-notename pitch))
      (alt (ly:pitch-alteration pitch)))
     ;; is the note-and-alt-pair in the key sig?
+    ;;   yes --> #t sharp/flat in key sig
+    ;;   no, is alt a sharp or flat (i.e. not a natural)?
+    ;;     yes --> #f sharp/flat not in key sig
+    ;;     no, is note (disregarding its alt) in the key sig?
+    ;;       yes --> #f natural not in key sig
+    ;;       no --> #t natural in key sig
     (if (equal? (cons note alt) (assoc note key-sig))
-        ;; yes --> #t sharp/flat in key sig
         #t
-        ;; no, is alt a sharp or flat (i.e. not a natural)?
         (if (not (equal? 0 alt))
-            ;; yes --> #f sharp/flat not in key sig
             #f
-            ;; no, is note (disregarding its alt) in the key sig?
             (if (assoc-ref key-sig note)
-                ;; yes --> #f natural not in key sig
                 #f
-                ;; no --> #t natural in key sig
                 #t)))))
 
 #(define Cn_accidental_engraver
@@ -307,17 +307,22 @@
 
 #(define (cn-make-keysig-head grob alt-count)
    "Make sig-head, the acc-sign and number at top of key sig."
-   (let
+   (let*
     ((acc (cond
            ((> alt-count 0) cn-sharp-sign)
            ((< alt-count 0) cn-flat-sign)
            ((= alt-count 0) (ly:stencil-scale
                              (grob-interpret-markup grob (markup #:natural))
                              0.65 0.65))))
+     ;; expected staff-space given the current value of cn-vscale-staff
+     (expected-staff-space (* 7/12 (cn-staff-symbol-prop grob 'cn-vscale-staff)))
+     ;; actual staff-space currently in effect, as modified by \magnifyStaff, etc.
+     (actual-staff-space (cn-staff-symbol-prop grob 'staff-space))
+     (scale (/ 0.6 (/ actual-staff-space expected-staff-space)))
      (num (ly:stencil-scale
            (grob-interpret-markup grob
              (markup (number->string (abs alt-count))))
-           0.6 0.6)))
+           scale scale)))
     (ly:stencil-combine-at-edge
      (ly:stencil-aligned-to acc Y CENTER) 0 1
      (ly:stencil-aligned-to num Y CENTER) 0.3)))
@@ -604,21 +609,22 @@ cueClef =
 #(add-bar-glyph-print-procedure ":" cn-repeat-dot-bar-procedure)
 
 
-%% STAFF SPACE
-
-#(define (cn-staff-space grob)
-   "Scale staff space based on StaffSymbol.cn-vscale-staff."
-   (* 7/12 (ly:grob-property grob 'cn-vscale-staff)))
-
-
 %% TIME SIGNATURES
 
 #(define (cn-timesigs grob)
    "Adjust vertical position of time sig based on vertical staff scaling."
-   (define vss (cn-staff-symbol-prop grob 'cn-vscale-staff))
-   (ly:grob-set-property! grob 'Y-offset
+   (let*
+    ((vscale-staff (cn-staff-symbol-prop grob 'cn-vscale-staff))
      ;; ((((vss - 1.2) * -3.45) - 1.95) + vss)
-     (+ (- (* (- vss 1.2) -3.45 ) 1.95) vss)))
+     (basic-y-offset (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff))
+     ;; expected staff-space given the current value of cn-vscale-staff
+     (expected-staff-space (* 7/12 vscale-staff))
+     ;; actual staff-space currently in effect, as modified by \magnifyStaff, etc.
+     (actual-staff-space (cn-staff-symbol-prop grob 'staff-space))
+     ;; adjustment for \magnifyStaff
+     (adjustment (/ actual-staff-space expected-staff-space)))
+    (ly:grob-set-property! grob 'Y-offset
+      (* basic-y-offset adjustment))))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
@@ -627,9 +633,13 @@ cueClef =
    "Lengthen all stems and give half notes double stems."
    ;; make sure \omit is not in effect (i.e. stencil is not #f)
    (if (ly:grob-property-data grob 'stencil)
-       (let ((staff-space-inv (/ 1 (ly:staff-symbol-staff-space grob))))
+       (let ((staff-space-inverse
+              (/ 1 (* 7/12 (cn-staff-symbol-prop grob 'cn-vscale-staff)))))
+         ;; default staff-space-inverse is 1/0.7 = 1.42857714286...
+         ;; 0.7 is default staff-space (* 7/12 1.2)
+         ;; 1.2 is default cn-vscale-staff
          ;; multiply each of the values in the details property of the stem grob
-         ;; by the inverse of staff-space, except for stem-shorten values
+         ;; by the staff-space-inverse, except for stem-shorten values
          (ly:grob-set-property! grob 'details
            (map
             (lambda (detail)
@@ -639,7 +649,7 @@ cueClef =
                     (cons head args)
                     (cons head
                       (map
-                       (lambda (arg) (* arg staff-space-inv))
+                       (lambda (arg) (* arg staff-space-inverse))
                        args)))))
             (ly:grob-property grob 'details)))
          ;; double stems for half notes
@@ -657,42 +667,31 @@ cueClef =
 %% BEAMS
 
 #(define (cn-beams grob)
-   "Adjust size and spacing of beams, needed due to smaller
-    StaffSymbol.staff-space"
+   "Adjust size and spacing of beams, needed due to vertically scaled staff."
    (let*
-    ((staff-space-inv (/ 1 (ly:staff-symbol-staff-space grob)))
+    ;; expected staff space based on cn-vscale-staff
+    ((expected-staff-space
+      (* 7/12 (cn-staff-symbol-prop grob 'cn-vscale-staff)))
+     (staff-space-inverse (/ 1 expected-staff-space))
      (thick (ly:grob-property-data grob 'beam-thickness))
      (len-frac (ly:grob-property-data grob 'length-fraction))
      (space (if (number? len-frac) len-frac 1)))
+
     (ly:grob-set-property! grob 'beam-thickness
-      (* thick staff-space-inv))
-    ;; 1.1 adjustment below was visually estimated
+      (* thick staff-space-inverse))
+    ;; TODO: the 1.1 adjustment below was just visually estimated
     (ly:grob-set-property! grob 'length-fraction
-      (* space 1.1 staff-space-inv))))
+      (* space 1.1 staff-space-inverse))))
 
 
 %% USER VERTICAL STAFF COMPRESSION FUNCTION
 
+% must be used before \magnifyStaff in a staff's \with block
 vertScaleStaff =
 #(define-music-function (parser location n) (number?)
    #{
      \override StaffSymbol.cn-vscale-staff = #n
-   #})
-
-
-%% USER STAFF SCALING FUNCTION
-
-staffSize =
-#(define-music-function (parser location new-size) (number?)
-   "Helper macro that lets the user zoom a single staff size."
-   ;; TODO: this does not work perfectly combined with vertScaleStaff
-   ;; see especially key signatures and time signatures
-   #{
-     \set fontSize = #new-size
-     \override StaffSymbol.thickness = #(magstep new-size)
-     \override StaffSymbol.staff-space =
-     #(lambda (grob)
-        (* 7/12 (magstep new-size) (ly:grob-property grob 'cn-vscale-staff)))
+     \override StaffSymbol.staff-space = #(* 7/12 n)
    #})
 
 
@@ -819,22 +818,19 @@ fourOctaveStaff = {
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
+    % staff-space is coordinated with cn-vscale-staff, 0.7 = (* 7/12 1.2)
+    \override StaffSymbol.staff-space = #0.7
 
     % custom grob properties
     \override VerticalAxisGroup.cn-staff-lines = #'(-8 -4 4 8)
     \override StaffSymbol.cn-is-clairnote-staff = ##t
     \override StaffSymbol.cn-vscale-staff = #1.2
-    % StaffSymbol.cn-vscale-staff stores the vertical staff scaling value.
-    % 1.2 is default, 1 gives a staff with same size octave as traditional.
-    % These depend on it:
-    % - staff-space, the vertical distance between the staff lines
-    % - time signature
-    % - key signatures
-    % - staffSize function
-    % must be kept in this separate property from staff-space because
-    % we need to zoom the staff-space using staffSize without losing the
-    % vertical scaling number
-    \override StaffSymbol.staff-space = #cn-staff-space
+    % cn-vscale-staff stores the vertical staff scaling value
+    % 1.2 is the default, 1 gives a staff with same size octave as traditional
+    % stem and beam size, time sig and key sig position depend on it
+    % stored in a separate property from staff-space because we need
+    % to be able to \magnifyStaff the staff-space without losing
+    % the vertical scaling value
 
     \override TimeSignature.before-line-breaking = #cn-timesigs
     % stems, beams restored to original/traditional size, via staff-space
