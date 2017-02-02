@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150508
+%    Version: 20150509
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -576,7 +576,7 @@
                 (not (equal? ottavation prev-ottavation)))
                (begin
                 (ly:context-set-property! context 'middleCOffset
-                  (+ -6 (* mid-c-off 12/7)))
+                  (* 12/7 mid-c-off))
                 (ly:set-middle-C! context)
                 (set! prev-ottavation ottavation)
                 )))))))))
@@ -895,6 +895,7 @@ vertScaleStaff =
     \Staff
     staffLineLayoutFunction = #ly:pitch-semitones
     middleCPosition = -12
+    middleCClefPosition = -12
     clefPosition = -5
 
     % listener engravers:
