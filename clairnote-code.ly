@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140920 (2014 Sept 20)
+%    Version: 20140921 (2014 Sept 21)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -212,54 +212,52 @@
                 #t)))))
 
 #(define Cn_accidental_engraver
-   (make-engraver
-    (acknowledgers
-     ((accidental-interface engraver grob source-engraver)
-      (define context (ly:translator-context engraver))
-      (let ((bar-num (ly:context-property context 'internalBarNumber)))
-        ;; another option? (ly:context-property context 'currentBarNumber)
-        ;; if we're in a new measure, clear cn-acc-list, and set cn-bar-num
-        (if (not (equal? bar-num (ly:context-property context 'cn-bar-num)))
-            (begin
-             (ly:context-set-property! context 'cn-acc-list '())
-             (ly:context-set-property! context 'cn-bar-num bar-num))))
-      (let*
-       ((acc-list (ly:context-property context 'cn-acc-list))
-        (alt (accidental-interface::calc-alteration grob))
-        (stl (ly:grob-property-data grob 'stencil))
-        (note-head (ly:grob-parent grob Y))
-        (pitch (cn-notehead-pitch note-head))
-        (semi (ly:pitch-semitones pitch))
-        (key-sig (ly:context-property context 'keySignature))
-        (in-the-key (pitch-in-key pitch key-sig))
-        (in-acc-list (equal? (cons semi alt) (assoc semi acc-list)))
-        (semi-in-acc-list (equal? alt (assoc-ref acc-list semi))))
-       ;;To show an acc sign or not?
-       ;; Show: 1, 2, 3, Update cn-acc-list if needed.
-       ;; Don't show: 4, 5, 6
-       (cond
-        ;; 1. new acc: an acc not in the acc list
-        ;; add to cn-acc-list (any previous alt for that semi is replaced)
-        ((and (not in-the-key) (not in-acc-list) stl)
-         (cn-redo-acc-signs grob alt)
-         (ly:context-set-property! context 'cn-acc-list
-           (assoc-set! acc-list semi alt)))
-        ;; 2. cancel acc: in key, cancels a previous acc in acc list
-        ;; (i.e. semi is in cn-acc-list but the alt does not match)
-        ;; remove acc from cn-acc-list
-        ((and in-the-key (not in-acc-list) semi-in-acc-list stl)
-         (cn-redo-acc-signs grob alt)
-         (ly:context-set-property! context 'cn-acc-list
-           (assoc-remove! acc-list semi)))
-        ;; 3. forced acc: acc wouldn't be shown, but it was forced with !
-        ;; no change to cn-acc-list
-        ((and (equal? #t (ly:grob-property grob 'forced)) stl)
-         (cn-redo-acc-signs grob alt))
-        ;; 4. is an acc but not a new one in this measure
-        ;; 5. is not an acc and is not cancelling previous acc
-        ;; 6. omit is in effect (stencil is #f)"
-        ;; TODO: does this affect ledger line widths?
-        (else (ly:grob-suicide! grob))))))))
+   ;; using a closure for persistent barnum and acclist
+   (lambda (context)
+     (let ((barnum 0)
+           (acclist '()))
+       (make-engraver
+        (acknowledgers
+         ((accidental-interface engraver grob source-engraver)
+          (let ((current-barnum (ly:context-property context 'currentBarNumber)))
+            ;; another option: (ly:context-property context 'internalBarNumber)
+            ;; if we're in a new bar, clear acclist and set barnum
+            (if (not (equal? barnum current-barnum))
+                (begin
+                 (set! acclist '())
+                 (set! barnum current-barnum)))
+            (let*
+             ((alt (accidental-interface::calc-alteration grob))
+              (stl (ly:grob-property-data grob 'stencil))
+              (note-head (ly:grob-parent grob Y))
+              (pitch (cn-notehead-pitch note-head))
+              (semi (ly:pitch-semitones pitch))
+              (key-sig (ly:context-property context 'keySignature))
+              (in-the-key (pitch-in-key pitch key-sig))
+              (in-acclist (equal? (cons semi alt) (assoc semi acclist)))
+              (semi-in-acclist (equal? alt (assoc-ref acclist semi))))
+             ;;Show an acc sign? Yes: 1,2,3, No: 4,5,6
+             (cond
+              ;; 1. new acc: an acc not in the acclist
+              ;; add to acclist (any previous alt for that semi is replaced)
+              ((and (not in-the-key) (not in-acclist) stl)
+               (cn-redo-acc-signs grob alt)
+               (set! acclist (assoc-set! acclist semi alt)))
+              ;; 2. cancel acc: in key, cancels a previous acc in acc list
+              ;; (i.e. semi is in acclist but the alt does not match)
+              ;; remove acc from acclist
+              ((and in-the-key (not in-acclist) semi-in-acclist stl)
+               (cn-redo-acc-signs grob alt)
+               (set! acclist (assoc-remove! acclist semi)))
+              ;; 3. forced acc: acc wouldn't be shown, but it was forced with !
+              ;; no change to acclist
+              ((and (equal? #t (ly:grob-property grob 'forced)) stl)
+               (cn-redo-acc-signs grob alt))
+              ;; 4. is an acc but not a new one in this measure
+              ;; 5. is not an acc and is not cancelling previous acc
+              ;; 6. omit is in effect (stencil is #f)"
+              ;; TODO: does this affect ledger line widths?
+              (else (ly:grob-suicide! grob)))))))))))
 
 
 %% KEY SIGNATURES
@@ -937,21 +935,6 @@ staffSize =
 #(cn-define-grob-property 'cn-vscale-staff number?)
 
 
-%% CUSTOM CONTEXT PROPERTIES
-
-% function from "scm/define-context-properties.scm" (modified)
-#(define (cn-translator-property-description symbol type?)
-   (set-object-property! symbol 'translation-type? type?)
-   (set-object-property! symbol 'translation-doc "custom context property")
-   (set! all-translation-properties (cons symbol all-translation-properties))
-   symbol)
-
-% Used by accidental engraver to tell when a new measure occurs
-% and to track accidentals in the current measure.
-#(cn-translator-property-description 'cn-bar-num number?)
-#(cn-translator-property-description 'cn-acc-list list?)
-
-
 %% STAFF DEFINITIONS
 
 \layout {
@@ -1006,10 +989,6 @@ staffSize =
     \consists \Cn_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
-    % custom context properties to track accidental signs in the
-    % current measure, used by accidental engraver
-    cn-bar-num = #0
-    cn-acc-list = #'()
 
     \override NoteColumn.before-line-breaking = #cn-chords-one
 
