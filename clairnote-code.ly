@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20161213
+%    Version: 20161214
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -982,40 +982,46 @@
     ((stem-stil (ly:stem::print grob))
      (dir (ly:grob-property grob 'direction))
      (up-stem (= dir 1))
-     (stem-y-extent (ly:grob-property grob 'Y-extent))
+
+     ;; --- X / width / spacing ---
+
      (stem-x-extent (ly:grob-property grob 'X-extent))
-     (stem-width (- (car stem-x-extent) (cdr stem-x-extent)))
+     (stem-width (abs (- (car stem-x-extent) (cdr stem-x-extent))))
 
      ;; by default second stem is 1.5 times as thick as standard stem
      (width-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
      (stem2-width (* stem-width width-scale))
 
+     ;; amount to move the edges outward to achieve 2nd stem width
+     (width-shift (/ (abs (- stem-width stem2-width)) 2))
+
+     ;; spacing is 3.5 times stem-width by default
+     (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 3.5))
+     (spacing-shift (* dir spacing-scale stem-width))
+
+     (stem-left-edge (car stem-x-extent))
+     (stem-right-edge (cdr stem-x-extent))
+
+     (stem2-left-edge (+ spacing-shift stem-left-edge (* -1 width-shift)))
+     (stem2-right-edge (+ spacing-shift stem-right-edge width-shift))
+
+     ;; Note that SVG output needs extents pairs to be in proper ascending order
+     (stem2-x-extent (cons stem2-left-edge stem2-right-edge))
+
+     ;; --- Y / length ---
+
+     (stem-y-extent (ly:grob-property grob 'Y-extent))
      (note-heads (cn-note-heads-from-grob grob '()))
-     (nhs-edge (cn-grobs-edge note-heads up-stem))
-
+     (heads-edge (cn-grobs-edge note-heads up-stem))
      (stem-tip (if up-stem (cdr stem-y-extent) (car stem-y-extent)))
-     (nhs-margin (* dir 0.1))
-     (tip-adjust (* dir (/ stem2-width 2)))
-     (stem2-start-y (+ nhs-margin nhs-edge))
-     (stem2-end-y (+ tip-adjust stem-tip))
 
-     ;; spacing is 4 times stem-width by default
-     (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4))
-     (spacing (* spacing-scale stem-width))
+     (stem2-y-extent (if up-stem
+                         (cons heads-edge stem-tip)
+                         (cons stem-tip heads-edge)))
 
-     (stem2-x (+ (* -1 dir spacing)
-                (if up-stem (car stem-x-extent) (cdr stem-x-extent))))
+     (blot (ly:output-def-lookup (ly:grob-layout grob) 'blot-diameter))
 
-     (stem2-stil (ly:make-stencil
-                  (list 'draw-line
-                    stem2-width    ;; width
-                    stem2-x        ;; start x
-                    stem2-start-y  ;; start y
-                    stem2-x        ;; end x
-                    stem2-end-y)   ;;end y
-                  (cons stem2-x stem2-x) ;; x extent
-                  (cons stem2-start-y stem2-end-y) ;; y extent
-                  )))
+     (stem2-stil (ly:round-filled-box stem2-x-extent stem2-y-extent blot)))
 
     (ly:grob-set-property! grob 'stencil
       (ly:stencil-add stem-stil stem2-stil))
@@ -1756,7 +1762,7 @@
     % custom context properties
     cnBaseStaffSpace = #0.75
     cnBaseStaffLines = #'(-8 -4)
-    cnDoubleStemSpacing = #4
+    cnDoubleStemSpacing = #3.5
     cnDoubleStemWidthScale = #1.5
     cnNoteheadStencilProcedure = #cn-default-note-stencil
     cnStaffOctaves = #2
