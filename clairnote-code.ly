@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150524
+%    Version: 20150912
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -751,12 +751,13 @@
 
 #(define (cn-stems grob)
    "Lengthen all stems and give half notes double stems."
-   ;; make sure \omit is not in effect (i.e. stencil is not #f)
-   (if (ly:grob-property-data grob 'stencil)
-       (let*
+   ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
+   ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
+   (if (and (ly:grob-property-data grob 'stencil)
+            (not (equal? '() (ly:grob-object grob 'note-heads))))
+       (let
         ;; default base-staff-space-inverse is 1/0.7 = 1.42857714286...
-        ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
-         (mag (cn-magnification grob)))
+        ((bss-inverse (/ 1 (cn-get-base-staff-space grob))))
         ;; multiply each of the values in the details property of the stem grob
         ;; by bss-inverse, except for stem-shorten values
         (ly:grob-set-property! grob 'details
@@ -771,17 +772,21 @@
                       (lambda (arg) (* arg bss-inverse))
                       args)))))
            (ly:grob-property grob 'details)))
+
         ;; double stems for half notes
-        ;; use -0.42 or 0.15 to change which side the 2nd stem appears
         (if (= 1 (ly:grob-property grob 'duration-log))
-            (begin
+            (let*
+             ((stem (ly:stem::print grob))
+              ;; second stem is 1.5 times as thick as standard stem
+              (thick-stem (ly:stencil-scale stem 1.5 1))
+              (dir (- (ly:grob-property grob 'direction)))
+              (stem-extent (ly:stencil-extent stem X))
+              (stem-width (- (car stem-extent) (cdr stem-extent)))
+              ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
+              ;; 4.5 * stem-width = -0.585
+              (spacing (* 4.5 stem-width)))
              (ly:grob-set-property! grob 'stencil
-               (ly:stencil-combine-at-edge
-                (ly:stem::print grob)
-                X
-                (- (ly:grob-property grob 'direction))
-                (ly:stem::print grob)
-                (* mag -0.42)))
+               (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
              ;; X-extent needs to be set here because its usual callback
              ;; ly:stem::width doesn't take the actual stencil width into account
              (ly:grob-set-property! grob 'X-extent
@@ -806,97 +811,89 @@
       (* space 1.1 base-staff-space-inverse))))
 
 
-%% USER STAFF EXTENSION FUNCTIONS
+%% USER SHORTCUTS FOR EXTENDING STAVES
+%% AND FOR DIFFERENT SIZE STAVES
 
-#(define (cn-extend-staff upwards extend)
-   ;; upwards and extend are booleans
+#(define (cn-extend-staff reset going-up going-down)
+   ;; reset is boolean, going-up and going-down are integers
+   ;; of the number of octaves to extend up or down, negative
+   ;; values unextend the staff one octave only
    (lambda (grob)
-     (let*
-      ((vertical-axis-group (ly:grob-parent grob Y))
-       (positions (sort (ly:grob-property vertical-axis-group 'cn-staff-lines) <))
-       (furthest (if upwards
-                     (car (take-right positions 1))
-                     (list-ref positions 0)))
-       (new-positions
-        (if extend
-            ;; extend
-            (if upwards
-                ;; extendStaffUp
-                (append positions (list (+ 8 furthest) (+ 12 furthest)))
-                ;; extendStaffDown
-                (append (list (+ -12 furthest) (+ -8 furthest)) positions))
-            ;; unextend
-            (if (> (length positions) 2)
-                (if upwards
-                    ;; unextendStaffUp
-                    (drop-right positions 2)
-                    ;; unextendStaffDown
-                    (drop positions 2))
-                positions))))
-      (if (not (eq? (grob::name vertical-axis-group) 'VerticalAxisGroup))
-          (ly:warning "clairnote-code.ly cannot find VerticalAxisGroup"))
-      ;; store current positions in custom property VerticalAxisGroup.cn-staff-lines
-      ;; so that they are accessible after \stopStaff \startStaff
-      (ly:grob-set-property! vertical-axis-group 'cn-staff-lines new-positions)
-      (ly:grob-set-property! grob 'line-positions new-positions))))
 
-extendStaffUp = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #t #t)
-}
+     (define recurser (lambda (proc posns extension  n)
+                        (if (<= n 0)
+                            posns
+                            (recurser proc (proc posns extension) extension (- n 1)))))
 
-extendStaffDown = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #f #t)
-}
+     (define (extend-up posns extension)
+       (let ((furthest (reduce max '() posns)))
+         (append posns (map (lambda (ext) (+ furthest ext)) extension))))
 
-unextendStaffUp = {
-  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #t #f)
-  \stopStaff \startStaff
-}
+     (define (extend-down posns extension)
+       (let ((furthest (reduce min '() posns)))
+         (append (map (lambda (ext) (- furthest ext)) extension) posns)))
 
-unextendStaffDown = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #f #f)
-}
-
-
-%% USER SHORTCUTS FOR DIFFERENT STAFF CONFIGURATIONS
-
-#(define (cn-set-staff-lines positions)
-   ;; positions is a list of staff line positions
-   (lambda (grob)
      (let ((vertical-axis-group (ly:grob-parent grob Y)))
        (if (not (eq? (grob::name vertical-axis-group) 'VerticalAxisGroup))
-           (ly:warning "clairnote-code.ly cannot find VerticalAxisGroup"))
-       ;; store current positions in custom property VerticalAxisGroup.cn-staff-lines
-       ;; so that they are accessible after \stopStaff \startStaff
-       (ly:grob-set-property! vertical-axis-group 'cn-staff-lines positions)
-       (ly:grob-set-property! grob 'line-positions positions))))
+           (ly:warning "cannot find VerticalAxisGroup")
+           (let*
+            ((base-positions (ly:grob-property vertical-axis-group 'cn-base-staff-lines))
+             (max-bp (reduce max '() base-positions))
+             (min-bp (reduce min '() base-positions))
+             ;; the number of empty positions between staves from one octave to the next
+             ;; 8 for Clairnote
+             (gap (+ min-bp (- 12 max-bp)))
 
-oneOctaveStaff = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking =
-  #(cn-set-staff-lines '(-8 -4))
-}
+             ;; relative locations of a new octave of staff lines,
+             ;; as if 0 is the the furthest current staff line.  '(8 12) for Clairnote
+             (extension (map (lambda (bp) (+ bp gap (- min-bp))) base-positions))
+             (extension-length (length extension))
 
-twoOctaveStaff = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking =
-  #(cn-set-staff-lines '(-8 -4 4 8))
-}
+             (current-positions (ly:grob-property vertical-axis-group 'cn-current-staff-lines))
+             (posns (if reset base-positions current-positions))
 
-threeOctaveStaff = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking =
-  #(cn-set-staff-lines '(-20 -16 -8 -4 4 8))
-}
+             (posns-up
+              (cond
+               ((positive? going-up) (recurser extend-up posns extension going-up))
+               ((negative? going-up)
+                (if (> (length current-positions) extension-length)
+                    (drop-right (sort current-positions <) extension-length)
+                    (begin (ly:warning "\\unextendStaffUp failed, not enough staff to unextend") posns)))
+               (else posns)))
 
-fourOctaveStaff = {
-  \stopStaff \startStaff
-  \override Staff.StaffSymbol.before-line-breaking =
-  #(cn-set-staff-lines '(-20 -16 -8 -4 4 8 16 20))
-}
+             (posns-down
+              (cond
+               ((positive? going-down) (recurser extend-down posns-up extension going-down))
+               ((negative? going-down)
+                (if (> (length current-positions) extension-length)
+                    (drop (sort current-positions <) extension-length)
+                    (begin (ly:warning "\\unextendStaffDown failed, not enough staff to unextend") posns)))
+               (else posns-up))))
+
+            ;; store current positions in custom property VerticalAxisGroup.cn-current-staff-lines
+            ;; so that they are accessible after \stopStaff \startStaff
+            (ly:grob-set-property! vertical-axis-group 'cn-current-staff-lines posns-down)
+            (ly:grob-set-property! grob 'line-positions posns-down)
+            )))))
+
+cnExtendStaff =
+#(define-music-function
+  (parser location reset going-up going-down)
+  (boolean? integer? integer?)
+  #{
+    \stopStaff \startStaff
+    \override Staff.StaffSymbol.before-line-breaking =
+    #(cn-extend-staff reset going-up going-down)
+  #})
+
+extendStaffUp = \cnExtendStaff ##f 1 0
+extendStaffDown = \cnExtendStaff ##f 0 1
+unextendStaffUp = \cnExtendStaff ##f -1 0
+unextendStaffDown = \cnExtendStaff ##f 0 -1
+oneOctaveStaff = \cnExtendStaff ##t 0 0
+twoOctaveStaff = \cnExtendStaff ##t 1 0
+threeOctaveStaff = \cnExtendStaff ##t 1 1
+fourOctaveStaff = \cnExtendStaff ##t 2 1
 
 
 %% USER VERTICAL STAFF COMPRESSION FUNCTION
@@ -929,10 +926,15 @@ vertScaleStaff =
 % may differ from the actual staff-space, with \magnifyStaff, etc.
 #(cn-define-grob-property 'cn-base-staff-space number?)
 
-% VerticalAxisGroup.cn-staff-lines stores the staff line positions. Stored
-% in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
+% VerticalAxisGroup.cn-current-staff-lines stores the current staff line positions.
+% Stored in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
 % Used with user functions for extending the staff.
-#(cn-define-grob-property 'cn-staff-lines list?)
+#(cn-define-grob-property 'cn-current-staff-lines list?)
+
+% VerticalAxisGroup.cn-base-staff-lines stores the base staff line positions.
+% Stored in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
+% Used with user functions for extending the staff.
+#(cn-define-grob-property 'cn-base-staff-lines list?)
 
 
 %% STAFF CONTEXT DEFINITION
@@ -983,8 +985,9 @@ vertScaleStaff =
     % Stem and beam size, time sig and key sig position depend on it.
     \override StaffSymbol.cn-base-staff-space = #0.7
 
-    % Custom grob property for user staff extension functions
-    \override VerticalAxisGroup.cn-staff-lines = #'(-8 -4 4 8)
+    % Custom grob properties for user staff extension functions
+    \override VerticalAxisGroup.cn-current-staff-lines = #'(-8 -4 4 8)
+    \override VerticalAxisGroup.cn-base-staff-lines = #'(-8 -4)
 
     \override TimeSignature.before-line-breaking = #cn-timesigs
     % stems and beams restored to their pre-staff-compression size
