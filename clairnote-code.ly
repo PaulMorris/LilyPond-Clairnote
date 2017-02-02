@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140516 (2014 May 16)
+%    Version: 20140520 (2014 May 20)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -674,51 +674,56 @@ adjustStem =
 
 % see /scm/parser-clef.scm
 
-#(define (set-clairnote-clefs)
-   "Sets (or resets) clef settings for clairnote. (c0-position is middle c position)
+#(define* (set-clairnote-clefs #:optional trad-settings)
+   "Set clef settings for clairnote staff when trad-settings = #f (or omitted) or
+    for traditional staff when trad-settings = #t. (c0-position is middle c position)
     add-new-clef args: clef-name clef-glyph clef-position octavation c0-position"
    ;; To calculate the middle c position subtract the clef position
    ;; from 12 for bass clef or -12 for treble clef (to adjust the clef position
    ;; without affecting the position of middle c or other notes)
+   (for-each
+    (lambda (c)
+      (add-new-clef
+       (list-ref c 0) (list-ref c 1) (list-ref c 2) (list-ref c 3) (list-ref c 4)))
 
-   ;; (add-new-clef "alto" "clefs.C" 0 0 0) ;; no change needed
-   ;; (add-new-clef "C" "clefs.C" 0 0 0) ;; alto synonym, no change needed
-   ;; (add-new-clef "percussion" "clefs.percussion" 0 0 0) ;; no change needed
-   (add-new-clef "treble" "clefs.G" -5 0 -7) ;; -7 = -12 minus -5
-   (add-new-clef "G" "clefs.G" -5 0 -7) ;; treble synonym
-   (add-new-clef "G2" "clefs.G" -5 0 -7) ;; treble synonym
-   (add-new-clef "violin" "clefs.G" -5 0 -7) ;; treble synonym
-   (add-new-clef "bass" "clefs.F" 5 0 7) ;; 7 = 12 minus 5
-   (add-new-clef "F" "clefs.F" 5 0 7) ;; bass synonym
-   (add-new-clef "tenor" "clefs.C" 0 0 0) ;; => alto
-   (add-new-clef "french" "clefs.G" -5 0 -7) ;; => treble
-   (add-new-clef "soprano" "clefs.G" -5 0 -7) ;; => treble
-   (add-new-clef "mezzosoprano" "clefs.C" 0 0 0) ;; => alto
-   (add-new-clef "baritone" "clefs.F" 5 0 7) ;; => bass
-   (add-new-clef "varbaritone" "clefs.F" 5 0 7) ;; => bass
-   (add-new-clef "subbass" "clefs.F" 5 0 7)) % => bass
+    (if (not trad-settings)
+        ;; clairnote clef settings
+        '(("treble" "clefs.G" -5 0 -7) ;; -7 = -12 minus -5
+           ("G" "clefs.G" -5 0 -7) ;; treble synonym
+           ("G2" "clefs.G" -5 0 -7) ;; treble synonym
+           ("violin" "clefs.G" -5 0 -7) ;; treble synonym
+           ("bass" "clefs.F" 5 0 7) ;; 7 = 12 minus 5
+           ("F" "clefs.F" 5 0 7) ;; bass synonym
+           ("tenor" "clefs.C" 0 0 0) ;; => alto
+           ("french" "clefs.G" -5 0 -7) ;; => treble
+           ("soprano" "clefs.G" -5 0 -7) ;; => treble
+           ("mezzosoprano" "clefs.C" 0 0 0) ;; => alto
+           ("baritone" "clefs.F" 5 0 7) ;; => bass
+           ("varbaritone" "clefs.F" 5 0 7) ;; => bass
+           ("subbass" "clefs.F" 5 0 7)) ;; => bass
+        ;; traditional clef settings
+        '(("treble" "clefs.G" -2 0 -4)
+          ("G" "clefs.G" -2 0 -4) ;; treble synonym
+          ("G2" "clefs.G" -2 0 -4) ;; treble synonym
+          ("violin" "clefs.G" -2 0 -4) ;; treble synonym
+          ("bass" "clefs.F" 2 0 4)
+          ("F" "clefs.F" 2 0 4) ;; bass synonym
+          ("tenor" "clefs.C" 2 0 2)
+          ("french" "clefs.G" -4 0 -4)
+          ("soprano" "clefs.C" -4 0 0)
+          ("mezzosoprano" "clefs.C" -2 0 0)
+          ("baritone" "clefs.C" 4 0 0)
+          ("varbaritone" "clefs.F" 0 0 4)
+          ("subbass" "clefs.F" 4 0 4)))))
+
+% No changes are needed for these clefs:
+% ("alto" "clefs.C" 0 0 0)
+% ("C" "clefs.C" 0 0 0)
+% ("percussion" "clefs.percussion" 0 0 0)
 
 #(set-clairnote-clefs)
 
-#(define (set-traditional-clefs)
-   "Sets clef settings back to traditional settings.(c0-position is middle c position)
-    add-new-clef args: clef-name clef-glyph clef-position octavation c0-position"
-   ;; (add-new-clef "alto" "clefs.C" 0 0 0) ;; no change needed
-   ;; (add-new-clef "C" "clefs.C" 0 0 0) ;; alto synonym, no change needed
-   ;; (add-new-clef "percussion" "clefs.percussion" 0 0) ;; no change needed
-   (add-new-clef "treble" "clefs.G" -2 0 -4)
-   (add-new-clef "G" "clefs.G" -2 0 -4) ;; treble synonym
-   (add-new-clef "G2" "clefs.G" -2 0 -4) ;; treble synonym
-   (add-new-clef "violin" "clefs.G" -2 0 -4) ;; treble synonym
-   (add-new-clef "bass" "clefs.F" 2 0 4)
-   (add-new-clef "F" "clefs.F" 2 0 4) ;; bass synonym
-   (add-new-clef "tenor" "clefs.C" 2 0 2)
-   (add-new-clef "french" "clefs.G" -4 0 -4)
-   (add-new-clef "soprano" "clefs.C" -4 0 0)
-   (add-new-clef "mezzosoprano" "clefs.C" -2 0 0)
-   (add-new-clef "baritone" "clefs.C" 4 0 0)
-   (add-new-clef "varbaritone" "clefs.F" 0 0 4)
-   (add-new-clef "subbass" "clefs.F" 4 0 4))
+#(define (set-traditional-clefs) (set-clairnote-clefs #t))
 
 
 %% CLEFS: TRANSPOSED CLEFS
