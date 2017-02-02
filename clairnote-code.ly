@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151123
+%    Version: 20151210
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -163,31 +163,6 @@
                    (ly:grob-set-property! grob 'stencil
                      (ly:stencil-scale (ly:grob-property grob 'stencil) width-scale 1)))
                ))))))))
-
-
-%% DOTS ON DOTTED NOTES
-
-#(if (cn-check-ly-version < '(2 19 18))
-     ;; TODO: remove when we stop supporting LilyPond 2.18
-     (define Cn_dots_engraver
-       ;; "Adjust vertical position of dots for certain notes."
-       (make-engraver
-        (acknowledgers
-         ((dots-interface engraver grob source-engraver)
-          (let* ((parent (ly:grob-parent grob Y))
-                 ;; parent is a Rest grob or a NoteHead grob
-                 (semi (if (grob::has-interface parent 'rest-interface)
-                           #f
-                           (modulo (cn-notehead-semitone parent) 12))))
-            (cond
-             ((equal? semi 0)
-              (ly:grob-set-property! grob 'staff-position
-                (if (equal? -1 (ly:grob-property grob 'direction))
-                    -1 ;; down
-                    1))) ;; up or neutral
-             ((member semi '(2 6 10))
-              (ly:grob-set-property! grob 'Y-offset -0.36))
-             )))))))
 
 
 %% ACCIDENTAL SIGNS
@@ -458,117 +433,6 @@
          (ly:grob-set-property! grob 'stencil
            (ly:stencil-scale key-sig-stil mult mult))
          )))))))
-
-
-%% CHORDS
-
-% cn-shift-notehead, copied and modified from the LilyPond Snippet
-% Repository, snippet 861, "Re-positioning note heads on the
-% opposite side of the stem," http://lsr.di.unimi.it/LSR/Item?id=861
-% Thanks to David Nalesnik and Thomas Morley for work on that snippet.
-% Use that snippet for any manual adjustments of note head positions.
-
-#(define (cn-shift-notehead nh nh-dir stem-dir)
-   "Shift a note head to the left or right."
-   (let*
-    ((dur-log (ly:grob-property nh 'duration-log))
-     (stil (ly:grob-property nh 'stencil))
-     (stil-x-length (interval-length (ly:stencil-extent stil X)))
-     (stem (ly:grob-object nh 'stem))
-     (stem-thick (ly:grob-property stem 'thickness 1.3))
-     (stem-x-width (/ stem-thick 10))
-     ;; (stem-dir (ly:grob-property stem 'direction))
-
-     ;; stencil width method, doesn't work with non-default beams
-     ;; so using thickness property above instead
-     ;; (stem-stil (ly:grob-property stem 'stencil))
-     ;; (stem-x-width (if (ly:stencil? stem-stil)
-     ;;                 (interval-length (ly:stencil-extent stem-stil X))
-     ;;                 ;; if no stem-stencil use 'thickness-property
-     ;;                 (/ stem-thick 10)))
-
-     ;; Calculate a value to compensate the stem-extension
-     (stem-x-corr
-      ;; TODO: better coding if (<= log 0)
-      (cond
-       ;; original, doesn't work (whole notes)
-       ;; ((and (= q 0) (= stem-dir 1))
-       ;;      (* -1 (+ 2  (* -4 stem-x-width))))
-       ;; new, quick fix, could be better?
-       ((= dur-log 0) 0.223)
-
-       ((and (< dur-log 0) (= stem-dir 1))
-        (* -1 (+ 2  (* -1 stem-x-width))))
-       ((< dur-log 0)
-        (* 2 stem-x-width))
-       (else (/ stem-x-width 2)))))
-    ;; final calculation for moving the note head
-    (ly:grob-translate-axis! nh (* nh-dir (- stil-x-length stem-x-corr)) X)))
-
-#(define (cn-chords-loop note-heads first-semi stem-dir note-col)
-   "Use recursion to iterate through the note heads, shifting them as needed.
-    Use internal procedure (loop) since we need stem-dir and note-col in scope,
-    and don't want to pass them as arguments."
-   (define (loop nhs last-semi parity)
-     (if (> (length nhs) 0)
-         (let* ((nh (car nhs))
-                (semi (cn-notehead-semitone nh))
-                (interval (abs (- semi last-semi))))
-
-           (if (> interval 2)
-               ;; on to the next note head
-               (loop (cdr nhs) semi #t)
-
-               ;; else maybe shift this note head
-               (let*
-                ((nh-dir (if parity stem-dir (* -1 stem-dir)))
-                 ;; check the old/default position to see if the note head needs moving
-                 ;; use round to avoid floating point number errors
-                 (pos (round (ly:grob-relative-coordinate nh note-col X)))
-                 (old-nh-dir
-                  (if (> stem-dir 0)
-                      ;; stem up (stem-dir is 1)
-                      (if (= pos 0) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
-                      ;; stem down (stem-dir is -1)
-                      (if (= pos 0) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
-
-                (if (not (= nh-dir old-nh-dir))
-                    (cn-shift-notehead nh nh-dir stem-dir))
-                (loop (cdr nhs) semi (not parity)))))))
-
-   ;; start the loop
-   (loop note-heads first-semi #t))
-
-
-#(define (cn-note-column-callback grob)
-   ; "For notes in chords or harmonic intervals that are 2 semitones
-   ; apart or less, automatically position them on opposite sides of the stem.
-   ; (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
-   (let* ((heads-array (ly:grob-object grob 'note-heads))
-          (nhs-raw
-           (if (ly:grob-array? heads-array)
-               (ly:grob-array->list heads-array)
-               ;; rests, no note heads in NoteColumn grob
-               (list 0))))
-     ;; rests and single notes don't need shifting
-     (if (> (length nhs-raw) 1)
-         (let*
-          ((nhs-sorted
-            (sort-list nhs-raw
-              (lambda (a b)
-                (< (cn-notehead-semitone a)
-                   (cn-notehead-semitone b)))))
-           ;; stem direction, 1 is up, -1 is down
-           (stem-dir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
-           ;; if stem is down then reverse the order
-           (nhs-cooked
-            (if (< stem-dir 0)
-                (reverse nhs-sorted)
-                nhs-sorted))
-           (first-semi (cn-notehead-semitone (car nhs-cooked))))
-
-          ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
-          (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob)))))
 
 
 %% CLEFS AND OTTAVA (8VA 8VB 15MA 15MB)
@@ -981,6 +845,151 @@ cnNoteheadWidth =
 #(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
 
 
+
+%% LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC.
+
+%% DOTS ON DOTTED NOTES
+
+#(if (cn-check-ly-version < '(2 19 18))
+     ;; TODO: remove when we stop supporting LilyPond 2.18
+     (define Cn_dots_engraver
+       ;; "Adjust vertical position of dots for certain notes."
+       (make-engraver
+        (acknowledgers
+         ((dots-interface engraver grob source-engraver)
+          (let* ((parent (ly:grob-parent grob Y))
+                 ;; parent is a Rest grob or a NoteHead grob
+                 (semi (if (grob::has-interface parent 'rest-interface)
+                           #f
+                           (modulo (cn-notehead-semitone parent) 12))))
+            (cond
+             ((equal? semi 0)
+              (ly:grob-set-property! grob 'staff-position
+                (if (equal? -1 (ly:grob-property grob 'direction))
+                    -1 ;; down
+                    1))) ;; up or neutral
+             ((member semi '(2 6 10))
+              (ly:grob-set-property! grob 'Y-offset -0.36))
+             )))))))
+
+
+%% CHORDS
+
+% cn-shift-notehead, copied and modified from the LilyPond Snippet
+% Repository, snippet 861, "Re-positioning note heads on the
+% opposite side of the stem," http://lsr.di.unimi.it/LSR/Item?id=861
+% Thanks to David Nalesnik and Thomas Morley for work on that snippet.
+% Use that snippet for any manual adjustments of note head positions.
+
+#(if
+  (cn-check-ly-version < '(2 19 34))
+  (begin
+
+   (define (cn-shift-notehead nh nh-dir stem-dir)
+     "Shift a note head to the left or right."
+     (let*
+      ((dur-log (ly:grob-property nh 'duration-log))
+       (stil (ly:grob-property nh 'stencil))
+       (stil-x-length (interval-length (ly:stencil-extent stil X)))
+       (stem (ly:grob-object nh 'stem))
+       (stem-thick (ly:grob-property stem 'thickness 1.3))
+       (stem-x-width (/ stem-thick 10))
+       ;; (stem-dir (ly:grob-property stem 'direction))
+
+       ;; stencil width method, doesn't work with non-default beams
+       ;; so using thickness property above instead
+       ;; (stem-stil (ly:grob-property stem 'stencil))
+       ;; (stem-x-width (if (ly:stencil? stem-stil)
+       ;;                 (interval-length (ly:stencil-extent stem-stil X))
+       ;;                 ;; if no stem-stencil use 'thickness-property
+       ;;                 (/ stem-thick 10)))
+
+       ;; Calculate a value to compensate the stem-extension
+       (stem-x-corr
+        ;; TODO: better coding if (<= log 0)
+        (cond
+         ;; original, doesn't work (whole notes)
+         ;; ((and (= q 0) (= stem-dir 1))
+         ;;      (* -1 (+ 2  (* -4 stem-x-width))))
+         ;; new, quick fix, could be better?
+         ((= dur-log 0) 0.223)
+
+         ((and (< dur-log 0) (= stem-dir 1))
+          (* -1 (+ 2  (* -1 stem-x-width))))
+         ((< dur-log 0)
+          (* 2 stem-x-width))
+         (else (/ stem-x-width 2)))))
+      ;; final calculation for moving the note head
+      (ly:grob-translate-axis! nh (* nh-dir (- stil-x-length stem-x-corr)) X)))
+
+   (define (cn-chords-loop note-heads first-semi stem-dir note-col)
+     "Use recursion to iterate through the note heads, shifting them as needed.
+    Use internal procedure (loop) since we need stem-dir and note-col in scope,
+    and don't want to pass them as arguments."
+     (define (loop nhs last-semi parity)
+       (if (> (length nhs) 0)
+           (let* ((nh (car nhs))
+                  (semi (cn-notehead-semitone nh))
+                  (interval (abs (- semi last-semi))))
+
+             (if (> interval 2)
+                 ;; on to the next note head
+                 (loop (cdr nhs) semi #t)
+
+                 ;; else maybe shift this note head
+                 (let*
+                  ((nh-dir (if parity stem-dir (* -1 stem-dir)))
+                   ;; check the old/default position to see if the note head needs moving
+                   ;; use round to avoid floating point number errors
+                   (pos (round (ly:grob-relative-coordinate nh note-col X)))
+                   (old-nh-dir
+                    (if (> stem-dir 0)
+                        ;; stem up (stem-dir is 1)
+                        (if (= pos 0) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
+                        ;; stem down (stem-dir is -1)
+                        (if (= pos 0) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
+
+                  (if (not (= nh-dir old-nh-dir))
+                      (cn-shift-notehead nh nh-dir stem-dir))
+                  (loop (cdr nhs) semi (not parity)))))))
+
+     ;; start the loop
+     (loop note-heads first-semi #t))
+
+   (define (cn-note-column-callback grob)
+     ; "For notes in chords or harmonic intervals that are 2 semitones
+     ; apart or less, automatically position them on opposite sides of the stem.
+     ; (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
+     (let* ((heads-array (ly:grob-object grob 'note-heads))
+            (nhs-raw
+             (if (ly:grob-array? heads-array)
+                 (ly:grob-array->list heads-array)
+                 ;; rests, no note heads in NoteColumn grob
+                 (list 0))))
+       ;; rests and single notes don't need shifting
+       (if (> (length nhs-raw) 1)
+           (let*
+            ((nhs-sorted
+              (sort-list nhs-raw
+                (lambda (a b)
+                  (< (cn-notehead-semitone a)
+                     (cn-notehead-semitone b)))))
+             ;; stem direction, 1 is up, -1 is down
+             (stem-dir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
+             ;; if stem is down then reverse the order
+             (nhs-cooked
+              (if (< stem-dir 0)
+                  (reverse nhs-sorted)
+                  nhs-sorted))
+             (first-semi (cn-notehead-semitone (car nhs-cooked))))
+
+            ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
+            (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob)))))
+   ))
+
+%% END LEGACY SUPPORT SECTION
+
+
 %% STAFF CONTEXT DEFINITION
 
 \layout {
@@ -1040,7 +1049,10 @@ cnNoteheadWidth =
 
     % NoteColumn override doesn't work as an engraver for some reason,
     % crashes with manual beams on chords.
-    \override NoteColumn.before-line-breaking = #cn-note-column-callback
+    #(if (cn-check-ly-version < '(2 19 34))
+         #{ \with {
+           \override NoteColumn.before-line-breaking = #cn-note-column-callback
+         } #})
 
     % staff-space reflects vertical compression of Clairnote staff.
     % Default of 0.75 makes the Clairnote octave 1.28571428571429
