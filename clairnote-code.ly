@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140921 (2014 Sept 21)
+%    Version: 20141125 (2014 Nov 25)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -58,8 +58,8 @@
 #(define (cn-draw-note-head-stencils note-type font)
    "Returns a custom note head stencil."
    (case note-type
-     ;; black note - no change needed
-     ;; ((0) (ly:font-get-glyph font "noteheads.s2"))
+     ;; black note
+     ((0) (ly:font-get-glyph font "noteheads.s2"))
      ;; white note, scale horizontally to match black ones
      ((1) (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1))
      ;; black whole note, add black circle to make solid
@@ -105,10 +105,9 @@
                 (if (equal? 0 note-type)
                     (cons 1.04 0.3) ;; black note (0)
                     (cons 1.06  0.3))))) ;; white note (1)
-         ;; replace note head stencil, if not a standard black note
-         (if (> note-type 0)
-             (ly:grob-set-property! grob 'stencil
-               (cn-draw-note-head-stencils note-type (ly:grob-default-font grob))))))))))
+         ;; replace note head stencil
+         (ly:grob-set-property! grob 'stencil
+           (cn-draw-note-head-stencils note-type (ly:grob-default-font grob)))))))))
 
 
 % DOTS ON DOTTED NOTES
