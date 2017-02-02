@@ -1,7 +1,6 @@
-%
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140618 (2014 June 18)
+%    Version: 20140702 (2014 July 02)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -126,6 +125,31 @@
                (- (ly:grob-property grob 'direction))
                (ly:stem::print grob)
                -0.42 ))))))
+
+
+%% BEAMS
+
+#(define ((cn-beams staff-spc-inv) grob)
+   "Adjust size and spacing of beams, needed due to
+    smaller StaffSymbol.staff-space. Get font size from
+    note head, not stem, especially for CueVoice."
+   (let*
+    ((stem (ly:grob-parent grob X))
+     (note-col (ly:grob-parent stem X))
+     (noteheads (ly:grob-object note-col 'note-heads))
+     (notehead (ly:grob-array-ref noteheads 0))
+     (mult (magstep (ly:grob-property notehead 'font-size 0)))
+     ;; TODO: mult-space calculation handles regular and grace notes
+     ;; but not CueVoice where spacing is slightly too wide.
+     ;; Probably could be better overall.
+     ;; (mult-space (+ -380/197 (* mult 577/197)))
+     (mult-space (+ 1.1 (* 1/3 (- 1 mult))))
+     ;; calculation from magnifyMusic by Mark Polesky
+     (mult-thick (+ 119/925 (* mult 13/37))))
+    (ly:grob-set-property! grob 'beam-thickness
+      (* mult-thick staff-spc-inv))
+    (ly:grob-set-property! grob 'length-fraction
+      (* mult-space mult staff-spc-inv))))
 
 
 %% ACCIDENTAL SIGNS
@@ -934,22 +958,26 @@ vertScaleStaff =
    ;; vscale-staff = 1 gives a staff with an octave that is the same size
    ;; as on a traditional staff (default is 1.2).
    ;;  - stems are extended back to their original/traditional size
+   ;;  - beam size and spacing is restored to original size
    ;;  - time signature position is adjusted vertically
    ;;  - elsewhere key signatures are adjusted to fit the staff
-   #{
-     \override StaffSymbol.staff-space = #(* vscale-staff 7/12)
-     \override Stem.before-line-breaking = #(cn-stems (/ 1 (* vscale-staff 7/12)))
-     \override TimeSignature.before-line-breaking =
-     #(lambda (grob)
-        (ly:grob-set-property! grob 'Y-offset
-          ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
-          (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
+   (let* ((staff-spc (* vscale-staff 7/12))
+          (staff-spc-inv (/ 1 staff-spc)))
+     #{
+       \override StaffSymbol.staff-space = #staff-spc
+       \override Stem.before-line-breaking = #(cn-stems staff-spc-inv)
+       \override Beam.before-line-breaking = #(cn-beams staff-spc-inv)
+       \override TimeSignature.before-line-breaking =
+       #(lambda (grob)
+          (ly:grob-set-property! grob 'Y-offset
+            ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
+            (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
 
-     % StaffSymbol.cn-vscale-staff is a custom grob property that
-     % stores the vertical staff scaling value so it can be used with
-     % key signatures and staffSize function
-     \override StaffSymbol.cn-vscale-staff = #vscale-staff
-   #})
+       % StaffSymbol.cn-vscale-staff is a custom grob property that
+       % stores the vertical staff scaling value so it can be used with
+       % key signatures and staffSize function
+       \override StaffSymbol.cn-vscale-staff = #vscale-staff
+     #}))
 
 
 %% STAFF DEFINITIONS
