@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151018
+%    Version: 20151019
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -886,7 +886,9 @@
        ((negative? going-up)
         (if (> (length posns) extension-length)
             (drop-right (sort posns <) extension-length)
-            (begin (ly:warning "\\cnUnextendStaffUp failed, not enough staff to unextend") posns)))
+            (begin
+             (ly:warning "\\cnUnextendStaffUp failed, not enough staff to unextend")
+             posns)))
        (else posns)))
 
      (posns-down
@@ -895,7 +897,9 @@
        ((negative? going-down)
         (if (> (length posns) extension-length)
             (drop (sort posns <) extension-length)
-            (begin (ly:warning "\\cnUnextendStaffDown failed, not enough staff to unextend") posns)))
+            (begin
+             (ly:warning "\\cnUnextendStaffDown failed, not enough staff to unextend")
+             posns)))
        (else posns-up))))
 
     posns-down))
@@ -905,15 +909,16 @@ cnExtendStaff =
   (parser location reset going-up going-down)
   (boolean? integer? integer?)
   #{
-    \applyContext
+    \context Staff \applyContext
     #(lambda (context)
-       (let* ((staff (ly:context-property-where-defined context 'cnStaffLines))
-              (current (ly:context-property staff 'cnStaffLines))
-              ;; base is '(-8 -4) for Clairnote
-              (base (ly:context-property staff 'cnBaseStaffLines))
-              (posns (if reset base current))
-              (new-posns (cn-get-new-staff-positions posns base going-up going-down)))
-         (ly:context-set-property! staff 'cnStaffLines new-posns)))
+       (let*
+        ((grob-def (ly:context-grob-definition context 'StaffSymbol))
+         (current-lines (ly:assoc-get 'line-positions grob-def '(-8 -4 4 8)))
+         ;; base is '(-8 -4) for Clairnote
+         (base-lines (ly:context-property context 'cnBaseStaffLines))
+         (posns (if reset base-lines current-lines))
+         (new-posns (cn-get-new-staff-positions posns base-lines going-up going-down)))
+        (ly:context-pushpop-property context 'StaffSymbol 'line-positions new-posns)))
     \stopStaff
     \startStaff
   #})
@@ -926,16 +931,6 @@ cnOneOctaveStaff = \cnExtendStaff ##t 0 0
 cnTwoOctaveStaff = \cnExtendStaff ##t 1 0
 cnThreeOctaveStaff = \cnExtendStaff ##t 1 1
 cnFourOctaveStaff = \cnExtendStaff ##t 2 1
-
-#(define Cn_staff_symbol_engraver
-   (lambda (context)
-     "Sets StaffSymbol.line-positions property based on custom staff context property."
-     (make-engraver
-      (acknowledgers
-       ((staff-symbol-interface engraver grob source-engraver)
-        (ly:grob-set-property! grob 'line-positions
-          (ly:context-property context 'cnStaffLines))
-        )))))
 
 
 %% USER FUNCTION TO SET STAFF COMPRESSION
@@ -982,9 +977,8 @@ cnNoteheadWidth =
    (set! all-translation-properties (cons symbol all-translation-properties))
    symbol)
 
-% Stores the current and base staff line positions for extending the staff
-% up or down. See Cn_staff_symbol_engraver and cnExtendStaff function.
-#(cn-translator-property-description 'cnStaffLines list?)
+% Stores the base staff line positions used for extending the staff
+% up or down. See cnExtendStaff function.
 #(cn-translator-property-description 'cnBaseStaffLines list?)
 
 % Staff context properties for double stems for half notes.
@@ -1052,7 +1046,6 @@ cnNoteheadWidth =
     \numericTimeSignature
 
     % custom context properties
-    cnStaffLines = #'(-8 -4 4 8)
     cnBaseStaffLines = #'(-8 -4)
     cnDoubleStemSpacing = #4.5
     cnDoubleStemWidthScale = #1.5
@@ -1060,6 +1053,7 @@ cnNoteheadWidth =
     cnNoteheadWidthScale = #1
 
     % custom grob property overrides
+    \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
     \override Stem.no-stem-extend = ##t
@@ -1082,7 +1076,6 @@ cnNoteheadWidth =
     \override StaffSymbol.cn-base-staff-space = #0.75
 
     % custom engravers
-    \consists \Cn_staff_symbol_engraver
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
     \consists \Cn_time_signature_engraver
@@ -1096,7 +1089,6 @@ cnNoteheadWidth =
     % Probably because accidentals can trigger ly:grob-suicide! on accidental grobs,
     % which seems to be the source of the problem.
     \consists \Cn_accidental_engraver
-
   }
 }
 
