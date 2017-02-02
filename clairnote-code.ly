@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140524 (2014 May 24)
+%    Version: 20140526 (2014 May 26)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -37,71 +37,64 @@
 
 %% NOTE HEADS AND STEM ATTACHMENT
 
-#(define (clnt-note-heads cfill xmod ymod)
-   (lambda (grob)
-     ;; make sure \omit is not in effect (i.e. stencil is not #f)
-     (if (ly:grob-property-data grob 'stencil)
-         (let*
-          ((fsz  (ly:grob-property grob 'font-size 0.0))
-           (mult (magstep fsz))
+#(define (clnt-draw-note-head-stencils grob)
+   "Returns a list of note head stencils used for overriding note heads."
+   (let*
+    ((fnt (ly:grob-default-font grob))
+     (wn (ly:font-get-glyph fnt "noteheads.s0")))
+    (list
+     ;; 0 = black note
+     (ly:font-get-glyph fnt "noteheads.s2")
+     ;; 1 = white note
+     ;; scale hollow note heads horizontally to match solid ones
+     (ly:stencil-scale (ly:font-get-glyph fnt "noteheads.s1") 0.945 1)
+     ;; 2 = black whole note, add black circle to make solid
+     (ly:stencil-add wn
+       (ly:stencil-translate
+        (make-circle-stencil 0.47 0.1 #t)
+        '(0.95 . 0)))
+     ;; 3 = white whole note, thicken top and bottom using an oval
+     ;; path so no white space shows above and below staff lines
+     (ly:stencil-add wn
+       (ly:stencil-translate
+        (make-oval-stencil 0.7 0.58 0.11 #f)
+        '(0.98 . 0))) )))
 
-           (ptch (ly:event-property (event-cause grob) 'pitch))
-           (semi (ly:pitch-semitones ptch))
-           (note-type (modulo (+ semi cfill) 2))
-           (dur-log (ly:grob-property grob 'duration-log))
-           (whole-note (if (< dur-log 1) #t #f))
+#(define (clnt-note-heads grob)
+   "Override note head stencils and other properties."
+   ;; make sure \omit is not in effect (i.e. stencil is not #f)
+   (if (ly:grob-property-data grob 'stencil)
+       (let
+        ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
+         (whole-note (< (ly:grob-property grob 'duration-log) 1))
+         ;; 0 = black note, 1 = white note
+         (note-type (modulo
+                     (ly:pitch-semitones
+                      (ly:event-property (ly:grob-property grob 'cause) 'pitch))
+                     2)))
 
-           (notecol (ly:grob-parent grob X))
-           (stm (ly:grob-object notecol 'stem))
-           (ypos (ly:grob-staff-position grob))
-           (fnt (ly:grob-default-font grob)))
+        (if whole-note
+            ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
+            (set! note-type (+ 2 note-type))
+            ;; else set rotation and stem attachment properties
+            (begin
+             ;; black notes can be rotated to -27, but -18 also works for white notes
+             ;; currently -9, half of -18
+             (ly:grob-set-property! grob 'rotation '(-9 0 0))
+             (ly:grob-set-property! grob 'stem-attachment
+               (case note-type
+                 ((0) (cons 1.04 0.3)) ;; black note
+                 ((1) (cons 1.06  0.3)) )))) ;; white note
 
-          ;; black notes can be rotated to -27, but -18 also works for white notes
-          ;; currently -9, half of -18
-          (if (not whole-note)
-              (ly:grob-set-property! grob 'rotation '(-9 0 0)))
-
-          ;; Note Heads
-          (ly:grob-set-property! grob 'stencil
-            (ly:stencil-scale
-             (case note-type
-               ;; white note
-               ((0) (if whole-note
-                        ;; white whole note
-                        ;; thicken top and bottom using an oval path so no white space shows
-                        ;; through above and below staff lines for hollow whole notes
-                        (ly:stencil-add
-                         (ly:stencil-translate
-                          (make-oval-stencil 0.7 0.58 0.11 #f)
-                          '(0.98 . 0))
-                         (ly:font-get-glyph fnt "noteheads.s0"))
-                        ;; white non-whole note
-                        ;; scale hollow note heads horizontally so they match solid ones
-                        (ly:stencil-scale
-                         (ly:font-get-glyph fnt "noteheads.s1")
-                         0.945 1)))
-               ;; black note
-               ((1) (if whole-note
-                        ;; black whole note
-                        ;; add a little black circle to make solid whole notes
-                        (ly:stencil-add
-                         (ly:font-get-glyph fnt "noteheads.s0")
-                         (ly:stencil-translate (make-circle-stencil 0.47 0.1 #t) '(0.95 . 0)))
-                        ;; black non-whole note
-                        (ly:font-get-glyph fnt "noteheads.s2"))))
-             (* xmod mult)
-             (* ymod mult)))
-
-          ;; for testing
-          ;; (ly:grob-set-property! grob 'color (case note-type ((0) red) ((1) blue)))
-
-          ;; Stem Attachment
-          (ly:grob-set-property! grob 'stem-attachment
-            (if (= (remainder (abs semi) 2) 1)
-                ;; white notes: f g a b c# d#
-                (cons 1.06  0.3)
-                ;; black notes: c d e f# g# a#
-                (cons 1.04 0.3)))))))
+        ;; set note head stencil
+        (ly:grob-set-property! grob 'stencil
+          (ly:stencil-scale
+           (list-ref
+            (ly:grob-property
+             (ly:grob-object grob 'staff-symbol)
+             'clnt-note-head-stencils)
+            note-type)
+           mult mult)) )))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
@@ -916,6 +909,10 @@ staffSize =
 % current staff.  Used for key signatures and staffSize user function.
 #(define-grob-property 'clnt-vscale-staff number?)
 
+% StaffSymbol.clnt-note-head-stencils stores custom note head
+% stencils, used to override default note head stencils
+#(define-grob-property 'clnt-note-head-stencils procedure?)
+
 
 %% CUSTOM CONTEXT PROPERTIES
 
@@ -991,13 +988,15 @@ vertScaleStaff =
     \override StaffSymbol.line-positions = #'(-8 -4  4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
-    % custom grob property
+    % custom grob properties
     \override StaffSymbol.clnt-is-clairnote-staff = ##t
+    \override StaffSymbol.clnt-note-head-stencils = #clnt-draw-note-head-stencils
+
     \override Stem.no-stem-extend = ##t
 
     \vertScaleStaff 1.2
     % to vertically scale noteheads change the last argument here:
-    \override NoteHead.before-line-breaking = #(clnt-note-heads 1 1 1)
+    \override NoteHead.before-line-breaking = #clnt-note-heads
 
     \consists \Clnt_key_signature_engraver
     printKeyCancellation = ##f
