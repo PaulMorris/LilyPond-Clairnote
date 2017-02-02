@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140702 (2014 July 02)
+%    Version: 20140703 (2014 July 03)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -62,7 +62,15 @@
 #(define (cn-note-heads grob)
    "Override note head stencils and other properties."
    ;; make sure \omit is not in effect (i.e. stencil is not #f)
-   (if (ly:grob-property-data grob 'stencil)
+   ;; and do nothing for certain notehead styles
+   ;; TODO: better handling of various notehead styles
+   ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
+   ;; output-lib.scm
+   (if (and
+        (ly:grob-property-data grob 'stencil)
+        (not (memq (ly:grob-property-data grob 'style)
+               (list 'harmonic 'harmonic-black 'harmonic-mixed
+                 'diamond 'cross 'xcircle 'triangle 'slash ))))
        (let
         ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
          (whole-note (< (ly:grob-property grob 'duration-log) 1))
@@ -130,26 +138,17 @@
 %% BEAMS
 
 #(define ((cn-beams staff-spc-inv) grob)
-   "Adjust size and spacing of beams, needed due to
-    smaller StaffSymbol.staff-space. Get font size from
-    note head, not stem, especially for CueVoice."
+   "Adjust size and spacing of beams. Needed
+    because of smaller StaffSymbol.staff-space"
    (let*
-    ((stem (ly:grob-parent grob X))
-     (note-col (ly:grob-parent stem X))
-     (noteheads (ly:grob-object note-col 'note-heads))
-     (notehead (ly:grob-array-ref noteheads 0))
-     (mult (magstep (ly:grob-property notehead 'font-size 0)))
-     ;; TODO: mult-space calculation handles regular and grace notes
-     ;; but not CueVoice where spacing is slightly too wide.
-     ;; Probably could be better overall.
-     ;; (mult-space (+ -380/197 (* mult 577/197)))
-     (mult-space (+ 1.1 (* 1/3 (- 1 mult))))
-     ;; calculation from magnifyMusic by Mark Polesky
-     (mult-thick (+ 119/925 (* mult 13/37))))
+    ((thick (ly:grob-property-data grob 'beam-thickness))
+     (len-frac (ly:grob-property-data grob 'length-fraction))
+     (space (if (number? len-frac) len-frac 1)))
     (ly:grob-set-property! grob 'beam-thickness
-      (* mult-thick staff-spc-inv))
+      (* thick staff-spc-inv))
+    ;; 1.1 adjustment below was visually estimated
     (ly:grob-set-property! grob 'length-fraction
-      (* mult-space mult staff-spc-inv))))
+      (* space staff-spc-inv 1.1))))
 
 
 %% ACCIDENTAL SIGNS
