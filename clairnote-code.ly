@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160214
+%    Version: 20160221
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -1013,7 +1013,8 @@ cnNoteheadStyle =
        \set Staff.cnNoteheadWidthScale = #1.35
        \set Staff.cnNoteheadHeightScale = #1
        \set Staff.cnNoteheadRotation = ##f
-       \set Staff.cnStemAttachment = ##f
+       % \set Staff.cnStemAttachment = ##f
+       \set Staff.cnStemAttachment = #'((1 . 0.2) . (1 . 0.2))
      #})
 
     ((equal? style "lilypond")
