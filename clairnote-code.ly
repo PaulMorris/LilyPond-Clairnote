@@ -1,6 +1,6 @@
 \version "2.18.0"
 
-% clairnote.ily version: 20140113 (2014 Jan 13)
+% clairnote.ily version: 20140118 (2014 Jan 18)
 
 % Absolute value helper function
 % when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
@@ -440,187 +440,124 @@ key-stil-bank = #'()
          (set! sig (ly:stencil-translate sig (cons 0.35 0)))
          (set! sig (ly:stencil-translate sig (cons 0.9 0))))
      ;; return the sig stencil
-     sig ))
+     sig))
 
 
 % CHORDS - AUTO
-% automatically place note heads in chords/harmonies
-% on the correct side of stem
+% automatically place note heads in chords/harmonies on
+% the correct side of stem, needed for 2 semitone intervals
 %
-#(define (twinnote-chord-handler grob)
-   (let* ((heads-array (ly:grob-object grob 'note-heads))
-          (note-heads
-           (if (ly:grob-array? heads-array)
-               (ly:grob-array->list heads-array)
-               ;; handles case of no note-heads in NoteColumn grob (rests)
-               (list 0)))
-          (total-heads (length note-heads))
-          (head-grob #f)
-          (semi 0)
-          (stmdir (ly:grob-property (ly:grob-object grob 'stem) 'direction)) ;; 1 is up, -1 is down
-          (n 0)
-          (k 0)
-          (m 0)
-          (semi-list '())
-          (int-list '())
-          (clust-list '())
-          (clust-list-length 0)
-          (clust-count 0)
-          (new-stemsides '()) ;; new, desired note placements (-1 left, 1 right)
-          (old-stemsides '()) ;; old, original, default note placements
-          (offset-list '()))
+#(define (chord-handler grob)
+   (let* (
+           (heads-array (ly:grob-object grob 'note-heads))
+           (note-heads (if (ly:grob-array? heads-array)
+                           (ly:grob-array->list heads-array)
+                           ;; for case of no note-heads in NoteColumn grob (rests)
+                           (list 0))))
+     ;; rests and single notes don't need offsetting
+     (if (> (length note-heads) 1)
+         (chord-handler-two grob note-heads))))
 
-     ;; (newline) (display (ly:grob-property grob 'X-extent))
-     ;; (display "clust-list: ") (display clust-list) (newline)
-     ;; (display note-heads)
-     ;; (display "----------------------") (newline)
+#(define (chord-handler-two grob note-heads)
+   (let* (
+           ;; create a list of the semitones of each note in the chord
+           (semitones (map (lambda (head-grob)
+                             (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
+                        note-heads))
+           ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) (3 5)...)
+           (semi-lists (zip (iota (length note-heads)) semitones))
+           ;; sort both by semitones, ascending
+           (semitones-sorted (sort-list semitones <))
+           (semi-lists-sorted
+            (sort! semi-lists (lambda (a b) (< (list-ref a 1) (list-ref b 1)))))
 
-     ;; single notes don't need offsetting
-     (cond ((> total-heads 1)
+           ;; calculate the intervals between the notes, uses a second copy
+           ;; of the list with its first value dropped so the previous values are
+           ;; in place to be subtracted from the next
+           (int-list (map - (cdr semitones-sorted) semitones-sorted)))
 
-            ;; GET SEMITONES
-            ;; iterate through each note of the chord and
-            ;; put the semitone of each note in semi-list
-            ;; along with its position as entered in the .ly input file
-            (while (< n total-heads)
-              (set! head-grob (list-ref note-heads n))
-              (set! semi (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
-              (set! semi-list (append semi-list (list (list n semi ))))
-              (set! n (+ n 1)))
+     ;; no 2 semitone intervals? then there is no need to offset
+     ;; any notes since standard layout is already correct
+     (if (memq 2 int-list)
+         (chord-handler-three grob note-heads int-list semi-lists-sorted))))
 
-            ;; (display "----------------------") (newline)
-            ;; (display semi-list) (display " - semi-list") (newline)
+#(define (chord-handler-three grob note-heads int-list semi-lists-sorted)
 
-            ;; sort semi-list by semitone, ascending
-            (set! semi-list (sort! semi-list (lambda (a b) (< (list-ref a 1) (list-ref b 1) ))))
+   ;; recursive function for converting interval list into a list of clusters of notes
+   (define (get-clusters int-list n)
+     ;; (display int-list)(display "int-list") (newline)
+     (if (pair? int-list)
+         ;; notes 2 semitones apart or less are in the same cluster
+         (if (> (car int-list) 2)
+             ;; note is not in previous cluster
+             ;; add previous count to list and reset count to 1
+             (cons n (get-clusters (cdr int-list) 1))
+             ;; note is in current cluster so just add one to the count
+             (get-clusters (cdr int-list) (+ 1 n)))
+         (cons n '())))
 
-            ;; (display semi-list) (display " - semi-list sorted") (newline)
-
-            ;; GET INTERVALS
-            ;; calculate the intervals between the semitones and put them into int-list
-            ;; int-list always starts with a 0 so that its length is the same as total-heads
-            (set! n 0)
-            (while (< n total-heads)
-              (if (= n 0)
-                  (set! int-list (append int-list (list 0)))
-                  (set! int-list (append int-list (list
-                                                   (- (list-ref (list-ref semi-list n) 1)
-                                                     (list-ref (list-ref semi-list (- n 1)) 1))))))
-              (set! n (+ n 1)))
-
-            ;; (display int-list) (display " - int-list")  (newline)
-
-            ;; if there are no 2-semitone intervals, then there is
-            ;; no need to offset anything, since standard layout is fine.
-            (cond
-             ((not (equal? #f (memq 2 int-list)))
-
-              ;; GET CLUSTER PATTERN
-              ;; since int-list starts with 0, we want to start with n = 1 and
-              ;; clust-list starts with a 1 for the first note
-              (set! n 1)
-              (set! clust-list (list 1))
-              (while (< n total-heads)
-                (set! k (- (length clust-list) 1))
-                ;; (display "k: ") (display k) (newline)
-                ;; (display "clust-list: ") (display clust-list) (newline)
-
-                ;; notes 2-semitones apart or less are in the same cluster
-                (if (> (list-ref int-list n) 2)
-                    (set! clust-list (append clust-list (list 1)))
-                    (list-set! clust-list k (+ 1 (list-ref clust-list k ))))
-                (set! n (+ n 1)))
-
-              ;; (display clust-list) (display " - clust-list") (newline)
-
-              ;; CALCULATE DESIRED STEM-SIDE POSITIONS
-              ;; n tracks iteration through clust-list
-              ;; k tracks the side of the stem (1 or -1)
-              ;; clust-count tracks where you are within a cluster
-              ;; m tracks which note of the chord you're on
-
-              (set! n 0)
-              (set! clust-list-length (length clust-list))
-
-              (while (< n clust-list-length)
-                (set! clust-count (list-ref clust-list n))
-
+   ;; recursive function to calculate correct stemsides from cluster list
+   (define (get-stemsides clust-list stmdir)
+     ;; (display clust-list)(display "clust-list") (newline)
+     (if (pair? clust-list)
+         (let* ((clust-count (car clust-list))
                 ;; if down-stem and odd-numbered cluster (or single note, since 1 = odd)
                 ;; then first/lowest head is on right side of stem
                 ;; else first/lowest head is on left side of stem
-                (cond
-                 ((and (= stmdir -1) (odd? clust-count))
-                  (set! k 1))
-                 (else
-                  (set! k -1)))
+                (stemside (if (and (= stmdir -1) (odd? clust-count)) 1 -1)))
+           (cons
+            ;; for each note in this cluster add a 1 or -1 to the list and
+            ;; putting every other note on the opposite side of the stem
+            (map-in-order (lambda (x)
+                            (if (even? x)
+                                stemside
+                                (* stemside -1)))
+              (iota clust-count))
+            (get-stemsides (cdr clust-list) stmdir)))
+         '()))
 
-                ;; iterate through the cluster and put every
-                ;; other note on the opposite side of the stem
-                (while (> clust-count 0)
-                  (set! new-stemsides
-                        (append new-stemsides (list (list (list-ref (list-ref semi-list m) 0) k))))
-                  (set! k (* k -1))
-                  (set! clust-count (- clust-count 1))
-                  (set! m (+ 1 m)))
-                (set! n (+ 1 n)))
-
-              ;; (display "----------------------") (newline)
-              ;; (display semi-list) (display " - semi-list") (newline)
-              ;; (display semi-list) (display " - semi-list sorted") (newline)
-              ;; (display int-list) (display " - int-list")  (newline)
-              ;; (display clust-list) (display " - clust-list") (newline)
-              ;; (display new-stemsides) (display " - new-stemsides") (newline)
-
-              ;; sort new-stemsides by position notes were entered in .ly input file
-              (set! new-stemsides (sort! new-stemsides (lambda (a b) (< (list-ref a 0) (list-ref b 0) ))))
-              ;; (display new-stemsides) (display " - new-stemsides sorted") (newline)
-
-              ;; GET OLD, DEFAULT STEM-SIDE POSITIONS
-              (set! n 0)
-              (while (< n total-heads)
-                (set! head-grob (list-ref note-heads n))
-                ;; use round to avoid floating point number errors
-                (set! k (round (ly:grob-relative-coordinate head-grob grob 0)))
+   (let* ((cluster-list (get-clusters int-list 1))
+          ;; stem direction, 1 is up, -1 is down
+          (stmdir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
+          ;; new, desired note placements (-1 left, 1 right)
+          (stemsides (concatenate (get-stemsides cluster-list stmdir)))
+          ;; get the order the notes were entered in the input file and
+          ;; assemble list of lists zipping the new-stemsides to their input positions
+          ;; sort stemsides by order notes were entered in the input file
+          (input-order-sorted (unzip1 semi-lists-sorted))
+          (stemsides-B (zip input-order-sorted stemsides))
+          (stemsides-sorted (sort! stemsides-B
+                              (lambda (a b) (< (list-ref a 0) (list-ref b 0)))))
+          ;; get old default stem-side positions
+          (old-stemsides
+           (map-in-order
+            (lambda (head-grob)
+              ;; use round to avoid floating point number errors
+              (let ((pos (round (ly:grob-relative-coordinate head-grob grob 0))))
                 (cond
                  ;; left of up-stem
-                 ((and (= stmdir 1) (= k 0))
-                  (set! old-stemsides (append old-stemsides (list -1))))
+                 ((and (= stmdir 1) (= pos 0)) -1)
                  ;; right of up-stem
-                 ((and (= stmdir 1) (positive? k))
-                  (set! old-stemsides (append old-stemsides (list 1))))
+                 ((and (= stmdir 1) (positive? pos)) 1)
                  ;; right of down-stem
-                 ((and (= stmdir -1) (= k 0))
-                  (set! old-stemsides (append old-stemsides (list 1))))
+                 ((and (= stmdir -1) (= pos 0)) 1)
                  ;; left of down-stem
-                 ((and (= stmdir -1) (negative? k))
-                  (set! old-stemsides (append old-stemsides (list -1)))))
-                (set! n (+ n 1)))
-
-              ;; (display old-stemsides) (display " - old-stemsides") (newline)
-
-              ;; GENERATE OFFSETS
-              ;; if old-stemside and new-stemside are the same, 0 is the offset
-              ;; otherwise use -1 or 1 from new-stemsides
-
-              (set! n 0)
-              (while (< n total-heads)
-                (if (= (list-ref old-stemsides n) (list-ref (list-ref new-stemsides n) 1))
-                    (set! offset-list (append offset-list (list 0)))
-                    (set! offset-list (append offset-list (list (list-ref (list-ref new-stemsides n) 1)))))
-                (set! n (+ n 1)))
-
-              ;; (display offset-list) (display " - offset-list") (newline)
-
-              ;; CALL THE MANUAL OFFSET FUNCTION
-              ;; (check for 1 or -1 in offset-list) no need to send ( 0 0 0 0 0 )
-              ;; if there are only zeros in offset-list, there is nothing to offset
-
-              (cond
-               ((not (and
-                      (equal? #f (memq 1 offset-list))
-                      (equal? #f (memq -1 offset-list))))
-                ((shift-noteheads offset-list) grob)))))))))
-% end check for any 3-semitone intervals, end check for single notes
+                 ((and (= stmdir -1) (negative? pos)) -1))))
+            note-heads))
+          ;; generate offsets
+          ;; if old-stemside and stemside-sorted are the same,
+          ;; 0 is the offset, else use -1 or 1 from stemsides-sorted
+          (offset-list
+           (map-in-order
+            (lambda (a b) (if (= a b ) 0 b ))
+            old-stemsides
+            (concatenate (map cdr stemsides-sorted)))))
+     ;; call the manual offset function if there's anything to offset
+     ;; no need to send ( 0 0 0 0 )
+     (if (or
+          (memq 1 offset-list)
+          (memq -1 offset-list))
+         ((shift-noteheads offset-list) grob))))
 
 
 % CHORDS - MANUAL
@@ -681,8 +618,6 @@ key-stil-bank = #'()
                  (else (/ stem-x-width 2))))
              nh-duration-log)))
 
-     ;; (display offsets) (display " - offsets") (newline)
-
      ;; Final Calculation for moving the NoteHeads
      (for-each
       (lambda (nh nh-x-length off x-corr)
@@ -700,11 +635,10 @@ snhs =
      \once \override NoteColumn.before-line-breaking = #(shift-noteheads offsets)
    #})
 
-
 setOtherScriptParent =
 #(define-music-function (parser location which-note-head)(integer?)
    "If the parent-NoteHead of a Script is moved, another parent from the
-                                                                                                                                                                                  NoteColumn could be chosen.
+    NoteColumn could be chosen.
     The NoteHeads are numbered 1 2 3...  not 0 1 2... "
    #{
      %% Let "staccato" be centered on NoteHead, if Stem 'direction is forced
@@ -725,11 +659,10 @@ setOtherScriptParent =
                     (list-ref note-heads-list (- which-note-head 1))))))
    #})
 
-
 adjustStem =
 #(define-music-function (parser location val)(pair?)
    "Adjust 'stem-attachment via
-                                                                                                                                                                                 adding multiples of the stem-width to the x-default (car val)
+   adding multiples of the stem-width to the x-default (car val)
    and multiplying the y-default with (cdr val). "
    #{
      \once \override NoteHead.before-line-breaking =
@@ -920,7 +853,7 @@ staffSize =
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
 
-    \override NoteColumn.before-line-breaking = #twinnote-chord-handler
+    \override NoteColumn.before-line-breaking = #chord-handler
     \numericTimeSignature
 
     % currently not used:
