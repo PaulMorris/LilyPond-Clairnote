@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160201
+%    Version: 20160207
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -109,6 +109,45 @@
       (curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768)
       (closepath))))
 
+
+#(define cn-brav-quarter-stil
+   (make-path-stencil
+    '(M 0.96656372357607 0.5458467925326329
+       C 1.1431564254799875 0.5136697585716865 1.2599506595324523 0.4190535101800298 1.2965532855478157 0.2785224641574312
+       C 1.3246906918766232 0.17048542287780566 1.2976531841605268 0.0099802180483749 1.2313792932055387 -0.10855385562783293
+       C 1.1146750508577503 -0.31724161904881476 0.8998648717934437 -0.470977447870924 0.6423226117193274 -0.5301329949860122
+       C 0.5503510895400908 -0.5512610474283612 0.391874697697197 -0.5564905653778873 0.313146954722831 -0.5410019930952565
+       C -0.010212238428083371 -0.4773778578890724 -0.09996696494879231 -0.15000303489393302 0.12353543287757733 0.15060825513045795
+       C 0.261770690523099 0.3365351166231296 0.49733397659175993 0.48689922624613 0.7263628649930876 0.5354037551588564
+       C 0.7897770195550269 0.5488325173122284 0.9192810820312826 0.5544619983936494 0.9665617237604106 0.5458527919796112
+       z)
+    0.0001 1 1 #t))
+
+#(define cn-brav-half-stil
+   (make-path-stencil
+    '(M 0.9757713831550566 0.5461588196582169
+       C 1.166862674136053 0.5194612938002375 1.2965706536977422 0.41225022938007194 1.3251910013618975 0.25733458589030556
+       C 1.348188870078509 0.13283612354659668 1.303223037200856 -0.0383980076586089 1.2099636798329896 -0.18147674811066888
+       C 1.0904857522208504 -0.36477276150406956 0.9100604727876843 -0.48245185581963534 0.6698157370079405 -0.5337790991657704
+       C 0.6097813005842294 -0.5466079102802975 0.5736646476257942 -0.5494876437065237 0.46788545051007163 -0.5498976057240798
+       C 0.3531940793129944 -0.5503365650443665 0.3329939513211254 -0.5485977258779522 0.28367751162761734 -0.5343490463470081
+       C 0.1378310276708799 -0.4921229595686383 0.037891289394505645 -0.3994265500306612 0.008867979074141868 -0.2794576679167892
+       C -0.018819455045987428 -0.16501627355358817 0.020006946791665897 0.005643910841037658 0.10689889424703736 0.1513944036935666
+       C 0.2290185770395802 0.3562474193331163 0.4286100902787767 0.4888221332256978 0.6802617689419597 0.5322391096406539
+       C 0.7722532438084059 0.548107639055116 0.914009106855593 0.5547870200562882 0.975772383062392 0.5461578197508813
+       z
+       M 0.854339636609341 0.3557934614027969
+       C 0.7659878244441325 0.3271761134606481 0.6427982408025994 0.26060228306273525 0.4923401842145137 0.16018358917265407
+       C 0.18828835163512553 -0.04275660373407475 0.10516105529792982 -0.14432719087465745 0.1543784941661496 -0.2527581422441389
+       C 0.1751265713778752 -0.2984639065500656 0.20011425569214142 -0.3271212507856346 0.2363308993841271 -0.34671943456152965
+       C 0.32299286815233247 -0.3936350867434172 0.4341955726549067 -0.37388691686719644 0.6405564485563976 -0.27492608787228145
+       C 0.9729316463222227 -0.1155478579441569 1.199011694787205 0.07085586744799277 1.199011694787205 0.18552124105434697
+       C 1.199011694787205 0.2532249667413804 1.1498062548070112 0.32809002876529947 1.0845513021846291 0.3596821010305753
+       C 1.0448649800384417 0.37890032001897855 1.0383955795777253 0.3799302245745485 0.9761923441433041 0.37698049793480914
+       C 0.9310965233120354 0.374880692530249 0.8923101177678022 0.368081322648816 0.85433763679467 0.3558024605688165
+       z)
+    0.0001 1 1 #t))
+
 #(define Cn_note_heads_engraver
    ;; Customizes stencil, stem-attachment, rotation.
    (make-engraver
@@ -147,28 +186,91 @@
                    (width-scale (ly:context-property context 'cnNoteheadWidthScale 1))
                    (style (ly:context-property context 'cnNoteheadStyle "lilypond")))
 
-               (if (equal? style "funksol")
+               (cond
+                ;; funk sol note head style
+                ((equal? style "funksol")
+                 (ly:grob-set-property! grob 'stencil
+                   (if black-note
+                       (ly:font-get-glyph font "noteheads.s2solFunk")
+                       (ly:font-get-glyph font "noteheads.s1solFunk"))))
 
-                   ;; funk sol note heads
-                   (ly:grob-set-property! grob 'stencil
-                     (if black-note
-                         (ly:font-get-glyph font "noteheads.s2solFunk")
-                         (ly:font-get-glyph font "noteheads.s1solFunk")))
+                ;; bravura style
+                ((equal? style "brav")
+                 (ly:grob-set-property! grob 'stencil
+                   (if black-note
+                       cn-brav-quarter-stil
+                       cn-brav-half-stil)))
 
-                   ;; standard style "lilypond" (emmentaler font) note heads
-                   (begin
-                    (ly:grob-set-property! grob 'stencil
-                      (if black-note
-                          (ly:font-get-glyph font "noteheads.s2")
-                          ;; white notes are scaled horizontally to match black ones
-                          (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
-                    ;; black notes can be rotated as far as -27,
-                    ;; but -18 also works for white notes, currently -9
-                    (ly:grob-set-property! grob 'rotation '(-9 0 0))
-                    (ly:grob-set-property! grob 'stem-attachment
-                      (if black-note
-                          (cons 1.04 0.3)
-                          (cons 1.06  0.3)))))
+                ;; bravura style
+                ((equal? style "brav-rotate")
+                 (begin
+                  (ly:grob-set-property! grob 'stencil
+                    (if black-note
+                        cn-brav-quarter-stil
+                        cn-brav-half-stil))
+
+                  (ly:grob-set-property! grob 'rotation '(-9 0 0))
+                  (ly:grob-set-property! grob 'stem-attachment
+                    (if black-note
+                        (cons 1.04 0.3)
+                        (cons 1.06  0.3)))
+                  ))
+
+                ;; bravura style
+                ((equal? style "brav-rotate-13")
+                 (begin
+                  (ly:grob-set-property! grob 'stencil
+                    (if black-note
+                        cn-brav-quarter-stil
+                        cn-brav-half-stil))
+
+                  (ly:grob-set-property! grob 'rotation '(-13 0 0))
+                  (ly:grob-set-property! grob 'stem-attachment
+                    (if black-note
+                        (cons 1.04 0.3)
+                        (cons 1.06  0.3)))
+                  ))
+
+                ((equal? style "brav-rotate-18")
+                 (begin
+                  (ly:grob-set-property! grob 'stencil
+                    (if black-note
+                        cn-brav-quarter-stil
+                        cn-brav-half-stil))
+
+                  (ly:grob-set-property! grob 'rotation '(-18 0 0))
+                  (ly:grob-set-property! grob 'stem-attachment
+                    (if black-note
+                        (cons 1.04 0.3)
+                        (cons 1.06  0.3)))
+                  ))
+
+                ((equal? style "lily-no-rotate")
+                 (ly:grob-set-property! grob 'stencil
+                   (if black-note
+                       (ly:font-get-glyph font "noteheads.s2")
+                       ;; white notes are scaled horizontally to match black ones
+                       (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1))))
+
+                ;; standard style "lilypond" (emmentaler font) note heads
+                (else
+                 (begin
+                  (ly:grob-set-property! grob 'stencil
+                    (if black-note
+                        (ly:font-get-glyph font "noteheads.s2")
+                        ;; white notes are scaled horizontally to match black ones
+                        (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
+                  ;; black notes can be rotated as far as -27,
+                  ;; but -18 also works for white notes, currently -9
+
+                  (ly:grob-set-property! grob 'rotation '(-9 0 0))
+
+                  (ly:grob-set-property! grob 'stem-attachment
+                    (if black-note
+                        (cons 1.04 0.3)
+                        (cons 1.06  0.3)))
+
+                  )))
 
                (if (not (= 1 width-scale))
                    (ly:grob-set-property! grob 'stencil
