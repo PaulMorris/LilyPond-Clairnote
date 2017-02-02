@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160601
+%    Version: 20160921
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -849,6 +849,34 @@
                    (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
                  ))))))))
 
+;;;; DOTS ON DOTTED NOTES
+
+  (define (cn-dots-callback dots-grob)
+    "Adjust position of dots on double-stemmed half notes with up stem.
+     Use a callback so that the stem width is already set.
+     Returns a pair of numbers that is the extra-extent for dots grob."
+    (let*
+     ((parent (ly:grob-parent dots-grob Y))
+      ;; parent is a Rest grob or a NoteHead grob
+      (is-note (not (grob::has-interface parent 'rest-interface)))
+      (note-col (ly:grob-parent parent X))
+      (stem (if is-note
+                (ly:grob-object note-col 'stem)
+                #f)))
+     (if (and (= 1 (ly:grob-property parent 'duration-log))
+              stem
+              (not (null? stem))
+              (= 1 (ly:grob-property stem 'direction)))
+         (let*
+          ((stem-extent (ly:grob-property stem 'X-extent))
+           (stem-width (- (cdr stem-extent) (car stem-extent)))
+           ;; maybe a better calculation is possible based on custom
+           ;; double stem Staff context properties, but that would
+           ;; require an engraver, and Dots engraver is in Voice context
+           (x-offset (* 0.75 stem-width)))
+          (cons x-offset 0))
+         '(0 . 0)
+         )))
 
 ;;;; BEAMS
 
@@ -1076,8 +1104,8 @@
   (define cnStaffCompression
     (define-music-function (parser location ss) (number?)
       "0.75 is the default Clairnote staff-space (ss). An ss arg of
-    1 gives an uncompressed staff. 7/12 gives a staff with
-    same size octave as traditional"
+       1 gives an uncompressed staff. 7/12 gives a staff with
+       same size octave as traditional"
       (let*
        ((trad-octave (/ (round (* 10000 (exact->inexact (* 12/7 ss)))) 10000))
         (notehead-overlap (+ 0.5 (- 0.5 (/ ss 2)))))
@@ -1274,8 +1302,8 @@
 
     (define (cn-chords-loop note-heads first-semi stem-dir note-col)
       "Use recursion to iterate through the note heads, shifting them as needed.
-    Use internal procedure (loop) since we need stem-dir and note-col in scope,
-    and don't want to pass them as arguments."
+       Use internal procedure (loop) since we need stem-dir and note-col in scope,
+       and don't want to pass them as arguments."
       (define (loop nhs last-semi parity)
         (if (> (length nhs) 0)
             (let* ((nh (car nhs))
@@ -1438,6 +1466,9 @@
     % times the size of the traditional octave (3/4 * 12/7 = 9/7).
     % Adjacent note heads overlap by 0.625 (5/8).
     \override StaffSymbol.staff-space = #0.75
+
+    % adjust x-axis dots position to not collide with double-stemmed half notes
+    \override Dots.extra-offset = #cn-dots-callback
 
     % custom engravers
     \consists \Cn_clef_ottava_engraver
