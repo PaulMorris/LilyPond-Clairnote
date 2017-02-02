@@ -1,6 +1,6 @@
 \version "2.18.0"
 
-% clairnote.ily version: 20140210 (2014 Feb 10)
+% clairnote-code.ly version: 20140314 (2014 March 14)
 
 % Absolute value helper function
 % when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
@@ -291,8 +291,10 @@ key-stil-bank = #'()
                      ((1) 4)  ((2) 1)  ((3) 5)   ((4) 2)  ((5) 6)  ((6) 3)  ((7) 0)
                      ((-1) 3) ((-2) 6) ((-3) 2) ((-4) 5) ((-5) 1) ((-6) 4) ((-7) 0)))
           (mode-num (modulo (- tonic-num maj-num) 7))
+          ;; calculate the distance between notes based on vertical staff scaling
+          ;; (foo - (((foo - 1.2) * 0.7) + 0.85))
+          (note-space (- clnt-vscale-staff (+ (* (- clnt-vscale-staff 1.2) 0.7) 0.85)))
           ;; calculate vertical position of the sig
-          (note-space 0.335)
           (vert-adj (case acc-count
                       ((0) (* note-space -12))
                       ((1) (* note-space -5))
@@ -356,9 +358,9 @@ key-stil-bank = #'()
          ((= n 2)
           (set! solid-dot? (not solid-dot?))
           (set! xpos (+ xpos 0.60))
-          (set! ypos (+ ypos 0.335)))
+          (set! ypos (+ ypos note-space))) ;; +0.335
          (else
-          (set! ypos (+ ypos 0.67)))))
+          (set! ypos (+ ypos (* 2 note-space)))))) ;; +0.67
       (iota 7))
 
      ;; position the sig vertically
@@ -502,6 +504,7 @@ key-stil-bank = #'()
 
 %% CHORDS - MANUAL
 % For chords and intervals, manually shift note heads to left or right of stem
+% Credit goes to Thomas Morley for this code and related helper functions below
 
 #(define ((shift-noteheads offsets) grob)
    "Defines how NoteHeads should be moved according to the given list of offsets."
@@ -728,43 +731,45 @@ adjustStem =
       alto-pos alto-c)))
 
 
-%% TIME SIGNATURE
-% adjust vertical position, currently not needed
-% ClairnoteTimeSignature =
-% #(lambda (grob) (set! (ly:grob-property grob 'Y-offset) -1))
+%% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
 
+% global variable holding the default vertical scaling value
+% so it can be used with key signatures and staffSize function
+% TODO: how to store this per-staff rather than globally?
 
-%% STAFF SCALING
+clnt-vscale-staff = 1.2
 
-% global variable holding the default staffmod
-% so it can be used with staffSize function
- clnt-staffmod = 1
-
-%  clnt-staffmod changes the vertical distance between the staff lines and everything else to match
-% notemod changes the vertical extent of the note heads
-% resize resizes both horizontally and vertically, incorporating the effects of the \staffSize macro
+% change the vertical distance between the staff lines (staff-space)
+% and everything else to match.  vscale-staff = 1 gives a staff with an
+% octave that is the same size as on a traditional staff (default is 1.2).
+%   stems are extended back to their original/traditional size
+%   time signature position is adjusted vertically
+%   elsewhere key signatures are adjusted to fit the staff
 vertScaleStaff =
-#(define-music-function (parser location new-staffmod notemod)
-   (number? number?)
-   (set!  clnt-staffmod new-staffmod)
+#(define-music-function (parser location vscale-staff) (number?)
+   (set! clnt-vscale-staff vscale-staff)
    #{
-     \override StaffSymbol.staff-space = #(*  clnt-staffmod 7/12)
-     \override Stem.before-line-breaking = #(stem-lengthen (/ 12/7  clnt-staffmod))
+     \override StaffSymbol.staff-space = #(* vscale-staff 7/12)
+     \override Stem.before-line-breaking = #(stem-lengthen (/ 1 (* vscale-staff 7/12)))
      \override TimeSignature.before-line-breaking =
      #(lambda (grob)
         (set! (ly:grob-property grob 'Y-offset)
-              (- (* 12/7  clnt-staffmod) 2)))
-     \override NoteHead.before-line-breaking =
-     #(clairnoteNoteHeads 1 1 (* 7/12 notemod ))
+              ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
+              (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))
    #})
 
-% helper macro to zoom staff size
-% TODO: does not work well
+
+%% USER STAFF SCALING FUNCTION
+
+% helper macro lets user zoom a single staff size
+% TODO: can this be improved?
+% it does not work perfectly combined with vertScaleStaff
+% especially key signatures and time signatures
 staffSize =
 #(define-music-function (parser location new-size) (number?)
    #{
      \set fontSize = #new-size
-     \override StaffSymbol.staff-space = #(*  clnt-staffmod 7/12 (magstep new-size))
+     \override StaffSymbol.staff-space = #(*  clnt-vscale-staff 7/12 (magstep new-size))
      \override StaffSymbol.thickness = #(magstep new-size)
    #})
 
@@ -779,26 +784,32 @@ staffSize =
     staffLineLayoutFunction = #ly:pitch-semitones
     middleCPosition = -12
     clefPosition = -5
-    \override StaffSymbol.line-positions = #'(-8 -4 4 8)
+    \override StaffSymbol.line-positions = #'(-8 -4  4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
     \override Stem.no-stem-extend = ##t
-    % user scalable properties (eventually)
-    \vertScaleStaff #23/20 #(* 240/161 23/20)
+
+    \vertScaleStaff 1.2
+    % to vertically scale noteheads change the last argument here:
+    \override NoteHead.before-line-breaking = #(clairnoteNoteHeads 1 1 1)
+
     \consists \Clairnote_key_signature_engraver
     printKeyCancellation = ##f
+
     \consists \Clairnote_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
+
     \override NoteColumn.before-line-breaking = #chord-handler
     \numericTimeSignature
+
     % currently not used:
     % \consists \Clairnote_clef_engraver
   }
-  \context { \Score         \accepts StaffClairnote }
-  \context { \ChoirStaff  \accepts StaffClairnote }
+  \context { \Score \accepts StaffClairnote }
+  \context { \ChoirStaff \accepts StaffClairnote }
   \context { \GrandStaff \accepts StaffClairnote }
-  \context { \PianoStaff  \accepts StaffClairnote }
+  \context { \PianoStaff \accepts StaffClairnote }
   \context { \StaffGroup \accepts StaffClairnote }
 }
 
@@ -808,9 +819,9 @@ staffSize =
     \name StaffClairnote
     \alias Staff
   }
-  \context { \Score         \accepts StaffClairnote }
-  \context { \ChoirStaff  \accepts StaffClairnote }
+  \context { \Score \accepts StaffClairnote }
+  \context { \ChoirStaff \accepts StaffClairnote }
   \context { \GrandStaff \accepts StaffClairnote }
-  \context { \PianoStaff  \accepts StaffClairnote }
+  \context { \PianoStaff \accepts StaffClairnote }
   \context { \StaffGroup \accepts StaffClairnote }
 }
