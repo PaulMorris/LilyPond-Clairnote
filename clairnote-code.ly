@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150412
+%    Version: 20150507
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -145,6 +145,26 @@
                      (cons 1.04 0.3)
                      (cons 1.06  0.3)))
                ))))))))
+
+#(define (cn-make-ottava-set music)
+   "Set context properties for an ottava bracket."
+   (let ((octavation (ly:music-property music 'ottava-number)))
+
+     (display "hello")(newline)
+
+     (list (context-spec-music
+            (make-apply-context
+             (lambda (context)
+               (let ((offset (* -12 octavation))
+                     (string (assoc-get octavation '((2 . "15ma")
+                                                     (1 . "8va")
+                                                     (0 . #f)
+                                                     (-1 . "8vb")
+                                                     (-2 . "15mb")))))
+                 (set! (ly:context-property context 'middleCOffset) offset)
+                 (set! (ly:context-property context 'ottavation) string)
+                 (ly:set-middle-C! context))))
+            'Staff))))
 
 
 %% DOTS ON DOTTED NOTES
@@ -553,6 +573,35 @@
           (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir note-col)))))
 
 
+%% OTTAVA (8VA 8VB 15MA 15MB)
+
+#(define Cn_ottava_spanner_engraver
+   ;; Override ottava setting 'middleCOffset so that vertical
+   ;; note positions are correct with 8va, 8vb, etc.
+   ;; a closure stores the previous 'ottavation property
+   ;; in order to detect new ottavation settings
+   (lambda (context)
+     (let ((prev-ottavation '()))
+       (make-engraver
+        (listeners
+         ;; TODO: confirm that rhythmic-event
+         ;; is the best event to listen to.
+         ((rhythmic-event engraver event)
+          (let*
+           ((context (ly:translator-context engraver))
+            (ottavation (ly:context-property context 'ottavation))
+            (mid-c-off (ly:context-property context 'middleCOffset)))
+           (if (and
+                (number? mid-c-off)
+                (not (equal? ottavation prev-ottavation)))
+               (begin
+                (ly:context-set-property! context 'middleCOffset
+                  (+ -6 (* mid-c-off 12/7)))
+                (ly:set-middle-C! context)
+                (set! prev-ottavation ottavation)
+                )))))))))
+
+
 %% CLEFS: CLEF SETTINGS
 
 % see /scm/parser-clef.scm
@@ -867,6 +916,10 @@ vertScaleStaff =
     staffLineLayoutFunction = #ly:pitch-semitones
     middleCPosition = -12
     clefPosition = -5
+
+    % listener engravers:
+    \consists \Cn_ottava_spanner_engraver
+
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
@@ -892,14 +945,14 @@ vertScaleStaff =
     \consists \Cn_note_heads_engraver
     \override Stem.no-stem-extend = ##t
 
-    \consists \Cn_key_signature_engraver
-    printKeyCancellation = ##f
-
     \consists \Cn_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
 
     \override NoteColumn.before-line-breaking = #cn-chords
+
+    \consists \Cn_key_signature_engraver
+    printKeyCancellation = ##f
 
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
