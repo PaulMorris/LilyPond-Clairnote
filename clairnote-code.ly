@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150216
+%    Version: 20150307
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -30,10 +30,6 @@
 
 
 % UTILITY FUNCTIONS
-
-% Absolute value function, Guile 2.0 has an "abs" function
-% built in, so when LilyPond upgrades to it, remove this.
-#(define (abs x) (if (> x 0) x (- 0 x)))
 
 #(define (cn-notehead-pitch grob)
    "Takes a note head grob and returns its pitch."
@@ -834,10 +830,10 @@ clefsTrad =
 
 #(define (cn-timesigs grob)
    "Adjust vertical position of time sig based on vertical staff scaling."
-   (let ((vscale-staff (cn-staff-symbol-prop grob 'cn-vscale-staff)))
-     (ly:grob-set-property! grob 'Y-offset
-       ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
-       (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff))))
+   (define vss (cn-staff-symbol-prop grob 'cn-vscale-staff))
+   (ly:grob-set-property! grob 'Y-offset
+     ;; ((((vss - 1.2) * -3.45) - 1.95) + vss)
+     (+ (- (* (- vss 1.2) -3.45 ) 1.95) vss)))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
@@ -966,9 +962,14 @@ staffSize =
     % 1.2 is default, 1 gives a staff with same size octave as traditional.
     % These depend on it:
     % - staff-space, the vertical distance between the staff lines
-    % - time signature, position is adjusted vertically
-    % - key signatures and staffSize function (elsewhere)
+    % - time signature
+    % - key signatures
+    % - staffSize function
+    % must be kept in this separate property from staff-space because
+    % we need to zoom the staff-space using staffSize without losing the
+    % vertical scaling number
     \override StaffSymbol.staff-space = #cn-staff-space
+
     \override TimeSignature.before-line-breaking = #cn-timesigs
     % stems, beams restored to original/traditional size, via staff-space
     \override Stem.before-line-breaking = #cn-stems
