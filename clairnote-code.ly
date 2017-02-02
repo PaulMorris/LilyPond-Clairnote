@@ -1,6 +1,6 @@
 \version "2.18.0"
 
-% clairnote.ily version: 20131218 (2013 Dec 18)
+% clairnote.ily version: 20140113 (2014 Jan 13)
 
 % Absolute value helper function
 % when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
@@ -412,28 +412,28 @@ key-stil-bank = #'()
                                            (grob-interpret-markup grob (markup #:natural))
                                            0.65 0.65))))
           (sig-head-num
-            (ly:stencil-scale
-             (grob-interpret-markup grob
-               (markup (number->string (abs acc-count))))
-             0.6 0.6))
+           (ly:stencil-scale
+            (grob-interpret-markup grob
+              (markup (number->string (abs acc-count))))
+            0.6 0.6))
           (sig-head (ly:stencil-combine-at-edge
                      (ly:stencil-aligned-to sig-head-acc Y CENTER)
                      0 1
                      (ly:stencil-aligned-to sig-head-num Y CENTER)
-                       0.3)))
+                     0.3)))
 
      ;; add the head to the sig
      (set! sig (ly:stencil-add
                 (ly:stencil-aligned-to sig X CENTER)
-                 (ly:stencil-translate
-                  (ly:stencil-aligned-to sig-head X CENTER)
-                   (cons 0
-                     (case acc-count
-                       ((3) (* note-space 12.5))
-                       ((5) (* note-space 14.5))
-                       ((-2) (* note-space 13.5))
-                       ((-7) (* note-space 14.5))
-                       (else (* note-space 11.5)))))))
+                (ly:stencil-translate
+                 (ly:stencil-aligned-to sig-head X CENTER)
+                 (cons 0
+                   (case acc-count
+                     ((3) (* note-space 12.5))
+                     ((5) (* note-space 14.5))
+                     ((-2) (* note-space 13.5))
+                     ((-7) (* note-space 14.5))
+                     (else (* note-space 11.5)))))))
 
      ;; shift the whole sig to the right for proper spacing with clef
      (if (> mode-num 2)
@@ -629,57 +629,57 @@ key-stil-bank = #'()
 #(define ((shift-noteheads offsets) grob)
    "Defines how NoteHeads should be moved according to the given list of offsets."
    (let* (
-          ;; NoteHeads
-          ;; Get the NoteHeads of the NoteColumn
-          (note-heads (ly:grob-array->list (ly:grob-object grob 'note-heads)))
-          ;; Get their durations
-          (nh-duration-log
-           (map
-            (lambda (note-head-grobs)
-              (ly:grob-property note-head-grobs 'duration-log))
-            note-heads))
-          ;; Get the stencils of the NoteHeads
-          (nh-stencils
-           (map
-            (lambda (note-head-grobs)
-              (ly:grob-property note-head-grobs 'stencil))
-            note-heads))
-          ;; Get their length in X-axis-direction
-          (stencils-x-lengths
-           (map
-            (lambda (x)
-              (let* ((stencil (ly:grob-property x 'stencil))
-                     (stencil-X-exts (ly:stencil-extent stencil X))
-                     (stencil-lengths (interval-length stencil-X-exts)))
-                stencil-lengths))
-            note-heads))
-          ;; Stem
-          (stem (ly:grob-object grob 'stem))
-          (stem-thick (ly:grob-property stem 'thickness 1.3))
-          (stem-x-width (/ stem-thick 10))
-          (stem-dir (ly:grob-property stem 'direction))
+           ;; NoteHeads
+           ;; Get the NoteHeads of the NoteColumn
+           (note-heads (ly:grob-array->list (ly:grob-object grob 'note-heads)))
+           ;; Get their durations
+           (nh-duration-log
+            (map
+             (lambda (note-head-grobs)
+               (ly:grob-property note-head-grobs 'duration-log))
+             note-heads))
+           ;; Get the stencils of the NoteHeads
+           (nh-stencils
+            (map
+             (lambda (note-head-grobs)
+               (ly:grob-property note-head-grobs 'stencil))
+             note-heads))
+           ;; Get their length in X-axis-direction
+           (stencils-x-lengths
+            (map
+             (lambda (x)
+               (let* ((stencil (ly:grob-property x 'stencil))
+                      (stencil-X-exts (ly:stencil-extent stencil X))
+                      (stencil-lengths (interval-length stencil-X-exts)))
+                 stencil-lengths))
+             note-heads))
+           ;; Stem
+           (stem (ly:grob-object grob 'stem))
+           (stem-thick (ly:grob-property stem 'thickness 1.3))
+           (stem-x-width (/ stem-thick 10))
+           (stem-dir (ly:grob-property stem 'direction))
 
-          ;; stencil width method, doesn't work with non-default beams
-          ;; so using thickness property above instead
-          ;; (stem-stil (ly:grob-property stem 'stencil))
-          ;; (stem-x-width (if (ly:stencil? stem-stil)
-          ;;                 (interval-length (ly:stencil-extent stem-stil X))
-          ;;                 ;; if no stem-stencil use 'thickness-property
-          ;;                 (/ stem-thick 10)))
+           ;; stencil width method, doesn't work with non-default beams
+           ;; so using thickness property above instead
+           ;; (stem-stil (ly:grob-property stem 'stencil))
+           ;; (stem-x-width (if (ly:stencil? stem-stil)
+           ;;                 (interval-length (ly:stencil-extent stem-stil X))
+           ;;                 ;; if no stem-stencil use 'thickness-property
+           ;;                 (/ stem-thick 10)))
 
-          ;; Calculate a value to compensate the stem-extension
-          (stem-x-corr
-           (map
-            (lambda (q)
-              ;; TODO better coding if (<= log 0)
-              (cond ((and (= q 0) (= stem-dir 1))
-                     (* -1 (+ 2  (* -4 stem-x-width))))
-                ((and (< q 0) (= stem-dir 1))
-                 (* -1 (+ 2  (* -1 stem-x-width))))
-                ((< q 0)
-                 (* 2 stem-x-width))
-                (else (/ stem-x-width 2))))
-            nh-duration-log)))
+           ;; Calculate a value to compensate the stem-extension
+           (stem-x-corr
+            (map
+             (lambda (q)
+               ;; TODO better coding if (<= log 0)
+               (cond ((and (= q 0) (= stem-dir 1))
+                      (* -1 (+ 2  (* -4 stem-x-width))))
+                 ((and (< q 0) (= stem-dir 1))
+                  (* -1 (+ 2  (* -1 stem-x-width))))
+                 ((< q 0)
+                  (* 2 stem-x-width))
+                 (else (/ stem-x-width 2))))
+             nh-duration-log)))
 
      ;; (display offsets) (display " - offsets") (newline)
 
@@ -706,24 +706,24 @@ setOtherScriptParent =
    "If the parent-NoteHead of a Script is moved, another parent from the
                                                                                                                                                                                   NoteColumn could be chosen.
     The NoteHeads are numbered 1 2 3...  not 0 1 2... "
-#{
-  %% Let "staccato" be centered on NoteHead, if Stem 'direction is forced
-  %% with \stemUp, \stemDown, \voiceOne, \voiceTwo etc
-  \once \override Script.toward-stem-shift = #0
+   #{
+     %% Let "staccato" be centered on NoteHead, if Stem 'direction is forced
+     %% with \stemUp, \stemDown, \voiceOne, \voiceTwo etc
+     \once \override Script.toward-stem-shift = #0
 
-  \once \override Script.after-line-breaking =
-  #(lambda (grob)
-     (let* ((note-head (ly:grob-parent grob X))
-            (note-column (ly:grob-parent note-head X))
-            (note-heads-list
-             (ly:grob-array->list
-              (ly:grob-object note-column 'note-heads)))
-            (count-note-heads (length note-heads-list)))
-       (if (> which-note-head count-note-heads)
-           (ly:warning "Can't find specified note-head - ignoring")
-           (set! (ly:grob-parent grob X)
-                 (list-ref note-heads-list (- which-note-head 1))))))
-#})
+     \once \override Script.after-line-breaking =
+     #(lambda (grob)
+        (let* ((note-head (ly:grob-parent grob X))
+               (note-column (ly:grob-parent note-head X))
+               (note-heads-list
+                (ly:grob-array->list
+                 (ly:grob-object note-column 'note-heads)))
+               (count-note-heads (length note-heads-list)))
+          (if (> which-note-head count-note-heads)
+              (ly:warning "Can't find specified note-head - ignoring")
+              (set! (ly:grob-parent grob X)
+                    (list-ref note-heads-list (- which-note-head 1))))))
+   #})
 
 
 adjustStem =
@@ -731,18 +731,18 @@ adjustStem =
    "Adjust 'stem-attachment via
                                                                                                                                                                                  adding multiples of the stem-width to the x-default (car val)
    and multiplying the y-default with (cdr val). "
-#{
-  \once \override NoteHead.before-line-breaking =
-  #(lambda (grob)
-     (let* ((stem-at (ly:grob-property grob 'stem-attachment))
-            (stem (ly:grob-object grob 'stem))
-            (stem-x-width (interval-length (ly:grob-property stem 'X-extent))))
-       (ly:grob-set-property!
-        grob
-        'stem-attachment
-        (cons (+ (car stem-at) (* stem-x-width (car val))) (* (cdr val) (cdr stem-at)))
-        )))
-#})
+   #{
+     \once \override NoteHead.before-line-breaking =
+     #(lambda (grob)
+        (let* ((stem-at (ly:grob-property grob 'stem-attachment))
+               (stem (ly:grob-object grob 'stem))
+               (stem-x-width (interval-length (ly:grob-property stem 'X-extent))))
+          (ly:grob-set-property!
+           grob
+           'stem-attachment
+           (cons (+ (car stem-at) (* stem-x-width (car val))) (* (cdr val) (cdr stem-at)))
+           )))
+   #})
 
 
 % CLEFS
@@ -813,7 +813,18 @@ adjustStem =
 
 % CLEF SETTINGS
 %
-% (re-)set clef settings for clairnote
+% helper function for modifying clef settings
+#(define (set-clefs treble-pos treble-c bass-pos bass-c alto-pos alto-c)
+   ;; add-new-clef args:  clef-name  clef-glyph  clef-position  octavation  c0-position
+   (add-new-clef "treble" "clefs.G" treble-pos 0 treble-c)
+   (add-new-clef "G" "clefs.G" treble-pos 0 treble-c)
+   (add-new-clef "violin" "clefs.G" treble-pos 0 treble-c)
+   (add-new-clef "bass" "clefs.F" bass-pos 0 bass-c)
+   (add-new-clef "F" "clefs.F" bass-pos 0 bass-c)
+   (add-new-clef "alto" "clefs.C" alto-pos 0 alto-c)
+   (add-new-clef "C" "clefs.C" alto-pos 0 alto-c))
+
+% set (or reset) clef settings for clairnote
 #(define (set-clairnote-clefs)
    (let* ((treble-pos -5)
           (treble-c (- -12 treble-pos))
@@ -821,18 +832,16 @@ adjustStem =
           (bass-c (- 12 bass-pos))
           (alto-pos 0)
           (alto-c (- 0 alto-pos)))
-     ;; add-new-clef args:  clef-name  clef-glyph  clef-position  octavation  c0-position
-     (add-new-clef "treble" "clefs.G" treble-pos 0 treble-c)
-     (add-new-clef "G" "clefs.G" treble-pos 0 treble-c)
-     (add-new-clef "violin" "clefs.G" treble-pos 0 treble-c)
-     (add-new-clef "bass" "clefs.F" bass-pos 0 bass-c)
-     (add-new-clef "F" "clefs.F" bass-pos 0 bass-c)
-     (add-new-clef "alto" "clefs.C" alto-pos 0 alto-c)
-     (add-new-clef "C" "clefs.C" alto-pos 0 alto-c)))
+     (set-clefs
+      treble-pos treble-c
+      bass-pos bass-c
+      alto-pos alto-c)))
 
 #(set-clairnote-clefs)
 
 % use this function to reset clefs back to traditional settings
+% if you want to include music in both traditional notation
+% and Clairnote in the same file (i.e. for comparison)
 #(define (set-traditional-clefs)
    (let* ((treble-pos -2)
           (treble-c -4)
@@ -840,13 +849,10 @@ adjustStem =
           (bass-c 4)
           (alto-pos 0)
           (alto-c 0))
-     (add-new-clef "treble" "clefs.G" treble-pos 0 treble-c)
-     (add-new-clef "G" "clefs.G" treble-pos 0 treble-c)
-     (add-new-clef "violin" "clefs.G" treble-pos 0 treble-c)
-     (add-new-clef "bass" "clefs.F" bass-pos 0 bass-c)
-     (add-new-clef "F" "clefs.F" bass-pos 0 bass-c)
-     (add-new-clef "alto" "clefs.C" alto-pos 0 alto-c)
-     (add-new-clef "C" "clefs.C" alto-pos 0 alto-c)))
+     (set-clefs
+      treble-pos treble-c
+      bass-pos bass-c
+      alto-pos alto-c)))
 
 
 % TIME SIGNATURE
