@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140914 (2014 Sept 14)
+%    Version: 20140915 (2014 Sept 15)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -47,41 +47,32 @@
    "Takes a grob and returns its name."
    (assq-ref (ly:grob-property grob 'meta) 'name))
 
-#(define (cn-staff-symbol-property grob prop)
-   "For getting custom StaffSymbol props. Takes a grob and
+#(define (cn-staff-symbol-prop grob prop)
+   "Gets custom StaffSymbol props. Takes a grob and
     a property name and returns that StaffSymbol property."
    (ly:grob-property (ly:grob-object grob 'staff-symbol) prop))
-
-#(define (cn-inv-staff-space grob)
-   "For vertical staff scaling calculations, the inverse of the
-    staff space value.  Takes a grob and returns a number."
-   (/ 1 (* 7/12 (cn-staff-symbol-property grob 'cn-vscale-staff))))
 
 
 %% NOTE HEADS AND STEM ATTACHMENT
 
-#(define (cn-draw-note-head-stencils grob)
-   "Returns a list of note head stencils used for overriding note heads."
-   (let*
-    ((fnt (ly:grob-default-font grob))
-     (wn (ly:font-get-glyph fnt "noteheads.s0")))
-    (list
-     ;; 0 = black note
-     (ly:font-get-glyph fnt "noteheads.s2")
-     ;; 1 = white note
-     ;; scale hollow note heads horizontally to match solid ones
-     (ly:stencil-scale (ly:font-get-glyph fnt "noteheads.s1") 0.945 1)
-     ;; 2 = black whole note, add black circle to make solid
-     (ly:stencil-add wn
-       (ly:stencil-translate
-        (make-circle-stencil 0.47 0.1 #t)
-        '(0.95 . 0)))
-     ;; 3 = white whole note, thicken top and bottom using an oval
+#(define (cn-draw-note-head-stencils note-type font)
+   "Returns a custom note head stencil."
+   (case note-type
+     ;; black note - no change needed
+     ;; ((0) (ly:font-get-glyph font "noteheads.s2"))
+     ;; white note, scale horizontally to match black ones
+     ((1) (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1))
+     ;; black whole note, add black circle to make solid
+     ((2) (ly:stencil-add (ly:font-get-glyph font "noteheads.s0")
+            (ly:stencil-translate
+             (make-circle-stencil 0.47 0.1 #t)
+             '(0.95 . 0))))
+     ;; white whole note, thicken top and bottom using an oval
      ;; path so no white space shows above and below staff lines
-     (ly:stencil-add wn
-       (ly:stencil-translate
-        (make-oval-stencil 0.7 0.58 0.11 #f)
-        '(0.98 . 0))))))
+     ((3) (ly:stencil-add (ly:font-get-glyph font "noteheads.s0")
+            (ly:stencil-translate
+             (make-oval-stencil 0.7 0.58 0.11 #f)
+             '(0.98 . 0))))))
 
 #(define Cn_note_heads_engraver
    ;; Sets custom notehead stencils, stem-attachment, rotation.
@@ -99,9 +90,9 @@
         (not (memq (ly:grob-property-data grob 'style)
                (list 'harmonic 'harmonic-black 'harmonic-mixed
                  'diamond 'cross 'xcircle 'triangle 'slash))))
-       (let* ((whole-note (< (ly:grob-property grob 'duration-log) 1))
-              ;; 0 = black note, 1 = white note
-              (note-type (modulo (cn-notehead-semitone grob) 2)))
+       (let ((whole-note (< (ly:grob-property grob 'duration-log) 1))
+             ;; 0 = black note, 1 = white note
+             (note-type (modulo (cn-notehead-semitone grob) 2)))
          (if whole-note
              ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
              (set! note-type (+ 2 note-type))
@@ -114,11 +105,10 @@
                 (if (equal? 0 note-type)
                     (cons 1.04 0.3) ;; black note (0)
                     (cons 1.06  0.3))))) ;; white note (1)
-         ;; set note head stencil
-         (ly:grob-set-property! grob 'stencil
-           (list-ref
-            (cn-staff-symbol-property grob 'cn-note-head-stencils)
-            note-type))))))))
+         ;; replace note head stencil, if not a standard black note
+         (if (> note-type 0)
+             (ly:grob-set-property! grob 'stencil
+               (cn-draw-note-head-stencils note-type (ly:grob-default-font grob))))))))))
 
 
 % DOTS ON DOTTED NOTES
@@ -286,6 +276,12 @@
 
 %% KEY SIGNATURES
 
+#(define (cn-get-keysig-alt-count alt-alist)
+   "Return number of sharps/flats in key sig, (+) for sharps, (-) for flats."
+   (if (null? alt-alist)
+       0
+       (* (length alt-alist) 2 (cdr (car alt-alist)))))
+
 #(define (cn-get-major-tonic alt-count)
    "Return number of the tonic note 0-6, as if the key sig were major."
    ;; (alt-count maj-num)
@@ -295,10 +291,9 @@
        (modulo (- (/ (+ alt-count 1) 2) 4) 7)
        (modulo (/ alt-count 2) 7)))
 
-#(define (cn-get-note-space grob)
+#(define (cn-get-note-space vscale-staff)
    "Return the distance between two adjacent notes given vertical staff
-    scaling factor from custom grob property in StaffSymbol grob."
-   (define vscale-staff (cn-staff-symbol-property grob 'cn-vscale-staff))
+    scaling factor from StaffSymbol.cn-vscale-staff."
    ;; (foo - (((foo - 1.2) * 0.7) + 0.85))
    (- vscale-staff (+ (* (- vscale-staff 1.2) 0.7) 0.85)))
 
@@ -364,13 +359,15 @@
        (else (* note-space 11.5)))
      Y)))
 
-#(define (cn-draw-keysig grob alt-count tonic-num)
+#(define (cn-draw-keysig grob tonic-num)
    "Draws Clairnote key signature stencils."
    (let*
-    ((major-tonic-num (cn-get-major-tonic alt-count))
+    ((alt-count (cn-get-keysig-alt-count (ly:grob-property grob 'alteration-alist)))
+     (major-tonic-num (cn-get-major-tonic alt-count))
      ;; number of the mode (0-6)
      (mode (modulo (- tonic-num major-tonic-num) 7))
-     (note-space (cn-get-note-space grob))
+     (note-space (cn-get-note-space
+                  (cn-staff-symbol-prop grob 'cn-vscale-staff)))
      (stack (cn-make-keysig-stack mode alt-count note-space))
      ;; position the sig vertically
      (vert-adj (* note-space (cn-get-keysig-vert-pos alt-count)))
@@ -382,43 +379,6 @@
     (if (> mode 2)
         (ly:stencil-translate-axis head-stack 0.35 X)
         (ly:stencil-translate-axis head-stack 0.9 X))))
-
-#(define (cn-get-keysig-alt-count grob)
-   "Return number of sharps or flats in key sig
-    positive values for sharps, negative for flats."
-   (define alt-alist (ly:grob-property grob 'alteration-alist))
-   (if (null? alt-alist)
-       0
-       (* (length alt-alist) 2 (cdr (car alt-alist)))))
-
-#(define (cn-make-keysig-id tonic-num alt-count)
-   "Create a unique key id (string) for storing and
-    retrieving key sig stencils."
-   (string-append
-    (number->string tonic-num)
-    (if (> alt-count -1) "+" "")
-    (number->string alt-count)))
-
-#(define (cn-engrave-keysig context grob)
-   (let*
-    ((alt-count (cn-get-keysig-alt-count grob))
-     ;; number of the tonic note (0-6) (C-B) 'tonic (pitch) --> tonic-num
-     (tonic-num (ly:pitch-notename (ly:context-property context 'tonic)))
-     (mult (magstep (ly:grob-property grob 'font-size 0.0)))
-     (key-id (cn-make-keysig-id tonic-num alt-count))
-     (key-stils (ly:context-property context 'cn-key-stils))
-     (stored-stil (assoc-ref key-stils key-id))
-     (stil-is-stored (ly:stencil? stored-stil))
-     (stil (if stil-is-stored
-               stored-stil
-               (cn-draw-keysig grob alt-count tonic-num))))
-    ;; store stencil
-    (if (not stil-is-stored)
-        (ly:context-set-property! context 'cn-key-stils
-          (acons key-id stil key-stils)))
-    ;; set the stencil
-    (ly:grob-set-property! grob 'stencil
-      (ly:stencil-scale stil mult mult))))
 
 #(define Cn_key_signature_engraver
    ;; Clairnote's staff definition has printKeyCancellation = ##f, which
@@ -434,9 +394,17 @@
         (ly:grob-set-property! grob 'stencil #f))
        ;; omitted?
        ((equal? #f (ly:grob-property-data grob 'stencil)) #f)
-       ;; else engrave
-       (else (cn-engrave-keysig
-              (ly:translator-context engraver) grob)))))))
+       ;; else set grob stencil
+       (else
+        (let*
+         ((context (ly:translator-context engraver))
+          ;; number of the tonic note (0-6) (C-B) 'tonic (pitch) --> tonic-num
+          (tonic-num (ly:pitch-notename (ly:context-property context 'tonic)))
+          (mult (magstep (ly:grob-property grob 'font-size 0.0))))
+         (ly:grob-set-property! grob 'stencil
+           (ly:stencil-scale
+            (cn-draw-keysig grob tonic-num)
+            mult mult)))))))))
 
 
 %% CHORDS
@@ -458,7 +426,7 @@
    "Step 2 of 4."
    (let* (;; create a list of the semitones of each note in the chord
            (semitones (map cn-notehead-semitone note-heads))
-           ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) ...)
+           ;; create a list of lists to store input order of notes, like: ((0 6) (1 10) (2 8) ...)
            (semi-lists (zip (iota (length note-heads)) semitones))
            ;; sort both by semitones, ascending
            (semitones-sorted (sort-list semitones <))
@@ -867,7 +835,7 @@ clefsTrad =
 #(define (cn-repeat-dot-bar-procedure grob extent)
    "Return a procedure for repeat sign dots based on a custom grob
     property: StaffSymbol.cn-is-clairnote-staff."
-   (if (cn-staff-symbol-property grob 'cn-is-clairnote-staff)
+   (if (cn-staff-symbol-prop grob 'cn-is-clairnote-staff)
        ;; Clairnote staff or Traditional five line staff
        ((cn-make-repeat-dot-bar '(-2 2)) grob extent)
        ((cn-make-repeat-dot-bar '(-1 1)) grob extent)))
@@ -876,8 +844,20 @@ clefsTrad =
 
 
 %% STAFF SPACE
+
 #(define (cn-staff-space grob)
+   "Scale staff space based on StaffSymbol.cn-vscale-staff."
    (* 7/12 (ly:grob-property grob 'cn-vscale-staff)))
+
+
+%% TIME SIGNATURES
+
+#(define (cn-timesigs grob)
+   "Adjust vertical position of time sig based on vertical staff scaling."
+   (let ((vscale-staff (cn-staff-symbol-prop grob 'cn-vscale-staff)))
+     (ly:grob-set-property! grob 'Y-offset
+       ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
+       (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff))))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
@@ -886,9 +866,9 @@ clefsTrad =
    "Lengthen all stems and give half notes double stems."
    ;; make sure \omit is not in effect (i.e. stencil is not #f)
    (if (ly:grob-property-data grob 'stencil)
-       (let ((mult (cn-inv-staff-space grob)))
+       (let ((staff-space-inv (/ 1 (ly:staff-symbol-staff-space grob))))
          ;; multiply each of the values in the details property of the stem grob
-         ;; by mult, except for stem-shorten values which remain unchanged
+         ;; by the inverse of staff-space, except for stem-shorten values
          (ly:grob-set-property! grob 'details
            (map
             (lambda (detail)
@@ -898,7 +878,7 @@ clefsTrad =
                     (cons head args)
                     (cons head
                       (map
-                       (lambda (arg) (* arg mult))
+                       (lambda (arg) (* arg staff-space-inv))
                        args)))))
             (ly:grob-property grob 'details)))
          ;; double stems for half notes
@@ -916,29 +896,18 @@ clefsTrad =
 %% BEAMS
 
 #(define (cn-beams grob)
-   "Adjust size and spacing of beams. Needed
-    because of smaller StaffSymbol.staff-space"
+   "Adjust size and spacing of beams, needed due to smaller
+    StaffSymbol.staff-space"
    (let*
-    ((mult (cn-inv-staff-space grob))
+    ((staff-space-inv (/ 1 (ly:staff-symbol-staff-space grob)))
      (thick (ly:grob-property-data grob 'beam-thickness))
      (len-frac (ly:grob-property-data grob 'length-fraction))
      (space (if (number? len-frac) len-frac 1)))
     (ly:grob-set-property! grob 'beam-thickness
-      (* thick mult))
+      (* thick staff-space-inv))
     ;; 1.1 adjustment below was visually estimated
     (ly:grob-set-property! grob 'length-fraction
-      (* space mult 1.1))))
-
-
-%% TIME SIGNATURES
-
-#(define cn-timesigs
-   (lambda (grob)
-     "Adjust vertical position of time signature based on staff."
-     (let ((vscale-staff (cn-staff-symbol-property grob 'cn-vscale-staff)))
-       (ly:grob-set-property! grob 'Y-offset
-         ;; ((((foo - 1.2) * -3.45) - 1.95) + foo)
-         (+ (- (* (- vscale-staff 1.2) -3.45 ) 1.95) vscale-staff)))))
+      (* space 1.1 staff-space-inv))))
 
 
 %% USER VERTICAL STAFF COMPRESSION FUNCTION
@@ -962,8 +931,7 @@ staffSize =
      \override StaffSymbol.thickness = #(magstep new-size)
      \override StaffSymbol.staff-space =
      #(lambda (grob)
-        (* 7/12 (magstep new-size)
-          (ly:grob-property grob 'cn-vscale-staff)))
+        (* 7/12 (magstep new-size) (ly:grob-property grob 'cn-vscale-staff)))
    #})
 
 
@@ -976,11 +944,10 @@ staffSize =
    symbol)
 
 % StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
-% StaffSymbol.cn-vscale-staff stores the vertical scaling factor for the staff.
-% StaffSymbol.cn-note-head-stencils stores custom note head stencils.
 #(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
+
+% StaffSymbol.cn-vscale-staff stores the vertical scaling factor for the staff.
 #(cn-define-grob-property 'cn-vscale-staff number?)
-#(cn-define-grob-property 'cn-note-head-stencils procedure?)
 
 
 %% CUSTOM CONTEXT PROPERTIES
@@ -991,9 +958,6 @@ staffSize =
    (set-object-property! symbol 'translation-doc "custom context property")
    (set! all-translation-properties (cons symbol all-translation-properties))
    symbol)
-
-% Store key signature stencils for each staff context.
-#(cn-translator-property-description 'cn-key-stils list?)
 
 % Used by accidental engraver to tell when a new measure occurs
 % and to track accidentals in the current measure.
@@ -1032,27 +996,24 @@ staffSize =
 
     % custom grob properties
     \override StaffSymbol.cn-is-clairnote-staff = ##t
-    \override StaffSymbol.cn-note-head-stencils = #cn-draw-note-head-stencils
     \override StaffSymbol.cn-vscale-staff = #1.2
     % StaffSymbol.cn-vscale-staff stores the vertical staff scaling value.
-    % cn-vscale-staff = 1 gives a staff with an octave that is the same
-    % size as on a traditional staff (default is 1.2). These depend on it:
+    % 1.2 is default, 1 gives a staff with same size octave as traditional.
+    % These depend on it:
     % - staff-space, the vertical distance between the staff lines
-    % - stems and beams, restored to their original/traditional size
     % - time signature, position is adjusted vertically
     % - key signatures and staffSize function (elsewhere)
     \override StaffSymbol.staff-space = #cn-staff-space
+    \override TimeSignature.before-line-breaking = #cn-timesigs
+    % stems, beams restored to original/traditional size, via staff-space
     \override Stem.before-line-breaking = #cn-stems
     \override Beam.before-line-breaking = #cn-beams
-    \override TimeSignature.before-line-breaking = #cn-timesigs
 
     \consists \Cn_note_heads_engraver
     \override Dots.before-line-breaking = #cn-note-dots
     \override Stem.no-stem-extend = ##t
 
     \consists \Cn_key_signature_engraver
-    % custom context property to store key sig stencils (associative list)
-    cn-key-stils = #'()
     printKeyCancellation = ##f
 
     \consists \Cn_accidental_engraver
