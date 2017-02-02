@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160103
+%    Version: 20160104
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -331,37 +331,47 @@
        (modulo (- (/ (+ alt-count 1) 2) 4) 7)
        (modulo (/ alt-count 2) 7)))
 
-#(define (cn-make-keysig-stack mode alt-count note-space)
+#(define (cn-make-keysig-stack mode alt-list note-space black-tonic)
    "Create the stack of circles (and tonic oval) for the key sig."
+   (define y-posn-recurser
+     (lambda (prev pattern result)
+       (cond
+        ((equal? '() pattern) result)
+        ;; add 2
+        ((equal? (car pattern) prev)
+         (y-posn-recurser (car pattern) (cdr pattern)
+           (append result (list (+ (last result) 2)))))
+        ;; add 1
+        (else
+         (y-posn-recurser (car pattern) (cdr pattern)
+           (append result (list (+ (last result) 1))))))))
+
    (let*
-    ((xposns '(0 0 0 0.6 0.6 0.6 0.6))
-     (yposns (map (lambda (p) (* p note-space)) '(0 2 4 5 7 9 11))) ;; +0.335 +0.67
-     ;; sig-type: position of black or white notes (#t = 3B 4W, #f = 3W 4B)
-     (sig-type (= 0 (modulo alt-count 2)))
-     (bw-list (if sig-type '(#t #t #t #f #f #f #f) '(#f #f #f #t #t #t #t)))
+    ((raw-pattern (take (drop
+                         '(#t #t #t #f #f #f #f #t #t #t #f #f #f #f)
+                         mode) 7))
+     (raw-first-item (list-ref raw-pattern 0))
+     ;; invert raw-pattern if needed, so that the first item is
+     ;; #t for black tonic and #f for white tonic
+     (pattern (if (or
+                   (and black-tonic (not raw-first-item))
+                   (and (not black-tonic) raw-first-item))
+                  (map not raw-pattern)
+                  raw-pattern))
+     (first-item (list-ref pattern 0))
+
+     (xposns (map (lambda (n) (if (equal? n first-item) 0 0.6)) pattern))
+     (raw-yposns (y-posn-recurser (car pattern) (cdr pattern) '(0)))
+     (yposns (map (lambda (p) (* p note-space)) raw-yposns))
      (stack-list
-      (map
-       (lambda (n x y bw)
-         (ly:stencil-translate
-          (if (= n mode)
-              (if bw
-                  (make-oval-stencil 0.55 0.38 0.001 #t)
-                  (make-oval-stencil 0.55 0.33 0.15 #f))
+      (map (lambda (x y bw)
+             (ly:stencil-translate
               (if bw
                   (make-circle-stencil 0.3 0.001 #t)
-                  (make-circle-stencil 0.25 0.15 #f)))
-          (cons x y)))
-       (iota 7) xposns yposns bw-list)))
+                  (make-circle-stencil 0.25 0.15 #f))
+              (cons x y)))
+        xposns yposns pattern)))
     (fold ly:stencil-add empty-stencil stack-list)))
-
-#(define (cn-get-keysig-vert-pos alt-count)
-   "Calculate vertical position of the key sig."
-   ;; (alt-count  return-value)
-   ;; (-7 -1) (-5 -11) (-3 -9) (-1 -7) (1 -5) (3 -3) (5 -1) (7 -11)
-   ;; (-6 -6) (-4 -4) (-2 -2) (0 -12) (2 -10) (4 -8) (6 -6)
-   (+ (modulo
-       (if (odd? alt-count) (+ alt-count 6) alt-count)
-       12) -12))
 
 #(define (cn-make-keysig-head grob mag alt-count)
    "Make sig-head, the acc-sign and number at top of key sig."
@@ -382,15 +392,14 @@
      (ly:stencil-aligned-to acc Y CENTER) 0 1
      (ly:stencil-aligned-to num Y CENTER) 0.3)))
 
-#(define (cn-make-keysig-head-stack head stack alt-count note-space staff-clef-adjust)
+#(define (cn-make-keysig-head-stack head stack tonic-semi
+           note-space staff-clef-adjust)
    (let*
-    ;; 11.5 is the base spacing value, add more for some keys
     ((spacing (+ 11.5
-                (case alt-count
-                  ((3) 1)
-                  ((5) 3)
-                  ((-2) 2)
-                  ((-7) 3)
+                (case tonic-semi
+                  ((9) 1)
+                  ((10) 2)
+                  ((11) 3)
                   (else 0))))
      (final-spacing (* note-space (+ spacing staff-clef-adjust))))
     (ly:stencil-add
@@ -402,20 +411,25 @@
    "Draws Clairnote key signature stencils."
    (let*
     ((base-staff-space (ly:context-property context 'cnBaseStaffSpace))
-     ;; number of the tonic note (0-6) (C-B) 'tonic (pitch) --> tonic-num
-     (tonic-num (ly:pitch-notename (ly:context-property context 'tonic)))
+     (tonic-pitch (ly:context-property context 'tonic))
+     ;; number of the tonic (0-6) (C-B)
+     (tonic-num (ly:pitch-notename tonic-pitch))
+     ;; semitone of tonic (0-11) (C-B)
+     (tonic-semi (modulo (ly:pitch-semitones tonic-pitch) 12))
      (mag (cn-magnification grob context))
 
-     (alt-count (cn-get-keysig-alt-count (ly:grob-property grob 'alteration-alist)))
+     (alt-list (ly:grob-property grob 'alteration-alist))
+     (alt-count (cn-get-keysig-alt-count alt-list))
      (major-tonic-num (cn-get-major-tonic alt-count))
      ;; number of the mode (0-6)
      (mode (modulo (- tonic-num major-tonic-num) 7))
      ;; the distance between two adjacent notes given vertical staff compression
      (note-space (* 0.5 base-staff-space))
-     (raw-stack (cn-make-keysig-stack mode alt-count note-space))
+     (black-tonic (equal? 0 (modulo tonic-semi 2)))
+     (raw-stack (cn-make-keysig-stack mode alt-list note-space black-tonic))
 
      ;; position the sig vertically
-     (base-vert-adj (cn-get-keysig-vert-pos alt-count))
+     (base-vert-adj (- tonic-semi 12))
      ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
      (staff-clef-adjust (cn-get-staff-clef-adjust
                          (ly:context-property context 'cnStaffOctaves)
@@ -426,7 +440,7 @@
      (head (cn-make-keysig-head grob mag alt-count))
      ;; add the head to the stack
      (head-stack (cn-make-keysig-head-stack
-                  head stack alt-count note-space staff-clef-adjust)))
+                  head stack tonic-semi note-space staff-clef-adjust)))
     ;; shift the sig to the right for better spacing
     (if (> mode 2)
         (ly:stencil-translate-axis head-stack 0.35 X)
