@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151214
+%    Version: 20151215
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -27,6 +27,8 @@
 
 #(define (non-zero? n) (or (positive? n) (negative? n)))
 
+#(define (positive-integer? n) (and (positive? n) (integer? n)))
+
 #(define (cn-notehead-pitch grob)
    "Takes a note head grob and returns its pitch."
    (define event (ly:grob-property grob 'cause))
@@ -45,6 +47,15 @@
     as the ratio of actual staff-space over cnBaseStaffSpace."
    (/ (ly:staff-symbol-staff-space grob)
      (ly:context-property context 'cnBaseStaffSpace)))
+
+#(define (cn-get-staff-clef-adjust staff-octaves clef-octave-shift)
+   "Calculate the amount to vertically adjust the position of the clef,
+    key signature, and time signature, in note-spaces / half-staff-spaces."
+   (+
+    (* 12 clef-octave-shift)
+    (if (odd? staff-octaves)
+        6
+        (if (> staff-octaves 2) 12 0))))
 
 #(if (not (defined? 'grob::name))
      ;; TODO: Delete this after we stop supporting LilyPond 2.18
@@ -405,9 +416,10 @@
 
      ;; position the sig vertically
      (base-vert-adj (cn-get-keysig-vert-pos alt-count))
-     ;; adjust position for odd octave staves and clefs shifted up/down an octave
-     (staff-clef-adjust (+ (if (ly:context-property context 'cnOddOctaveStaff) 6 0)
-                          (* 12 (ly:context-property context 'cnClefOctaveShift))))
+     ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
+     (staff-clef-adjust (cn-get-staff-clef-adjust
+                         (ly:context-property context 'cnStaffOctaves)
+                         (ly:context-property context 'cnClefOctaveShift)))
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
 
      (stack (ly:stencil-translate-axis raw-stack vert-adj Y))
@@ -452,14 +464,14 @@
 
 % We use an engraver to convert to Clairnote clef properties
 % on the fly, rather than changing the traditional properties
-% themselves at the source.  This makes TradStaff robust.
+% themselves at the source.  This allows TradStaff to work
+% fully for any clef.
 
 #(define (trad-to-cn-clef glyph pos)
    "Takes trad clef glyph and position and returns a symbol
-    indicating the Clairnote clef to use.  Separate this
+    indicating the Clairnote clef to use.  Separating this
     into two steps means this function is never fed Clairnote
     clef positions, only trad clef positions."
-   ;; (display glyph)(newline)
    (let*
     ((new-clef
       (cond
@@ -498,45 +510,41 @@
           (else 'cn-treble))))))
 
 #(define (trad-to-cn-clef-transposition trans)
-   ;; If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
-   ;; else convert from 7 notes per octave to 12.  7-->12, 14-->24. Rounding
-   ;; means only multiples of 12 are ever returned (-24, -12, 0, 12, 24, etc.).
+   "If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
+    else convert from 7 notes per octave to 12.  7-->12, 14-->24. Rounding
+    means only multiples of 12 are ever returned (... -24, -12, 0, 12, 24 ...)."
    (if (= 0 (modulo trans 12))
        trans
        (* 12 (round (/ trans 7)))))
 
-#(define (cn-get-clef-props clef-name odd-octave clef-transpo octave-shift)
-   ;; In order to have stems change direction at the vertical center
-   ;; of the staff we use different clef settings for staves with odd
-   ;; or even numbers of octaves – identified here by the custom
-   ;; context property cnBaseStaffLines.
+#(define (cn-get-clef-props clef-name clef-transpo staff-clef-adjust)
+   "In order to have stems change direction at the vertical center
+    of the staff we use different clef settings for staves with odd
+    or even numbers of octaves."
 
    ;; To calculate the clairnote middle c position subtract the clef position
    ;; from 12 for bass clef or from -12 for treble clef (to adjust the clef
    ;; position without affecting the position of middle c or other notes)
    (let*
-    ((clef-data (if odd-octave
-                    ;; staves with odd number of octaves
-                    (assoc-ref
-                     '((cn-treble . ("clefs.G" 1 -6))
-                        (cn-bass . ("clefs.F" 11 18))
-                        (cn-alto . ("clefs.C" 6 6))
-                        (cn-percussion . ("clefs.percussion" 6 6)))
-                     clef-name)
-                    ;; staves with even number of octaves
-                    (assoc-ref
-                     '((cn-treble . ("clefs.G" -5 -12))
-                       (cn-bass . ("clefs.F" 5 12))
-                       (cn-alto . ("clefs.C" 0 0))
-                       (cn-percussion . ("clefs.percussion" 0 0)))
-                     clef-name)))
+    ((clef-data
+      ;; default for staves with two octaves
+      (assoc-ref
+       '((cn-treble . ("clefs.G" -5 -12))
+         (cn-bass . ("clefs.F" 5 12))
+         (cn-alto . ("clefs.C" 0 0))
+         (cn-percussion . ("clefs.percussion" 0 0)))
+       clef-name))
 
+     ;; clef transposition
      (new-transpo (trad-to-cn-clef-transposition clef-transpo))
      (mid-c-pos (- (list-ref clef-data 2) new-transpo))
-     ;; shift clefs up or down octaves based on Staff.cnClefOctaveShift
-     (octave-shift-semitones (* 12 octave-shift))
-     (new-pos (+ (list-ref clef-data 1) octave-shift-semitones))
-     (new-mid-c-pos (+ mid-c-pos octave-shift-semitones)))
+
+     ;; staff-clef-adjust shifts clefPosition and middleCClefPosition:
+     ;; up 6 note-positions for odd octave staves
+     ;; up 12 for even octave staves with 4 or more octaves
+     ;; up or down 12 * Staff.cnClefOctaveShift
+     (new-pos (+ (list-ref clef-data 1) staff-clef-adjust))
+     (new-mid-c-pos (+ mid-c-pos staff-clef-adjust)))
     (list (list-ref clef-data 0) new-pos new-mid-c-pos new-transpo)))
 
 #(define Cn_clef_ottava_engraver
@@ -551,7 +559,7 @@
        (prev-cue '(() () () ()))
        (prev-clef-name '())
        (prev-cue-name '())
-       (prev-odd-octave #f)
+       (prev-staff-octaves #f)
        (prev-octave-shift 0))
 
       (make-engraver
@@ -566,10 +574,10 @@
            (now-clef (map get-context-prop clef-prop-list))
            (now-cue (map get-context-prop cue-prop-list))
            (now-mid-c-off (ly:context-property context 'middleCOffset))
-           (now-odd-octave (ly:context-property context 'cnOddOctaveStaff))
+           (now-staff-octaves (ly:context-property context 'cnStaffOctaves))
            (now-octave-shift (ly:context-property context 'cnClefOctaveShift))
 
-           (changed-staff (not (equal? now-odd-octave prev-odd-octave)))
+           (changed-staff (not (equal? now-staff-octaves prev-staff-octaves)))
            (changed-clef (not (equal? now-clef prev-clef)))
            (changed-cue (not (equal? now-cue prev-cue)))
            (cue-unset (equal? now-cue '(() () () ())))
@@ -584,7 +592,7 @@
 
           ;; set prev values to new values and then set context properties to prev values
 
-          (if changed-staff (set! prev-odd-octave now-odd-octave))
+          (if changed-staff (set! prev-staff-octaves now-staff-octaves))
 
           (if changed-clef (set! prev-clef-name
                                  (trad-to-cn-clef (list-ref now-clef 0) (list-ref now-clef 1))))
@@ -595,9 +603,8 @@
               (begin
                (set! prev-clef (cn-get-clef-props
                                 prev-clef-name
-                                prev-odd-octave
                                 (list-ref now-clef 3)
-                                prev-octave-shift))
+                                (cn-get-staff-clef-adjust prev-staff-octaves prev-octave-shift)))
                (set-context-props! context clef-prop-list prev-clef)))
 
           ;; cue clefs
@@ -615,9 +622,8 @@
                   (begin
                    (set! prev-cue (cn-get-clef-props
                                    prev-cue-name
-                                   prev-odd-octave
                                    (list-ref now-cue 3)
-                                   prev-octave-shift))
+                                   (cn-get-staff-clef-adjust prev-staff-octaves prev-octave-shift)))
                    (set-context-props! context cue-prop-list prev-cue))))
 
           ;; new ottava? (8va 8vb etc.)
@@ -645,7 +651,14 @@
       (if (ly:grob? staff-sym)
           (ly:grob-property staff-sym 'cn-is-clairnote-staff)
           #t))
-     (dot-positions (if is-clairnote-staff '(-2 2) '(-1 1)))
+     (odd-octaves
+      (if (ly:grob? staff-sym)
+          (member -2 (ly:grob-property staff-sym 'line-positions))
+          #f))
+     (dot-positions
+      (if is-clairnote-staff
+          (if odd-octaves '(4 8) '(-2 2))
+          '(-1 1)))
      (staff-space (ly:staff-symbol-staff-space grob))
      (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
     (fold
@@ -674,8 +687,10 @@
         ;; adjust position for odd octave staves and clefs shifted up/down an octave
         ;; note-space is the distance between two adjacent notes given vertical staff compression
         (note-space (* 0.5 base-staff-space))
-        (staff-clef-adjust (+ (if (ly:context-property context 'cnOddOctaveStaff) 6 0)
-                             (* 12 (ly:context-property context 'cnClefOctaveShift))))
+        (staff-clef-adjust (cn-get-staff-clef-adjust
+                            (ly:context-property context 'cnStaffOctaves)
+                            (ly:context-property context 'cnClefOctaveShift)))
+
         (y-offset (+ base-y-offset (* note-space staff-clef-adjust)))
 
         ;; adjustment for \magnifyStaff
@@ -825,7 +840,7 @@ cnStaffExtender =
            (let*
             ((grob-def (ly:context-grob-definition context 'StaffSymbol))
              (current-lines (ly:assoc-get 'line-positions grob-def '(-8 -4 4 8)))
-             ;; base is '(-8 -4) for Clairnote
+             ;; base is '(-8 -4) or '(-2 2) for Clairnote
              (base-lines (ly:context-property context 'cnBaseStaffLines))
              (posns (if reset base-lines current-lines))
              (new-posns (cn-get-new-staff-positions posns base-lines going-up going-down)))
@@ -834,54 +849,27 @@ cnStaffExtender =
     \startStaff
   #})
 
-cnOddOctaveStaff = {
-  \set Staff.cnOddOctaveStaff = ##t
-  \set Staff.cnBaseStaffLines = #'(-2 2)
-  \override Staff.StaffSymbol.ledger-positions = #'(-2 2)
-}
-
-cnEvenOctaveStaff = {
-  \set Staff.cnOddOctaveStaff = ##f
-  \set Staff.cnBaseStaffLines = #'(-8 -4)
-  \override Staff.StaffSymbol.ledger-positions = #'(-8 -4)
-}
-
-cnOneOctaveStaff = {
-  \cnOddOctaveStaff
-  \cnStaffExtender ##t 0 0
-}
-
-cnTwoOctaveStaff = {
-  \cnEvenOctaveStaff
-  \cnStaffExtender ##t 1 0
-}
-
-cnThreeOctaveStaff = {
-  \cnOddOctaveStaff
-  \cnStaffExtender ##t 1 1
-}
-
-cnThreeOctaveStaffB = {
-  \cnOddOctaveStaff
-  \cnStaffExtender ##t 1 1
-  \set Staff.cnClefOctaveShift = -1
-}
-
-cnFourOctaveStaff = {
-  \cnEvenOctaveStaff
-  \cnStaffExtender ##t 2 1
-  \set Staff.cnClefOctaveShift = 1
-}
-
-cnFiveOctaveStaff = {
-  \cnOddOctaveStaff
-  \cnStaffExtender ##t 2 2
-}
-
 cnExtendStaffUp = \cnStaffExtender ##f 1 0
 cnExtendStaffDown = \cnStaffExtender ##f 0 1
 cnUnextendStaffUp = \cnStaffExtender ##f -1 0
 cnUnextendStaffDown = \cnStaffExtender ##f 0 -1
+
+cnStaffOctaveSpan =
+#(define-music-function (parser location octaves) (positive-integer?)
+   ;; odd octaves: extended the same amount up and down (from 1)
+   ;; even octaves: extended up one more than they are down
+   (let*
+    ((odd-octs (odd? octaves))
+     (base-lines (if odd-octs '(-2 2) '(-8 -4)))
+     (n (/ (1- octaves) 2))
+     (upwards (if odd-octs n (ceiling n)))
+     (downwards (if odd-octs n (floor n))))
+    #{
+      \set Staff.cnStaffOctaves = #octaves
+      \set Staff.cnBaseStaffLines = #base-lines
+      \override Staff.StaffSymbol.ledger-positions = #base-lines
+      \cnStaffExtender ##t #upwards #downwards
+    #}))
 
 
 %% USER FUNCTION TO SET STAFF COMPRESSION
@@ -947,9 +935,9 @@ cnNoteheadWidth =
 #(cn-translator-property-description 'cnNoteheadStyle string?)
 #(cn-translator-property-description 'cnNoteheadWidthScale non-zero?)
 
-% For identifying staves with odd number of octaves,
-% to use different clef settings so stems flip at center of staff
-#(cn-translator-property-description 'cnOddOctaveStaff boolean?)
+% Indicates number of octaves the staff spans, lets us use
+% different clef settings so stems always flip at center of staff
+#(cn-translator-property-description 'cnStaffOctaves positive-integer?)
 
 % For shifting clef position up or down an octave
 #(cn-translator-property-description 'cnClefOctaveShift integer?)
@@ -1132,7 +1120,7 @@ cnNoteheadWidth =
   \context {
     \Score
     \accepts TradStaff
-    % prevents barlines at start of single system from being shown
+    % prevents barlines at start of single (2-octave) system from being shown
     \override SystemStartBar.collapse-height = #9
   }
 
@@ -1159,7 +1147,7 @@ cnNoteheadWidth =
     cnDoubleStemWidthScale = #1.5
     cnNoteheadStyle = "lilypond"
     cnNoteheadWidthScale = #1
-    cnOddOctaveStaff = ##f
+    cnStaffOctaves = #2
     cnClefOctaveShift = #0
 
     % grob property overrides
@@ -1172,6 +1160,12 @@ cnNoteheadWidth =
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
+
+    #(if (cn-check-ly-version >= '(2 19 34))
+         #{ \with {
+           \override Stem.note-collision-threshold = 2
+           \override NoteCollision.note-collision-threshold = 2
+         } #})
 
     % NoteColumn override doesn't work as an engraver for some reason,
     % crashes with manual beams on chords.
@@ -1198,8 +1192,8 @@ cnNoteheadWidth =
          #{ \with { \consists \Cn_dots_engraver } #})
 
     % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
-    % Probably because accidentals can trigger ly:grob-suicide! on accidental grobs,
-    % which seems to be the source of the problem.
+    % Probably because it does ly:grob-suicide! on some accidental grobs –
+    % that seems to be the source of the problem.
     \consists \Cn_accidental_engraver
   }
 }
