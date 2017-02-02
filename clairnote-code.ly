@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140714 (2014 July 14)
+%    Version: 20140723 (2014 July 23)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -28,10 +28,29 @@
 
 \version "2.18.2"
 
-% Absolute value function
-% Guile 2.0 has an "abs" function built in, so when
-% LilyPond upgrades to it, remove this
+
+% UTILITY FUNCTIONS
+
+% Absolute value function, Guile 2.0 has an "abs" function
+% built in, so when LilyPond upgrades to it, remove this.
 #(define (abs x) (if (> x 0) x (- 0 x)))
+
+#(define (cn-notehead-pitch grob)
+   "Takes a note head grob and returns its pitch."
+   (ly:event-property (ly:grob-property grob 'cause) 'pitch))
+
+#(define (cn-notehead-semitone grob)
+   "Takes a note head grob and returns its semitone."
+   (ly:pitch-semitones (cn-notehead-pitch grob)))
+
+#(define (cn-grob-name grob)
+   "Takes a grob and returns its name."
+   (assq-ref (ly:grob-property grob 'meta) 'name))
+
+#(define (cn-staff-symbol-property grob prop)
+   "Takes a grob and a property name and returns that
+    StaffSymbol property. For getting custom StaffSymbol props."
+   (ly:grob-property (ly:grob-object grob 'staff-symbol) prop))
 
 
 %% NOTE HEADS AND STEM ATTACHMENT
@@ -75,11 +94,7 @@
         ((mult (magstep (ly:grob-property grob 'font-size 0.0)))
          (whole-note (< (ly:grob-property grob 'duration-log) 1))
          ;; 0 = black note, 1 = white note
-         (note-type
-          (modulo
-           (ly:pitch-semitones
-            (ly:event-property (ly:grob-property grob 'cause) 'pitch))
-           2)))
+         (note-type (modulo (cn-notehead-semitone grob) 2)))
         (if whole-note
             ;; adjust note-type: 2 = black whole-note, 3 = white whole-note
             (set! note-type (+ 2 note-type))
@@ -89,18 +104,35 @@
              ;; currently -9, half of -18
              (ly:grob-set-property! grob 'rotation '(-9 0 0))
              (ly:grob-set-property! grob 'stem-attachment
-               (case note-type
-                 ((0) (cons 1.04 0.3)) ;; black note
-                 ((1) (cons 1.06  0.3)) )))) ;; white note
+               (if (equal? 0 note-type)
+                   (cons 1.04 0.3) ;; black note (0)
+                   (cons 1.06  0.3))))) ;; white note (1)
         ;; set note head stencil
         (ly:grob-set-property! grob 'stencil
           (ly:stencil-scale
            (list-ref
-            (ly:grob-property
-             (ly:grob-object grob 'staff-symbol)
-             'cn-note-head-stencils)
-            note-type)
+            (cn-staff-symbol-property grob 'cn-note-head-stencils)
+             note-type)
            mult mult)))))
+
+
+% DOTS ON DOTTED NOTES
+
+#(define (cn-note-dots grob)
+   "Adjust vertical position of dots for certain notes."
+   (let* ((parent (ly:grob-parent grob Y))
+          ;; parent is a Rest grob or a NoteHead grob
+          (semi (if (equal? 'Rest (cn-grob-name parent))
+                    #f
+                    (modulo (cn-notehead-semitone parent) 12))))
+     (cond
+      ((equal? semi 0)
+       (ly:grob-set-property! grob 'staff-position
+         (if (equal? -1 (ly:grob-property grob 'direction))
+             -1 ;; down
+             1))) ;; up or neutral
+      ((member semi (list 2 6 10))
+       (ly:grob-set-property! grob 'Y-offset -0.36)))))
 
 
 %% ACCIDENTAL SIGNS
@@ -202,7 +234,7 @@
     ((alt (accidental-interface::calc-alteration grob))
      (stl (ly:grob-property-data grob 'stencil))
      (note-head (ly:grob-parent grob Y))
-     (pitch (ly:event-property (event-cause note-head) 'pitch))
+     (pitch (cn-notehead-pitch note-head))
      (semi (ly:pitch-semitones pitch))
      (key-sig (ly:context-property context 'keySignature))
      (in-the-key (pitch-in-key? pitch key-sig))
@@ -261,12 +293,9 @@
 #(define (cn-get-note-space grob)
    "Return the distance between two adjacent notes given vertical staff
     scaling factor from custom grob property in StaffSymbol grob."
-   (let ((vscale-staff
-          (ly:grob-property
-           (ly:grob-object grob 'staff-symbol)
-           'cn-vscale-staff '())))
-     ;; (foo - (((foo - 1.2) * 0.7) + 0.85))
-     (- vscale-staff (+ (* (- vscale-staff 1.2) 0.7) 0.85))))
+   (define vscale-staff (cn-staff-symbol-property grob 'cn-vscale-staff))
+   ;; (foo - (((foo - 1.2) * 0.7) + 0.85))
+   (- vscale-staff (+ (* (- vscale-staff 1.2) 0.7) 0.85)))
 
 #(define (cn-make-keysig-stack mode alt-count note-space)
    "Create the stack of circles (and tonic oval) for the key sig."
@@ -352,10 +381,10 @@
 #(define (cn-get-keysig-alt-count grob)
    "Return number of sharps or flats in key sig
     positive values for sharps, negative for flats."
-   (let ((alt-alist (ly:grob-property grob 'alteration-alist)))
-     (if (null? alt-alist)
-         0
-         (* (length alt-alist) 2 (cdr (car alt-alist))))))
+   (define alt-alist (ly:grob-property grob 'alteration-alist))
+   (if (null? alt-alist)
+       0
+       (* (length alt-alist) 2 (cdr (car alt-alist)))))
 
 #(define (cn-make-keysig-id tonic-num alt-count)
    "Create a unique key id (string) for storing and
@@ -387,22 +416,22 @@
       (ly:stencil-scale stil mult mult))))
 
 #(define Cn_key_signature_engraver
-   ;; the staff definition has printKeyCancellation = ##f, which
-   ;; prevents all key cancellations, except for changing to C major
-   ;; or A minor, so this engraver prevents all key cancellations"
+   ;; Clairnote's staff definition has printKeyCancellation = ##f, which
+   ;; prevents key cancellations, except for changing to C major
+   ;; or A minor, so this engraver prevents all key cancellations.
+   ;; Spare parts: (ly:context-property context 'printKeyCancellation)
    (make-engraver
     (acknowledgers
      ((key-signature-interface engraver grob source-engraver)
-      (let*
-       ((context (ly:translator-context engraver))
-        ;; (pkc (ly:context-property context 'printKeyCancellation))
-        (grob-name (assq-ref (ly:grob-property grob 'meta) 'name))
-        (key-cancellation (equal? 'KeyCancellation grob-name))
-        (omitted (equal? #f (ly:grob-property-data grob 'stencil))))
-       (cond
-        (key-cancellation (ly:grob-set-property! grob 'stencil #f))
-        (omitted #f)
-        (else (cn-engrave-keysig context grob))))))))
+      (cond
+       ;; key cancellation?
+       ((equal? 'KeyCancellation (cn-grob-name grob))
+        (ly:grob-set-property! grob 'stencil #f))
+       ;; omitted?
+       ((equal? #f (ly:grob-property-data grob 'stencil)) #f)
+       ;; else engrave
+       (else (cn-engrave-keysig
+              (ly:translator-context engraver) grob)))))))
 
 
 %% CHORDS
@@ -423,10 +452,7 @@
 #(define (cn-chords-two grob note-heads)
    "Step 2 of 4."
    (let* (;; create a list of the semitones of each note in the chord
-           (semitones
-            (map (lambda (head-grob)
-                   (ly:pitch-semitones (ly:event-property (event-cause head-grob) 'pitch)))
-              note-heads))
+           (semitones (map cn-notehead-semitone note-heads))
            ;; create a list of lists to store input order of notes, like so: ((0 6) (1 10) (2 8) ...)
            (semi-lists (zip (iota (length note-heads)) semitones))
            ;; sort both by semitones, ascending
@@ -538,8 +564,8 @@
            ;; Get their durations
            (nh-duration-log
             (map
-             (lambda (note-head-grobs)
-               (ly:grob-property note-head-grobs 'duration-log))
+             (lambda (nhead-grob)
+               (ly:grob-property nhead-grob 'duration-log))
              note-heads))
            ;; Get the stencils of the NoteHeads
            (nh-stencils
@@ -780,35 +806,35 @@ clefsTrad =
       mus)))
 
 %{
-   actual expected values and conversions for clefsTrad function
-   clefPosition
-   ((-5) -2) ;; treble
-   ((5) 2) ;; bass
-   ;; ((0) 0) ;; alto - no change
-   ;; ((0) 2) ;; tenor - conflicts with alto clef
-   middleCClefPosition / clefs.G
-   ((-12) -6) ;; treble ;; -4 + -2
-   ((-24) -13) ;; treble^8
-   ((-36) -20) ;; treble^15
-   ((0) 1) ;; treble_8
-   ((12) 8) ;; treble_15
-   middleCClefPosition / clefs.F
-   ((12) 6) ;; bass ;; 4 + 2
-   ((24) 13) ;; bass_8
-   ((36) 20) ;; bass_15
-   ((0) -1) ;; bass^8
-   ((-12) -8) ;; bass^15
-   middleCClefPosition / clefs.C
-   ;; ((0) 0) ;; alto - no change
-   ((-12) -7) ;; alto^8
-   ((12) 7) ;; alto_8
-   ((-24) -14) ;; alto^15
-   ((24) 14) ;; alto_15
-   clefTransposition
-   ((12) 7) ;; ^8
-   ((-12) -7) ;; _8
-   ((24) 14) ;; ^15
-   ((-24) -14) ;; _15
+          actual expected values and conversions for clefsTrad function
+          clefPosition
+          ((-5) -2) ;; treble
+          ((5) 2) ;; bass
+          ;; ((0) 0) ;; alto - no change
+          ;; ((0) 2) ;; tenor - conflicts with alto clef
+          middleCClefPosition / clefs.G
+          ((-12) -6) ;; treble ;; -4 + -2
+          ((-24) -13) ;; treble^8
+          ((-36) -20) ;; treble^15
+          ((0) 1) ;; treble_8
+          ((12) 8) ;; treble_15
+          middleCClefPosition / clefs.F
+          ((12) 6) ;; bass ;; 4 + 2
+          ((24) 13) ;; bass_8
+          ((36) 20) ;; bass_15
+          ((0) -1) ;; bass^8
+          ((-12) -8) ;; bass^15
+          middleCClefPosition / clefs.C
+          ;; ((0) 0) ;; alto - no change
+          ((-12) -7) ;; alto^8
+          ((12) 7) ;; alto_8
+          ((-24) -14) ;; alto^15
+          ((24) 14) ;; alto_15
+          clefTransposition
+          ((12) 7) ;; ^8
+          ((-12) -7) ;; _8
+          ((24) 14) ;; ^15
+          ((-24) -14) ;; _15
 %}
 
 
@@ -836,7 +862,7 @@ clefsTrad =
 #(define (cn-repeat-dot-bar-procedure grob extent)
    "Return a procedure for repeat sign dots based on a custom grob
     property: StaffSymbol.cn-is-clairnote-staff."
-   (if (ly:grob-property (ly:grob-object grob 'staff-symbol) 'cn-is-clairnote-staff '())
+   (if (cn-staff-symbol-property grob 'cn-is-clairnote-staff)
        ;; Clairnote staff or Traditional five line staff
        ((cn-make-repeat-dot-bar '(-2 2)) grob extent)
        ((cn-make-repeat-dot-bar '(-1 1)) grob extent)))
@@ -1020,11 +1046,12 @@ vertScaleStaff =
 
     \vertScaleStaff 1.2
     \override NoteHead.before-line-breaking = #cn-note-heads
+    \override Dots.before-line-breaking = #cn-note-dots
 
-    printKeyCancellation = ##f
     \consists \Cn_key_signature_engraver
     % custom context property to store key sig stencils (associative list)
     cn-key-stils = #'()
+    printKeyCancellation = ##f
 
     \consists \Cn_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
