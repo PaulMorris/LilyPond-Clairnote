@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151108
+%    Version: 20151123
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -1068,6 +1068,10 @@ cnNoteheadWidth =
 
 % allow parent contexts to accept \TradStaff in midi output too
 \midi {
+  \context {
+    \Staff
+    cnBaseStaffLines = #'(-8 -4)
+  }
   \context {
     \Staff
     \name TradStaff
