@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150411
+%    Version: 20150412
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -217,7 +217,22 @@
                (ly:grob-property grob 'stencil)
                0.63 0.63)))))
     (ly:grob-set-property! grob 'stencil
-      (ly:stencil-scale stil mag mag))))
+      (ly:stencil-scale stil mag mag))
+
+    (if (cn-check-ly-version <= '(2 19 0))
+        (begin
+         ;; TODO: should natural signs have the same Y-extent as others?
+         ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
+         (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
+         (ly:grob-set-property! grob 'X-extent
+           (case alt
+             ((-1/2) '(0 . 0.54))
+             ((1/2) '(-0.27 . 0.27))
+             ((-1) '(-0.34 . 0.67))
+             ((1) '(-0.54 . 0.47))
+             ;; else covers natural sign (0)
+             (else '(-0.0 . 0.44)))
+           )))))
 
 #(define (cn-pitch-in-key pitch key-sig)
    "key-sig is an association list of sharps or flats in the key sig.
