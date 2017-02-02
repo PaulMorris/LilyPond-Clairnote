@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140425 (2014 April 25)
+%    Version: 20140428 (2014 April 28)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for three functions
 %    that are in the public domain: clnt-shift-noteheads, setOtherScriptParent,
@@ -655,7 +655,9 @@ adjustStem =
    #})
 
 
-%% CLEF SETTINGS
+%% CLEFS: CLEF SETTINGS
+
+% see /scm/parser-clef.scm
 
 #(define (clnt-set-clefs clefs)
    "Helper function for modifying clef settings. c0-position is middle c position
@@ -671,31 +673,145 @@ adjustStem =
         (cond
          ((equal? name "bass") (add-new-clef "F" glyph pos 0 c0))
          ((equal? name "alto") (add-new-clef "C" glyph pos 0 c0))
-         ((equal? name "treble") (add-new-clef "G" glyph pos 0 c0)
-           (add-new-clef "violin" glyph pos 0 c0)))))
+         ((equal? name "treble")
+          (add-new-clef "G" glyph pos 0 c0)
+          (add-new-clef "violin" glyph pos 0 c0)))))
     clefs))
 
 setClairnoteClefs =
 #(define-void-function (parser location) ()
-   "Sets (or resets) clef settings for clairnote.
-    To calculate the middle c position subtract the clef position
-    from 12 for bass clef or -12 for treble clef (to adjust the clef position
-    without affecting the position of middle c or other notes)"
+   "Sets (or resets) clef settings for clairnote."
+   ;; To calculate the middle c position subtract the clef position
+   ;; from 12 for bass clef or -12 for treble clef (to adjust the clef position
+   ;; without affecting the position of middle c or other notes)"
    (clnt-set-clefs
     '(("treble" "clefs.G" -5 -7) ;; -7 = -12 minus -5
        ("bass" "clefs.F" 5 7) ;; 7 = 12 minus 5
-       ("alto" "clefs.C" 0 0))))
+       ("alto" "clefs.C" 0 0) ;; no change
+       ("tenor" "clefs.C" 0 0) ;; same as alto
+       ("french" "clefs.G" -5 -7) ;; same as treble
+       ("soprano" "clefs.G" -5 -7) ;; same as treble
+       ("mezzosoprano" "clefs.C" 0 0) ;; same as alto
+       ("baritone" "clefs.F" 5 7) ;; same as bass
+       ("varbaritone" "clefs.F" 5 7) ;; same as bass
+       ("subbass" "clefs.F" 5 7) ;; same as bass
+       ("percussion" "clefs.percussion" 0 0)))) % no change
 
 \setClairnoteClefs
 
 setTraditionalClefs =
 #(define-void-function (parser location) ()
-   "Sets clef settings back to traditional settings when including
-    both traditional notation and Clairnote in the same file."
+   "Sets clef settings back to traditional settings."
    (clnt-set-clefs
     '(("treble" "clefs.G" -2 -4)
       ("bass" "clefs.F" 2 4)
-      ("alto" "clefs.C" 0 0))))
+      ("alto" "clefs.C" 0 0)
+      ("tenor" "clefs.C" 2 2)
+      ("french" "clefs.G" -4 -4)
+      ("soprano" "clefs.C" -4 0)
+      ("mezzosoprano" "clefs.C" -2 0)
+      ("baritone" "clefs.C" 4 0)
+      ("varbaritone" "clefs.F" 0 4)
+      ("subbass" "clefs.F" 4 4)
+      ("percussion" "clefs.percussion" 0 0))))
+
+
+%% CLEFS: "TRANSPOSED" CLEFS
+
+% see /scm/parser-clef.scm
+% and /ly/music-functions-init.ly
+
+#(use-modules (ice-9 regex))
+
+clef =
+#(define-music-function (parser location type) (string?)
+   "Modify clef transposition number in clef input to fit Clairnote staff.
+    Replaces standard clef command, must be named clef."
+   ;; ex: "treble^8" becomes "treble^13"
+   ;; ex: "bass_15" becomes "bass_25"
+   (let ((new-type "")
+         (match (string-match "^(.*[_^][^0-9a-zA-Z]*)([1-9][0-9]*)([^0-9a-zA-Z]*)$" type)))
+     (if (and match (match:substring match 2))
+         (set! new-type
+               (string-append
+                (match:substring match 1)
+                (case (string->number (match:substring match 2))
+                  ((8) "13")
+                  ((-8) "-13")
+                  ((15) "25")
+                  ((-15) "-25")
+                  (else (match:substring match 2)))
+                (match:substring match 3)))
+         (set! new-type type))
+     (make-clef-set new-type)))
+
+
+%% CLEFS: CLEFS FOR StaffTrad
+
+% see /ly/music-functions-init.ly
+
+clefsTrad =
+#(define-music-function (parser location music) (ly:music?)
+   "Takes music with Clairnote clef settings, and returns music
+    with clef settings adjusted for use on a traditional staff."
+   (let ((current-glyph ""))
+     (music-map
+      (lambda (m)
+        (cond
+         ((equal? 'clefGlyph (ly:music-property m 'symbol))
+          (set! current-glyph (ly:music-property m 'value)))
+
+         ((equal? 'clefPosition (ly:music-property m 'symbol))
+          (set! (ly:music-property m 'value)
+                (case (ly:music-property m 'value)
+                  ((-5) -2) ;; treble
+                  ((5) 2) ;; bass
+                  ((0) 0) ;; alto
+                  ;; ((0) 2) ;; tenor - conflicts with alto clef
+                  (else (ly:music-property m 'value)))))
+
+         ((equal? 'clefTransposition (ly:music-property m 'symbol))
+          (set! (ly:music-property m 'value)
+                (case (ly:music-property m 'value)
+                  ((12) 7) ;; ^8
+                  ((-12) -7) ;; _8
+                  ((24) 14) ;; ^15
+                  ((-24) 14) ;; _15
+                  (else (ly:music-property m 'value)))))
+
+         ((equal? 'middleCClefPosition (ly:music-property m 'symbol))
+          (cond
+           ((equal? current-glyph "clefs.G")
+            (set! (ly:music-property m 'value)
+                  (case (ly:music-property m 'value)
+                    ((-12) -6) ;; treble ;; -4 + -2
+                    ((-24) -13) ;; treble^8
+                    ((-36) -20) ;; treble^15
+                    ((0) 1) ;; treble_8
+                    ((12) 8) ;; treble_15
+                    (else (ly:music-property m 'value)))))
+
+           ((equal? current-glyph "clefs.F")
+            (set! (ly:music-property m 'value)
+                  (case (ly:music-property m 'value)
+                    ((12) 6) ;; bass ;; 4 + 2
+                    ((24) 13) ;; bass_8
+                    ((36) 20) ;; bass_15
+                    ((0) -1) ;; bass^8
+                    ((-12) -8) ;; bass^15
+                    (else (ly:music-property m 'value)))))
+
+           ((equal? current-glyph "clefs.C")
+            (set! (ly:music-property m 'value)
+                  (case (ly:music-property m 'value)
+                    ((0) 0) ;; alto
+                    ((-12) -7) ;; alto^8
+                    ((12) 7) ;; alto_8
+                    ((-24) -14) ;; alto^15
+                    ((24) 14) ;; alto_15
+                    (else (ly:music-property m 'value))))))))
+        m)
+      music)))
 
 
 %% REPEAT SIGN DOTS (BAR LINES)
@@ -733,20 +849,20 @@ setTraditionalClefs =
 
 %% VERTICAL (CLAIRNOTE) STAFF COMPRESSION
 
-% global variable holding the default vertical scaling value
-% so it can be used with key signatures and staffSize function
+% clnt-vscale-staff is a global variable holding the default vertical scaling
+% value so it can be used with key signatures and staffSize function
 % TODO: a way to store this per-staff rather than globally?
-
 clnt-vscale-staff = 1.2
 
-% change the vertical distance between the staff lines (staff-space)
-% and everything else to match.  vscale-staff = 1 gives a staff with an
-% octave that is the same size as on a traditional staff (default is 1.2).
-%   stems are extended back to their original/traditional size
-%   time signature position is adjusted vertically
-%   elsewhere key signatures are adjusted to fit the staff
 vertScaleStaff =
 #(define-music-function (parser location vscale-staff) (number?)
+   "Change the vertical distance between the staff lines (staff-space)
+    and everything else to match."
+   ;; vscale-staff = 1 gives a staff with an octave that is the same size
+   ;; as on a traditional staff (default is 1.2).
+   ;;  - stems are extended back to their original/traditional size
+   ;;  - time signature position is adjusted vertically
+   ;;  - elsewhere key signatures are adjusted to fit the staff
    (set! clnt-vscale-staff vscale-staff)
    #{
      \override StaffSymbol.staff-space = #(* vscale-staff 7/12)
@@ -761,11 +877,11 @@ vertScaleStaff =
 
 %% USER STAFF SCALING FUNCTION
 
-% helper macro lets user zoom a single staff size
-% TODO: this does not work perfectly combined with vertScaleStaff
-% especially key signatures and time signatures
 staffSize =
 #(define-music-function (parser location new-size) (number?)
+   "Helper macro that lets the user zoom a single staff size."
+   ;; TODO: this does not work perfectly combined with vertScaleStaff
+   ;; especially key signatures and time signatures
    #{
      \set fontSize = #new-size
      \override StaffSymbol.staff-space = #(*  clnt-vscale-staff 7/12 (magstep new-size))
@@ -785,6 +901,7 @@ staffSize =
     \alias Staff
     % needed for staff identification for repeat sign dots
     \override StaffSymbol.line-positions = #'(-4 -2 0 2 4)
+    % \consists \Clnt_clef_corrector
   }
 
   % allow parent contexts to accept \StaffTrad
