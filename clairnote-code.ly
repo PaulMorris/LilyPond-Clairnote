@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150507
+%    Version: 20150508
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -145,26 +145,6 @@
                      (cons 1.04 0.3)
                      (cons 1.06  0.3)))
                ))))))))
-
-#(define (cn-make-ottava-set music)
-   "Set context properties for an ottava bracket."
-   (let ((octavation (ly:music-property music 'ottava-number)))
-
-     (display "hello")(newline)
-
-     (list (context-spec-music
-            (make-apply-context
-             (lambda (context)
-               (let ((offset (* -12 octavation))
-                     (string (assoc-get octavation '((2 . "15ma")
-                                                     (1 . "8va")
-                                                     (0 . #f)
-                                                     (-1 . "8vb")
-                                                     (-2 . "15mb")))))
-                 (set! (ly:context-property context 'middleCOffset) offset)
-                 (set! (ly:context-property context 'ottavation) string)
-                 (ly:set-middle-C! context))))
-            'Staff))))
 
 
 %% DOTS ON DOTTED NOTES
@@ -945,14 +925,16 @@ vertScaleStaff =
     \consists \Cn_note_heads_engraver
     \override Stem.no-stem-extend = ##t
 
+    % Cn_key_signature_engraver has to come before
+    % Cn_accidental_engraver or we get a segfault crash
+    \consists \Cn_key_signature_engraver
+    printKeyCancellation = ##f
+
     \consists \Cn_accidental_engraver
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
 
     \override NoteColumn.before-line-breaking = #cn-chords
-
-    \consists \Cn_key_signature_engraver
-    printKeyCancellation = ##f
 
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
