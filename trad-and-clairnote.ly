@@ -1,7 +1,7 @@
 %    This file "trad-and-clairnote.ly" is a LilyPond include file for
 %    producing sheet music that includes traditional music notation alongside
 %    Clairnote music notation (http://clairnote.org).
-%    Version: 20150403
+%    Version: 20150408
 %
 %    Copyright © 2015 Paul Morris, except for functions copied and modified
 %    from LilyPond source code as noted in comments below.
@@ -22,16 +22,25 @@
 
 \version "2.18.2"
 
-#(use-modules (ice-9 regex))
+%% CHECK IF clairnote-code.ly HAS BEEN INCLUDED FIRST
 
 % Include this file after clairnote-code.ly to allow output that contains both
 % Clairnote staves and traditional staves.
 % Requires clairnote-code.ly version 20150403 or later.
 
+#(if (or
+      (not (defined? 'cn-define-grob-property))
+      (not (defined? 'cn-make-repeat-dot-bar)))
+     (ly:error "the \"clairnote-code.ly\" file must be included before the \"trad-and-clairnote.ly\" file"))
+
+
 %% CLEFS
+
+#(use-modules (ice-9 regex))
 
 % Copy of c0-pitch-alist with Clairnote clef settings.
 % Needed because it is not defined publicly in LilyPond source code.
+% TODO: make it define-public in LilyPond?
 #(define c0-pitch-alist
    '(("clefs.G" . -7) ;; -7 = -12 minus -5
       ("clefs.C" . 0) ;; unchanged
@@ -218,10 +227,11 @@
                     (1- (round (* 7/12 (string->number (match:substring match 4))))))
                    0))
 
-          (style (cond ((not match) 'default)
-                   ((equal? (match:substring match 3) "(") 'parenthesized)
-                   ((equal? (match:substring match 3) "[") 'bracketed)
-                   (else 'default)))
+          (style (cond
+                  ((not match) 'default)
+                  ((equal? (match:substring match 3) "(") 'parenthesized)
+                  ((equal? (match:substring match 3) "[") 'bracketed)
+                  (else 'default)))
 
           (clef-glyph (car e))
           (middle-c-clef-position (+ oct (cadr e)
@@ -261,9 +271,24 @@ clefsTrad =
       mus)))
 
 
+%% REPEAT SIGN DOTS (BAR LINES)
+
+% use cn-repeat-dot-bar-procedure for both trad and Clairnote staves
+
+#(define (cn-repeat-dot-bar-procedure grob extent)
+   "A procedure for repeat sign dots that positions them based
+    on custom grob property StaffSymbol.cn-is-clairnote-staff."
+   (if (cn-staff-symbol-prop grob 'cn-is-clairnote-staff)
+       ;; Clairnote staff or traditional five line staff
+       ((cn-make-repeat-dot-bar '(-2 2)) grob extent)
+       ((cn-make-repeat-dot-bar '(-1 1)) grob extent)))
+
+#(add-bar-glyph-print-procedure ":" cn-repeat-dot-bar-procedure)
+
+
 %% CUSTOM CONTEXT PROPERTIES
 
-% function copied from scm/define-context-properties.scm and modified
+% function copied and modified from scm/define-context-properties.scm
 #(define (cn-translator-property-description symbol type?)
    (set-object-property! symbol 'translation-type? type?)
    (set-object-property! symbol 'translation-doc "custom context property")
@@ -274,12 +299,25 @@ clefsTrad =
 #(cn-translator-property-description 'clefInput string?)
 
 
+%% CUSTOM GROB PROPERTIES
+
+% StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
+#(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
+
+
 %% STAFF CONTEXT DEFINITION
 
 % recreate Staff context with its standard settings as
 % a custom context called \StaffTrad
 
 \layout {
+
+  \context {
+    \Staff
+    % custom grob property, needed for repeat sign dot positions
+    \override StaffSymbol.cn-is-clairnote-staff = ##t
+  }
+
   \context {
     % copied from ly/engraver-init.ly
     \type "Engraver_group"
@@ -336,7 +374,7 @@ clefsTrad =
     % begin customizations
     \name StaffTrad
     \alias Staff
-    % custom grob property
+    % custom grob property, needed for repeat sign dot positions
     \override StaffSymbol.cn-is-clairnote-staff = ##f
   }
   % allow parent contexts to accept \StaffTrad
