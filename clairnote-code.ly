@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160921
+%    Version: 20160925
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -799,84 +799,114 @@
 
 ;;;; STEM LENGTH AND DOUBLE STEMS
 
+  (define (multiply-details details multiplier skip-list)
+    "multiplies each of the values of a details property
+     (e.g. of the stem grob) by multiplier, except for
+     skip-list, a list of symbols, e.g. '(stem-shorten) "
+    (define multiply-by (lambda (x) (* x multiplier)))
+    (map
+     (lambda (dt)
+       (let ((head (car dt))
+             (vals (cdr dt)))
+         (cons head (if (memq head skip-list)
+                        vals
+                        (map multiply-by vals)))))
+     details))
+
+  (define (grob-edge grob positive)
+    "Takes a grob and returns the edge of the grob in positive
+     or negative direction (up or down), positive arg is boolean."
+    (let* ((offset (ly:grob-property grob 'Y-offset))
+           (extent (ly:grob-property grob 'Y-extent))
+           (extent-dir (if positive (cdr extent) (car extent))))
+      (+ offset extent-dir)))
+
+  (define (grobs-edge grobs positive)
+    "Takes a list of grobs and positive, a boolean of whether the
+     direction we care about is positive/up or not/down, and returns
+     the furthest edge of the grobs in that direction."
+    (let* ((comparator (if positive > <))
+           (final-edge
+            (fold (lambda (g prev-edge)
+                    (let ((this-edge (grob-edge g positive)))
+                      (if (comparator this-edge prev-edge)
+                          this-edge
+                          prev-edge)))
+              (grob-edge (car grobs) positive)
+              (cdr grobs))))
+      final-edge))
+
   (define Cn_stem_engraver
-    ;; "Lengthen all stems and give half notes double stems."
+    ;; "Lengthen all stems to undo staff compression side effects,
+    ;; and give half notes double stems."
     (make-engraver
      (acknowledgers
       ((stem-interface engraver grob source-engraver)
        ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
        ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
        (if (and (ly:grob-property-data grob 'stencil)
-                (not (equal? '() (ly:grob-object grob 'note-heads))))
+                (not (null? (ly:grob-object grob 'note-heads))))
            (let*
             ((context (ly:translator-context engraver))
-             (bss-inverse (/ 1 (ly:context-property context 'cnBaseStaffSpace))))
-            ;; multiply each of the values in the details property of the stem grob
-            ;; by bss-inverse, except for stem-shorten values
-            (ly:grob-set-property! grob 'details
-              (map
-               (lambda (detail)
-                 (let ((head (car detail))
-                       (args (cdr detail)))
-                   (if (eq? head 'stem-shorten)
-                       (cons head args)
-                       (cons head
-                         (map
-                          (lambda (arg) (* arg bss-inverse))
-                          args)))))
-               (ly:grob-property grob 'details)))
+             (bss-inverse (/ 1 (ly:context-property context 'cnBaseStaffSpace)))
+             (deets (ly:grob-property grob 'details))
+             (deets2 (multiply-details deets bss-inverse '(stem-shorten))))
+
+            (ly:grob-set-property! grob 'details deets2)
 
             ;; double stems for half notes
             (if (= 1 (ly:grob-property grob 'duration-log))
                 (let*
-                 ((stem (ly:stem::print grob))
-                  ;; second stem is 1.5 times as thick as standard stem by default
-                  (thick-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
-                  (thick-stem (ly:stencil-scale stem thick-scale 1))
-                  (dir (- (ly:grob-property grob 'direction)))
-                  (stem-extent (ly:stencil-extent stem X))
-                  (stem-width (- (car stem-extent) (cdr stem-extent)))
+                 ((stem-stil (ly:stem::print grob))
+                  (dir (ly:grob-property grob 'direction))
+                  (up-stem (= dir 1))
+                  (stem-y-extent (ly:grob-property grob 'Y-extent))
+                  (stem-x-extent (ly:grob-property grob 'X-extent))
+                  (stem-width (- (car stem-x-extent) (cdr stem-x-extent)))
+
+                  ;; by default second stem is 1.5 times as thick as standard stem
+                  (width-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
+                  (stem2-width (* stem-width width-scale))
+
+                  (heads-array (ly:grob-object grob 'note-heads))
+                  (note-heads (if (ly:grob-array? heads-array)
+                                  (ly:grob-array->list heads-array)
+                                  ;; should never happen:
+                                  '()))
+                  (nhs-edge (grobs-edge note-heads up-stem))
+
+                  (stem-tip (if up-stem (cdr stem-y-extent) (car stem-y-extent)))
+                  (nhs-margin (* dir 0.1))
+                  (tip-adjust (* dir (/ stem2-width 2)))
+                  (stem2-start-y (+ nhs-margin nhs-edge))
+                  (stem2-end-y (+ tip-adjust stem-tip))
+
                   ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
-                  ;; 4.5 * stem-width = -0.585
-                  (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4.5))
-                  (spacing (* spacing-scale stem-width)))
+                  ;; 4 * stem-width
+                  (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4))
+                  (spacing (* spacing-scale stem-width))
+
+                  (stem2-x (+ (* -1 dir spacing)
+                             (if up-stem (car stem-x-extent) (cdr stem-x-extent))))
+
+                  (stem2-stil (ly:make-stencil
+                               (list 'draw-line
+                                 stem2-width    ;; width
+                                 stem2-x        ;; start x
+                                 stem2-start-y  ;; start y
+                                 stem2-x        ;; end x
+                                 stem2-end-y)   ;;end y
+                               (cons stem2-x stem2-x) ;; x extent
+                               (cons stem2-start-y stem2-end-y) ;; y extent
+                               )))
 
                  (ly:grob-set-property! grob 'stencil
-                   (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
+                   (ly:stencil-add stem-stil stem2-stil))
                  ;; X-extent needs to be set here because its usual callback
                  ;; ly:stem::width doesn't take the actual stencil width into account
                  (ly:grob-set-property! grob 'X-extent
                    (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
                  ))))))))
-
-;;;; DOTS ON DOTTED NOTES
-
-  (define (cn-dots-callback dots-grob)
-    "Adjust position of dots on double-stemmed half notes with up stem.
-     Use a callback so that the stem width is already set.
-     Returns a pair of numbers that is the extra-extent for dots grob."
-    (let*
-     ((parent (ly:grob-parent dots-grob Y))
-      ;; parent is a Rest grob or a NoteHead grob
-      (is-note (not (grob::has-interface parent 'rest-interface)))
-      (note-col (ly:grob-parent parent X))
-      (stem (if is-note
-                (ly:grob-object note-col 'stem)
-                #f)))
-     (if (and (= 1 (ly:grob-property parent 'duration-log))
-              stem
-              (not (null? stem))
-              (= 1 (ly:grob-property stem 'direction)))
-         (let*
-          ((stem-extent (ly:grob-property stem 'X-extent))
-           (stem-width (- (cdr stem-extent) (car stem-extent)))
-           ;; maybe a better calculation is possible based on custom
-           ;; double stem Staff context properties, but that would
-           ;; require an engraver, and Dots engraver is in Voice context
-           (x-offset (* 0.75 stem-width)))
-          (cons x-offset 0))
-         '(0 . 0)
-         )))
 
 ;;;; BEAMS
 
@@ -1104,8 +1134,8 @@
   (define cnStaffCompression
     (define-music-function (parser location ss) (number?)
       "0.75 is the default Clairnote staff-space (ss). An ss arg of
-       1 gives an uncompressed staff. 7/12 gives a staff with
-       same size octave as traditional"
+1 gives an uncompressed staff. 7/12 gives a staff with
+same size octave as traditional"
       (let*
        ((trad-octave (/ (round (* 10000 (exact->inexact (* 12/7 ss)))) 10000))
         (notehead-overlap (+ 0.5 (- 0.5 (/ ss 2)))))
@@ -1302,8 +1332,8 @@
 
     (define (cn-chords-loop note-heads first-semi stem-dir note-col)
       "Use recursion to iterate through the note heads, shifting them as needed.
-       Use internal procedure (loop) since we need stem-dir and note-col in scope,
-       and don't want to pass them as arguments."
+Use internal procedure (loop) since we need stem-dir and note-col in scope,
+and don't want to pass them as arguments."
       (define (loop nhs last-semi parity)
         (if (> (length nhs) 0)
             (let* ((nh (car nhs))
@@ -1413,7 +1443,7 @@
     % custom context properties
     cnBaseStaffSpace = #0.75
     cnBaseStaffLines = #'(-8 -4)
-    cnDoubleStemSpacing = #4.5
+    cnDoubleStemSpacing = #4
     cnDoubleStemWidthScale = #1.5
     cnNoteheadStencilProcedure = #cn-default-note-stencil
     cnStaffOctaves = #2
@@ -1466,9 +1496,6 @@
     % times the size of the traditional octave (3/4 * 12/7 = 9/7).
     % Adjacent note heads overlap by 0.625 (5/8).
     \override StaffSymbol.staff-space = #0.75
-
-    % adjust x-axis dots position to not collide with double-stemmed half notes
-    \override Dots.extra-offset = #cn-dots-callback
 
     % custom engravers
     \consists \Cn_clef_ottava_engraver
