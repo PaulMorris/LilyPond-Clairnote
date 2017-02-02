@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150510
+%    Version: 20150516
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -27,22 +27,38 @@
 
 #(define (cn-notehead-pitch grob)
    "Takes a note head grob and returns its pitch."
-   (ly:event-property (ly:grob-property grob 'cause) 'pitch))
+   (define event (ly:grob-property grob 'cause))
+   (if (ly:stream-event? event)
+       (ly:event-property event 'pitch)
+       (begin
+        (ly:warning "clairnote-code.ly cannot access the pitch of a note head grob.  (Are you trying to use the Ambitus_engraver?  It is incompatible with clairnote-code.ly.)")
+        (ly:make-pitch 0 0 0))))
 
 #(define (cn-notehead-semitone grob)
    "Takes a note head grob and returns its semitone."
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
-#(define (cn-staff-symbol-prop grob prop)
-   "Gets custom StaffSymbol props. Takes a grob and
-    a property name and returns that StaffSymbol property."
-   (ly:grob-property (ly:grob-object grob 'staff-symbol) prop))
+#(define (cn-get-is-clairnote-staff grob)
+    "Takes a grob and returns the custom StaffSymbol property
+    cn-is-clairnote-staff.  Silently falls back to the default of #t."
+   (define staff-sym (ly:grob-object grob 'staff-symbol))
+   (if (ly:grob? staff-sym)
+       (ly:grob-property staff-sym 'cn-is-clairnote-staff)
+       #t))
+
+#(define (cn-get-base-staff-space grob)
+   "Takes a grob and returns the custom StaffSymbol property
+    cn-base-staff-space.  Silently falls back to the default of 0.7."
+   (define staff-sym (ly:grob-object grob 'staff-symbol))
+   (if (ly:grob? staff-sym)
+       (ly:grob-property staff-sym 'cn-base-staff-space)
+       0.7))
 
 #(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
     as the ratio of actual staff-space over cn-base-staff-space."
    (/ (ly:staff-symbol-staff-space grob)
-     (cn-staff-symbol-prop grob 'cn-base-staff-space)))
+     (cn-get-base-staff-space grob)))
 
 #(if (not (defined? 'grob::name))
      ;; TODO: Delete this after we stop supporting LilyPond 2.18
@@ -58,9 +74,9 @@
 #(define (cn-calculate-version version-list)
    "Return an integer representation of the LilyPond version,
     can be compared with =, <, >, etc."
-   (+ (* 1000000 (first version-list))
-     (* 1000 (second version-list))
-     (third version-list)))
+   (+ (* 1000000 (list-ref version-list 0))
+     (* 1000 (list-ref version-list 1))
+     (list-ref version-list 2)))
 
 #(define (cn-check-ly-version proc ref-version-list)
    "Compare the LilyPond version with the reference version
@@ -403,7 +419,7 @@
      ;; number of the mode (0-6)
      (mode (modulo (- tonic-num major-tonic-num) 7))
      ;; the distance between two adjacent notes given vertical staff compression
-     (note-space (* 0.5 (cn-staff-symbol-prop grob 'cn-base-staff-space)))
+     (note-space (* 0.5 (cn-get-base-staff-space grob)))
      (stack (cn-make-keysig-stack mode alt-count note-space))
      ;; position the sig vertically
      (vert-adj (* note-space (cn-get-keysig-vert-pos alt-count)))
@@ -648,13 +664,13 @@
             (let*
              ((cn-clef (trad-to-cn-clef clef-glyph clef-pos))
               (cn-transpo (trad-to-cn-clef-transposition clef-transpo))
-              (new-mid-c (- (third cn-clef) cn-transpo)))
-             (ly:context-set-property! context 'clefGlyph (first cn-clef))
-             (ly:context-set-property! context 'clefPosition (second cn-clef))
+              (new-mid-c (- (list-ref cn-clef 2) cn-transpo)))
+             (ly:context-set-property! context 'clefGlyph (list-ref cn-clef 0))
+             (ly:context-set-property! context 'clefPosition (list-ref cn-clef 1))
              (ly:context-set-property! context 'middleCClefPosition new-mid-c)
              (ly:context-set-property! context 'clefTransposition cn-transpo)
              (ly:set-middle-C! context)
-             (set! prev-clef (list (first cn-clef) (second cn-clef) new-mid-c cn-transpo))))
+             (set! prev-clef (list (list-ref cn-clef 0) (list-ref cn-clef 1) new-mid-c cn-transpo))))
 
            ;; or new cue clef?
            ((not (equal? current-cue prev-cue))
@@ -665,14 +681,14 @@
                 (let*
                  ((cn-cue (trad-to-cn-clef cue-glyph cue-pos))
                   (cn-cue-transpo  (trad-to-cn-clef-transposition cue-transpo))
-                  (new-mid-c (- (third cn-cue) cn-cue-transpo)))
-                 (ly:context-set-property! context 'cueClefGlyph (first cn-cue))
-                 (ly:context-set-property! context 'cueClefPosition (second cn-cue))
+                  (new-mid-c (- (list-ref cn-cue 2) cn-cue-transpo)))
+                 (ly:context-set-property! context 'cueClefGlyph (list-ref cn-cue 0))
+                 (ly:context-set-property! context 'cueClefPosition (list-ref cn-cue 1))
                  (ly:context-set-property! context 'middleCCuePosition new-mid-c)
                  (ly:context-set-property! context 'cueClefTransposition cn-cue-transpo)
                  (ly:set-middle-C! context)
                  (set! prev-cue
-                       (list (first cn-cue) (second cn-cue) new-mid-c cn-cue-transpo))))))
+                       (list (list-ref cn-cue 0) (list-ref cn-cue 1) new-mid-c cn-cue-transpo))))))
 
           ;; new ottava? (8va 8vb etc.)
           (if (and (number? mid-c-off) (not (equal? ottavation prev-ottavation)))
@@ -707,7 +723,7 @@
 #(define (cn-repeat-dot-bar-procedure grob extent)
    "Return a procedure for repeat sign dots based on a custom grob
     property: StaffSymbol.cn-is-clairnote-staff."
-   (if (cn-staff-symbol-prop grob 'cn-is-clairnote-staff)
+   (if (cn-get-is-clairnote-staff grob)
        ;; Clairnote staff or Traditional five line staff
        ((cn-make-repeat-dot-bar '(-2 2)) grob extent)
        ((cn-make-repeat-dot-bar '(-1 1)) grob extent)))
@@ -723,7 +739,7 @@
     ;; default base-staff-space is 0.7
     ;; default vscale-staff is 1.2
     ;; default basic-y-offset is -0.75
-    ((base-staff-space (cn-staff-symbol-prop grob 'cn-base-staff-space))
+    ((base-staff-space (cn-get-base-staff-space grob))
      (vscale-staff (* 12/7 base-staff-space))
      (basic-y-offset (* (- vscale-staff 0.9) -2.5))
      ;; adjustment for \magnifyStaff
@@ -740,7 +756,7 @@
    (if (ly:grob-property-data grob 'stencil)
        (let*
         ;; default base-staff-space-inverse is 1/0.7 = 1.42857714286...
-        ((bss-inverse (/ 1 (cn-staff-symbol-prop grob 'cn-base-staff-space)))
+        ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
          (mag (cn-magnification grob)))
         ;; multiply each of the values in the details property of the stem grob
         ;; by bss-inverse, except for stem-shorten values
@@ -780,7 +796,7 @@
    "Adjust size and spacing of beams, needed due to vertically compressed staff."
    (let*
     ((base-staff-space-inverse
-      (/ 1 (cn-staff-symbol-prop grob 'cn-base-staff-space)))
+      (/ 1 (cn-get-base-staff-space grob)))
      (thick (ly:grob-property-data grob 'beam-thickness))
      (len-frac (ly:grob-property-data grob 'length-fraction))
      (space (if (number? len-frac) len-frac 1)))
@@ -800,8 +816,8 @@
       ((vertical-axis-group (ly:grob-parent grob Y))
        (positions (sort (ly:grob-property vertical-axis-group 'cn-staff-lines) <))
        (furthest (if upwards
-                     (last positions)
-                     (first positions)))
+                     (car (take-right positions 1))
+                     (list-ref positions 0)))
        (new-positions
         (if extend
             ;; extend
