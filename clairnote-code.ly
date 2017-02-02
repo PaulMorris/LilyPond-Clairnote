@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151215
+%    Version: 20160103
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -419,7 +419,7 @@
      ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
      (staff-clef-adjust (cn-get-staff-clef-adjust
                          (ly:context-property context 'cnStaffOctaves)
-                         (ly:context-property context 'cnClefOctaveShift)))
+                         (ly:context-property context 'cnClefShift)))
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
 
      (stack (ly:stencil-translate-axis raw-stack vert-adj Y))
@@ -542,7 +542,7 @@
      ;; staff-clef-adjust shifts clefPosition and middleCClefPosition:
      ;; up 6 note-positions for odd octave staves
      ;; up 12 for even octave staves with 4 or more octaves
-     ;; up or down 12 * Staff.cnClefOctaveShift
+     ;; up or down 12 * Staff.cnClefShift
      (new-pos (+ (list-ref clef-data 1) staff-clef-adjust))
      (new-mid-c-pos (+ mid-c-pos staff-clef-adjust)))
     (list (list-ref clef-data 0) new-pos new-mid-c-pos new-transpo)))
@@ -560,7 +560,7 @@
        (prev-clef-name '())
        (prev-cue-name '())
        (prev-staff-octaves #f)
-       (prev-octave-shift 0))
+       (prev-clef-shift 0))
 
       (make-engraver
        (listeners
@@ -575,13 +575,13 @@
            (now-cue (map get-context-prop cue-prop-list))
            (now-mid-c-off (ly:context-property context 'middleCOffset))
            (now-staff-octaves (ly:context-property context 'cnStaffOctaves))
-           (now-octave-shift (ly:context-property context 'cnClefOctaveShift))
+           (now-clef-shift (ly:context-property context 'cnClefShift))
 
            (changed-staff (not (equal? now-staff-octaves prev-staff-octaves)))
            (changed-clef (not (equal? now-clef prev-clef)))
            (changed-cue (not (equal? now-cue prev-cue)))
            (cue-unset (equal? now-cue '(() () () ())))
-           (changed-octave-shift (not (equal? now-octave-shift prev-octave-shift)))
+           (changed-clef-shift (not (equal? now-clef-shift prev-clef-shift)))
 
            (set-context-props!
             (lambda (context props vals)
@@ -597,14 +597,14 @@
           (if changed-clef (set! prev-clef-name
                                  (trad-to-cn-clef (list-ref now-clef 0) (list-ref now-clef 1))))
 
-          (if changed-octave-shift (set! prev-octave-shift now-octave-shift))
+          (if changed-clef-shift (set! prev-clef-shift now-clef-shift))
 
-          (if (or changed-clef changed-staff changed-octave-shift)
+          (if (or changed-clef changed-staff changed-clef-shift)
               (begin
                (set! prev-clef (cn-get-clef-props
                                 prev-clef-name
                                 (list-ref now-clef 3)
-                                (cn-get-staff-clef-adjust prev-staff-octaves prev-octave-shift)))
+                                (cn-get-staff-clef-adjust prev-staff-octaves prev-clef-shift)))
                (set-context-props! context clef-prop-list prev-clef)))
 
           ;; cue clefs
@@ -614,7 +614,7 @@
                   (set! prev-cue-name
                         (trad-to-cn-clef (list-ref now-cue 0) (list-ref now-cue 1)))))
 
-          (if (or changed-cue changed-staff changed-octave-shift)
+          (if (or changed-cue changed-staff changed-clef-shift)
               (if cue-unset
                   ;; \cueClefUnset
                   (set! prev-cue now-cue)
@@ -623,7 +623,7 @@
                    (set! prev-cue (cn-get-clef-props
                                    prev-cue-name
                                    (list-ref now-cue 3)
-                                   (cn-get-staff-clef-adjust prev-staff-octaves prev-octave-shift)))
+                                   (cn-get-staff-clef-adjust prev-staff-octaves prev-clef-shift)))
                    (set-context-props! context cue-prop-list prev-cue))))
 
           ;; new ottava? (8va 8vb etc.)
@@ -689,7 +689,7 @@
         (note-space (* 0.5 base-staff-space))
         (staff-clef-adjust (cn-get-staff-clef-adjust
                             (ly:context-property context 'cnStaffOctaves)
-                            (ly:context-property context 'cnClefOctaveShift)))
+                            (ly:context-property context 'cnClefShift)))
 
         (y-offset (+ base-y-offset (* note-space staff-clef-adjust)))
 
@@ -775,8 +775,7 @@
       ))))
 
 
-%% USER SHORTCUTS FOR EXTENDING STAVES
-%% AND FOR DIFFERENT SIZE STAVES
+%% USER: EXTENDING STAVES & STAVES WITH DIFFERENT OCTAVE SPANS
 
 #(define (cn-get-new-staff-positions posns base-positions going-up going-down)
 
@@ -871,8 +870,22 @@ cnStaffOctaveSpan =
       \cnStaffExtender ##t #upwards #downwards
     #}))
 
+cnClefPositionShift =
+#(define-music-function (parser location octaves) (integer?)
+   #{
+     \set Staff.cnClefShift = #octaves
+   #})
 
-%% USER FUNCTION TO SET STAFF COMPRESSION
+
+%% USER: FIVE LINE STAFF
+
+cnFiveLineStaff = {
+  \cnStaffOctaveSpan 2
+  \override Staff.StaffSymbol.line-positions = #'(-8 -4 0 4 8)
+}
+
+
+%% USER: SET STAFF COMPRESSION
 
 % must be used before \magnifyStaff for both to work
 cnStaffCompression =
@@ -891,7 +904,7 @@ cnStaffCompression =
     #}))
 
 
-%% USER FUNCTIONS TO CUSTOMIZE NOTEADS
+%% USER: CUSTOMIZE NOTEADS
 
 cnNoteheadStyle =
 #(define-music-function (parser location style) (string?)
@@ -940,7 +953,7 @@ cnNoteheadWidth =
 #(cn-translator-property-description 'cnStaffOctaves positive-integer?)
 
 % For shifting clef position up or down an octave
-#(cn-translator-property-description 'cnClefOctaveShift integer?)
+#(cn-translator-property-description 'cnClefShift integer?)
 
 
 %% CUSTOM GROB PROPERTIES
@@ -1148,11 +1161,11 @@ cnNoteheadWidth =
     cnNoteheadStyle = "lilypond"
     cnNoteheadWidthScale = #1
     cnStaffOctaves = #2
-    cnClefOctaveShift = #0
+    cnClefShift = #0
 
     % grob property overrides
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
-    \override StaffSymbol.ledger-positions = #'(-8 -4)
+    \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
     \override Stem.no-stem-extend = ##t
     \override Accidental.horizontal-skylines = #'()
@@ -1162,10 +1175,12 @@ cnNoteheadWidth =
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
 
     #(if (cn-check-ly-version >= '(2 19 34))
-         #{ \with {
+         #{
            \override Stem.note-collision-threshold = 2
            \override NoteCollision.note-collision-threshold = 2
-         } #})
+         #}
+         ;; an empty else clause is needed for 2.18 compatibility
+         #{ #})
 
     % NoteColumn override doesn't work as an engraver for some reason,
     % crashes with manual beams on chords.
