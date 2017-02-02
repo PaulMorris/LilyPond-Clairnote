@@ -1,9 +1,9 @@
-\version "2.17.95"
+\version "2.18.0"
 
-% clairnote.ily version: 20131214 (2013 Dec 14)
+% clairnote.ily version: 20131218 (2013 Dec 18)
 
 % Absolute value helper function
-% when LilyPond is Guile 2.0, use "abs" and remove this function
+% when LilyPond upgrades to Guile 2.0, use "abs" and remove this function
 #(define (abs x) (if (> x 0) x (- 0 x)))
 
 % NOTE HEADS AND STEM ATTACHMENT
@@ -286,17 +286,9 @@ key-stil-bank = #'()
 
 %    acc-list: list of accidentals,
 %    nats-list: list of naturals
-%    acc-count: the number of accidentals in the key signature
 %    key-acc-type: the accidental sign type, 1/2=sharp, -1/2=flat
+%    acc-count: the number of accidentals in the key signature, positive is sharps, negative is flats
 %    tonic-num: number of the tonic note 0-6, C=0, B=6
-
-%    tonic-acc: #f if the tonic note is not sharp or flat, otherwise a pair
-
-%    maj-num: number of the tonic note 0-6, if the key sig were major
-%    sig-type: position of black or white notes: 0=starts with white, 1=starts with black
-%    mode-num: number of the mode 0-6
-%    tonic-psn: vertical position of the tonic/mode indicator within the key sig
-%    tonic-lr: whether the tonic indicator is left or right of the sig, -1.2=left 1.2=right
 %
 #(define Clairnote_key_signature_engraver
    (make-engraver
@@ -307,29 +299,23 @@ key-stil-bank = #'()
              (tonic-pitch (ly:context-property context 'tonic))
              (tonic-num (ly:pitch-notename tonic-pitch))
              (acc-list (ly:grob-property grob 'alteration-alist))
-             (acc-count (length acc-list))
              (nats-list '())
-             (key-acc-type 0)
+             ;; the key type: sharp (1/2), flat (-1/2), or natural (0)
+             (key-acc-type (if (null? acc-list) 0 (cdr (list-ref acc-list 0))))
+             (acc-count (* (length acc-list) (if (< key-acc-type 0) -1 1)))
              (sig #f)
-             (key-id "0-0-0")
+             ;; create a unique key id (string) for key-stil-bank
+             (key-id (string-append
+                      (number->string tonic-num)
+                      (if (> acc-count -1) "+" "")
+                      (number->string acc-count)))
              (mult (magstep (ly:grob-property grob 'font-size 0.0))))
 
         ;; set (nats-semi-list) for use by the accidental engraver
         (cond ((not (equal? 'KeyCancellation grob-name))
                (set! nats-list (make-nats-list acc-list))
+               ;; what does this do?  Probably clears the nats-semi-list?
                (make-nats-semi-list nats-list)))
-
-        ;; get key type: sharp (1/2), flat (-1/2), or natural (0)
-        (if (null? acc-list)
-            (set! key-acc-type  0)
-            (set! key-acc-type (cdr (list-ref acc-list 0))))
-
-        ;; create a unique key id (string) for key-stil-bank
-        (set! key-id
-              (string-append
-               (number->string tonic-num) "_"
-               (number->string acc-count) "_"
-               (number->string key-acc-type)))
 
         ;; set the key signature stencil
         (cond
@@ -339,7 +325,7 @@ key-stil-bank = #'()
           (set! sig #f))
          ;; new sig, create stil and add it to key-stil-bank
          ((equal? #f (assoc key-id key-stil-bank))
-          (set! sig (draw-key-stencil grob key-acc-type acc-count tonic-num))
+          (set! sig (draw-key-stencil grob acc-count tonic-num))
           (set! key-stil-bank (acons key-id sig key-stil-bank)))
          ;; else already in key-stil-bank, so use it
          (else
@@ -349,188 +335,111 @@ key-stil-bank = #'()
         (if (ly:stencil? sig)
             (ly:grob-set-property! grob 'stencil (ly:stencil-scale sig mult mult))))))))
 
-
 % DRAW KEY SIGNATURE STENCIL
 %
-#(define (draw-key-stencil grob key-acc-type acc-count tonic-num)
-   (let* ((maj-num 0)
-          (mode-num 0)
-          (sig #f)
-          (sig-type 0)
-          (sigldgr #f)
-          (vert-adj 0)
-          (tonic-psn 0)
-          (tonic-lr -0.9)
-          (is-tonic-black #f)
-          (top-line
-           (ly:stencil-translate
-            (make-connected-path-stencil
-             '((1.01 0)) 0.05 1 1 #f #f)
-            (cons 0.49 2.7 )))
+%    maj-num: number of the tonic note 0-6, if the key sig were major
+%    sig-type: position of black or white notes: 0=starts with black, 1=starts with white
+%    mode-num: number of the mode 0-6
+%    tonic-psn: vertical position of the tonic/mode indicator within the key sig
+%    tonic-lr: whether the tonic indicator is left or right of the sig, -1.2=left 1.2=right
+%
+#(define (draw-key-stencil grob acc-count tonic-num)
 
-          (sig-head
-           (ly:stencil-translate
+   ;; recursive function for drawing the stack of circles
+   (define (draw-circles sig solid-dot? counter ypos xpos mode-num)
+     ;; add a circle
+     (set! sig
+           (ly:stencil-add sig
+             (ly:stencil-translate
+              (if (= mode-num counter)
+                  (if solid-dot?
+                      (make-oval-stencil 0.55 0.38 0.001 #t)
+                      (make-oval-stencil 0.55 0.33 0.15 #f))
+                  (if solid-dot?
+                      (make-circle-stencil 0.3 0.001 #t)
+                      (make-circle-stencil 0.25 0.15 #f)))
+              (cons xpos ypos))))
+     (if (= counter 6)
+         ;; return the stencil or recurse
+         sig
+         (draw-circles sig
+           (if (= counter 2)
+               (not solid-dot?)
+               solid-dot?)
+           (+ 1 counter)
+           (if (= counter 2)
+               (+ ypos 0.335)
+               (+ ypos 0.67))
+           (if (= counter 2)
+               (+ xpos 0.60)
+               xpos)
+           mode-num)))
+
+   (let* ((maj-num (case acc-count
+                     ((0) 0)
+                     ((1) 4)  ((2) 1)  ((3) 5)   ((4) 2)  ((5) 6)  ((6) 3)  ((7) 0)
+                     ((-1) 3) ((-2) 6) ((-3) 2) ((-4) 5) ((-5) 1) ((-6) 4) ((-7) 0)))
+          (mode-num (modulo (- tonic-num maj-num) 7))
+          ;; set vertical position of the sig
+          (note-space 0.335)
+          (vert-adj (case acc-count
+                      ((0) (* note-space -12)) ;; -12
+                      ((1) (* note-space -5))
+                      ((2) (* note-space -10))
+                      ((3) (* note-space -3))
+                      ((4) (* note-space -8))
+                      ((5) (* note-space -1))
+                      ((6) (* note-space -6))
+                      ((7) (* note-space -11))
+                      ((-1) (* note-space -7))
+                      ((-2) (* note-space -2))
+                      ((-3) (* note-space -9))
+                      ((-4) (* note-space -4))
+                      ((-5) (* note-space -11))
+                      ((-6) (* note-space -6))
+                      ((-7) (* note-space -1))))
+          (sig-type (modulo acc-count 2)) ;; 0 = C, D, E   1 = F, G, A, B
+          (sig (ly:stencil-translate (draw-circles
+                                      (make-circle-stencil 0.0 0.0 #t)
+                                      (if (= sig-type 0) #t #f)
+                                      0 0 0 mode-num)
+                 (cons 0 vert-adj)))
+          ;; create sig-head (that floats at top of key sig)
+          (sig-head-acc (cond
+                         ((> acc-count 0) (make-sharp-flat-stencil #t))
+                         ((< acc-count 0) (make-sharp-flat-stencil #f))
+                         ((= acc-count 0) (ly:stencil-scale
+                                           (grob-interpret-markup grob (markup #:natural))
+                                           0.65 0.65))))
+          (sig-head-num
             (ly:stencil-scale
              (grob-interpret-markup grob
-               (markup (number->string acc-count)))
-             0.6 0.6)
-            (cons 0 -0.4)))
+               (markup (number->string (abs acc-count))))
+             0.6 0.6))
+          (sig-head (ly:stencil-combine-at-edge
+                     (ly:stencil-aligned-to sig-head-acc Y CENTER)
+                     0 1
+                     (ly:stencil-aligned-to sig-head-num Y CENTER)
+                       0.3)))
 
-          (lldgr (make-connected-path-stencil
-                  '((-0.7 0) (1 0)) 0.15 1 1 #f #f))
-          (rldgr (make-connected-path-stencil
-                  '((1.7 0) (0 0)) 0.15 1 1 #f #f))
-          (wldgr (make-connected-path-stencil
-                  '((-0.7 0) (1.7 0)) 0.15 1 1 #f #f)))
-
-     ;; create sig-head (that floats at top of key sig)
-     (set! sig-head
-           (ly:stencil-combine-at-edge
-            (cond
-             ;; sharp key
-             ((= key-acc-type 1/2) (ly:stencil-translate (make-sharp-flat-stencil #t) (cons -0.5 0)))
-             ;; flat key
-             ((= key-acc-type -1/2) (ly:stencil-translate (make-sharp-flat-stencil #f) (cons -0.5 0)))
-             ;; all natural key
-             ((= key-acc-type 0) (ly:stencil-translate
-                                  (ly:stencil-scale (grob-interpret-markup grob (markup #:natural)) 0.65 0.65)
-                                  (cons -0.6 0.1))))
-            0 1 sig-head 0.4))
-
-     ;; settings based on key-acc-type and acc-count
-     (cond
-      ((= key-acc-type 0)
-       (set! maj-num 0) (set! vert-adj (* 1.285 -3.5)) (set! sig-type 1) (set! sigldgr rldgr))
-      ((= key-acc-type 1/2)
-       (cond
-        ((= acc-count 1) (set! maj-num 4) (set! vert-adj (* 1.35 -1.5)) (set! sigldgr wldgr))
-        ((= acc-count 2) (set! maj-num 1) (set! vert-adj (* 1.285 -3.0)) (set! sigldgr rldgr) (set! sig-type 1))
-        ((= acc-count 3) (set! maj-num 5) (set! vert-adj (* 1.35 -1.0)) (set! sigldgr wldgr))
-        ((= acc-count 4) (set! maj-num 2) (set! vert-adj (* 1.285 -2.5)) (set! sigldgr rldgr) (set! sig-type 1))
-        ((= acc-count 5) (set! maj-num 6) (set! vert-adj (* 1.35 -0.5)) (set! sigldgr lldgr))
-        ((= acc-count 6) (set! maj-num 3) (set! vert-adj (* 1.25 -2.0)) (set! sigldgr wldgr) (set! sig-type 1))
-        ((= acc-count 7) (set! maj-num 0) (set! vert-adj (* 1.35 -3.0)) (set! sigldgr rldgr))))
-      ((= key-acc-type -1/2)
-       (cond
-        ((= acc-count 1) (set! maj-num 3) (set! vert-adj (* 1.35 -2.0)) (set! sigldgr rldgr))
-        ((= acc-count 2) (set! maj-num 6) (set! vert-adj (* 1.20 -1.0)) (set! sigldgr lldgr) (set! sig-type 1))
-        ((= acc-count 3) (set! maj-num 2) (set! vert-adj (* 1.35 -2.5)) (set! sigldgr rldgr))
-        ((= acc-count 4) (set! maj-num 5) (set! vert-adj (* 1.24 -1.5)) (set! sigldgr wldgr) (set! sig-type 1))
-        ((= acc-count 5) (set! maj-num 1) (set! vert-adj (* 1.35 -3.0)) (set! sigldgr rldgr))
-        ((= acc-count 6) (set! maj-num 4) (set! vert-adj (* 1.26 -2.0)) (set! sigldgr wldgr) (set! sig-type 1))
-        ((= acc-count 7) (set! maj-num 0) (set! vert-adj (* 1.35 -0.5)) (set! sigldgr lldgr)))))
-
-     ;; calculate the mode number
-     (set! mode-num (modulo (- tonic-num maj-num) 7))
-
-     ;; set the vertical position coordinates for the tonic indicator "dot"
-     ;; first number is from twinnote, 2nd is adjusting for clairnote
-     (cond
-      ((= mode-num 0) (set! tonic-psn (+ -1.0  0.2)))   ;; ionian, major
-      ((= mode-num 1) (set! tonic-psn (+ -1.5  0.0))) ;; dorian
-      ((= mode-num 2) (set! tonic-psn (+ -2.0 -0.15)))   ;; phrygian
-      ((= mode-num 3) (set! tonic-psn (+ -2.5 -0.6))) ;; lydian
-      ((= mode-num 4) (set! tonic-psn (+ -3.0 -0.78)))   ;; mixolydian
-      ((= mode-num 5) (set! tonic-psn (+ -3.5 -0.95))) ;; aeolian, minor
-      ((= mode-num 6) (set! tonic-psn (+ -4.0 -1.12))))   ;; locrian
-
-     (cond
-      ((> mode-num 2)
-       (set! tonic-lr 1.0)
-       (cond
-        ((= sig-type 1)
-         (set! tonic-psn (+ 0.5 tonic-psn))))))
-
-     ;; assemble two vertical bars based on sig-type
-     (cond
-      ((= sig-type 0)
-       (set! sig (ly:stencil-add
-                  ;; white left
-                  (ly:stencil-translate
-                   (make-connected-path-stencil
-                    '((0.5 0) (0.5 2.16) (0 2.16) (0 0)) 0.2 1 1 #f #f)
-                   (cons 0 -0.08))
-                  ;; black right
-                  (ly:stencil-translate
-                   (make-connected-path-stencil
-                    '((0.5  0) (0.5  3.04) (0 3.04) (0  0) (0.5 0)) 0.01 1 1 #f #t)
-                   (cons 0.5 1.50)))))
-      ((= sig-type 1)
-       (set! sig (ly:stencil-add
-                  ;; black left
-                  (make-connected-path-stencil
-                   '((0.5 0) (0.5 2.38) (0 2.38) (0 0)) 0.001 1 1 #f #t)
-                  ;; white right
-                  (ly:stencil-translate
-                   (make-connected-path-stencil
-                    ;; note 1.32 is distance between two staff lines
-                    '((0.5 0) (0.5 2.81) (0 2.81) (0 0) (0.5 0)) 0.2 1 1 #f #f)
-                   (cons 0.5 1.75))))))
-
-     ;; prepare tonic indicator
-     (cond
-      ;; black tonic on left
-      ((and (< mode-num 3) (= sig-type 1))
-       (set! is-tonic-black #t)
-       (set! tonic-lr (+ 0.5 tonic-lr)))
-      ;; black tonic on right
-      ((and (> mode-num 2) (= sig-type 0))
-       (set! is-tonic-black #t)
-       (set! tonic-lr (+ 0.45 tonic-lr))
-       (set! tonic-psn (+ 0.6 tonic-psn)))
-      ;; white tonic on left
-      ((and (< mode-num 3) (= sig-type 0))
-       (set! is-tonic-black #f)
-       (set! tonic-lr (+ 0.4 tonic-lr)))
-      ;; white tonic on right
-      ((and (> mode-num 2) (= sig-type 1))
-       (set! is-tonic-black #f)
-       (set! tonic-lr (+ 0.5 tonic-lr))
-       (set! tonic-psn (+ 0.05 tonic-psn))))
-
-     ;; add tonic indicator to sig
-     (set! sig (ly:stencil-combine-at-edge sig 1 -1
-                 ;; tonic indicator sig
+     ;; add the head to the sig
+     (set! sig (ly:stencil-add
+                (ly:stencil-aligned-to sig X CENTER)
                  (ly:stencil-translate
-                  (if is-tonic-black
-                      (make-circle-stencil 0.3 0.15 #t)
-                      (make-circle-stencil 0.3 0.15 #f))
-                  (cons tonic-lr 0))
-                 (+ -0.1 tonic-psn)))
-
-
-     ;; start with top-line marker and add sigldgr line
-     (set! top-line (ly:stencil-combine-at-edge top-line 1 1 sigldgr -2.8))
-
-     ;; add extra sigldgr line for Cmaj/Amin sig
-     (cond ((= key-acc-type 0)
-            (set! top-line (ly:stencil-combine-at-edge top-line 1 1 lldgr -6.8 ))))
-
-     ;; position the sig
-     (set! sig (ly:stencil-translate sig (cons 0 vert-adj))) ;; (* 1.15 vert-adj)    )))   -3.19
-
-     ;; add the sig
-     (set! sig (ly:stencil-add sig top-line))
-
-     ;; add the acc type and count (sig-head) to top
-     (cond
-      ((= key-acc-type 0)
-       (set! sig
-             (ly:stencil-combine-at-edge
-              (ly:stencil-translate sig (cons -0.4 0))
-              1  1 sig-head 0.2)))
-      (else
-       (set! sig
-             (ly:stencil-combine-at-edge
-              (ly:stencil-translate sig (cons -0.4 0))
-              1  1 sig-head 0.6))))
+                  (ly:stencil-aligned-to sig-head X CENTER)
+                   (cons 0
+                     (case acc-count
+                       ((3) (* note-space 12.5))
+                       ((5) (* note-space 14.5))
+                       ((-2) (* note-space 13.5))
+                       ((-7) (* note-space 14.5))
+                       (else (* note-space 11.5)))))))
 
      ;; shift the whole sig to the right for proper spacing with clef
-     (cond ((> mode-num 2)
-            (set! sig (ly:stencil-translate sig (cons 0.35 0))))
-       (else (set! sig (ly:stencil-translate sig (cons 0.9 0)))))
-
-     ;; finally return the sig stencil
+     (if (> mode-num 2)
+         (set! sig (ly:stencil-translate sig (cons 0.35 0)))
+         (set! sig (ly:stencil-translate sig (cons 0.9 0))))
+     ;; return the sig stencil
      sig ))
 
 
@@ -795,7 +704,7 @@ snhs =
 setOtherScriptParent =
 #(define-music-function (parser location which-note-head)(integer?)
    "If the parent-NoteHead of a Script is moved, another parent from the
-                NoteColumn could be chosen.
+                                                                                                                                                                                  NoteColumn could be chosen.
     The NoteHeads are numbered 1 2 3...  not 0 1 2... "
 #{
   %% Let "staccato" be centered on NoteHead, if Stem 'direction is forced
@@ -820,7 +729,7 @@ setOtherScriptParent =
 adjustStem =
 #(define-music-function (parser location val)(pair?)
    "Adjust 'stem-attachment via
-               adding multiples of the stem-width to the x-default (car val)
+                                                                                                                                                                                 adding multiples of the stem-width to the x-default (car val)
    and multiplying the y-default with (cdr val). "
 #{
   \once \override NoteHead.before-line-breaking =
