@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160515
+%    Version: 20160516
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -867,7 +867,20 @@
 
 %% LEDGER LINES
 
-#(define (cn-ledger-pattern dist ledger-args)
+% default, gradual, conservative
+#(define cn-ledgers-gradual '(2 2 2 5))
+
+% jumps to two ledger lines immediately,
+% omits c ledger line quickly, no overlap
+#(define cn-ledgers-less-gradual '(2 2 5 2))
+
+% minimal ledger lines
+#(define cn-ledgers-minimal '(2 2 1 2))
+
+% no ledger-extra, solid notes in center of spaces don't get
+% a ledger beyond them, but float in space.
+
+#(define (cn-ledger-pattern dist staff-symbol)
    "Produces the ledger line pattern for a given note."
    ;; dist is distance of note from the closest staff line
    ;; extra-4, extra-8, extra-12 work like LilyPond's ledger-extra property
@@ -877,10 +890,11 @@
    ;; (2 or 5 make sense, 0-7 are possible)
    ;; TODO? provide a way to show all C ledgers?
    (let*
-    ((extra-4 (list-ref ledger-args 0))
-     (extra-8 (list-ref ledger-args 1))
-     (extra-12 (list-ref ledger-args 2))
-     (hide-4 (list-ref ledger-args 3))
+    ((recipe (ly:grob-property staff-symbol 'cn-ledger-recipe cn-ledgers-gradual))
+     (extra-4 (list-ref recipe 0))
+     (extra-8 (list-ref recipe 1))
+     (extra-12 (list-ref recipe 2))
+     (hide-4 (list-ref recipe 3))
      (rem (remainder dist 12))
      (base (* 12 (quotient dist 12)))
 
@@ -905,15 +919,13 @@
      (result (append lrs lr4 lr8 lr12)))
     result))
 
-
-#(define (cn-ledger-positions ledger-args)
-   "Returns a function that takes a StaffSymbol grob and a vertical
-    position of a note head and returns a list of ledger line positions,
-    based on ledger-args."
-   `(lambda (staff-symbol pos)
+% "A function that takes a StaffSymbol grob and a vertical
+%    position of a note head and returns a list of ledger line positions,
+%    based on StaffSymbol.cn-ledger-recipe."
+#(define cn-ledger-positions
+   '(lambda (staff-symbol pos)
       (let*
-       ((lr-args ',ledger-args)
-        (lines (ly:grob-property staff-symbol 'line-positions '(-8 -4 4 8)))
+       ((lines (ly:grob-property staff-symbol 'line-positions '(-8 -4 4 8)))
 
         (nearest-line
          (fold (lambda (line prev)
@@ -929,7 +941,7 @@
 
         ;; get generic ledger positions and then transform them so
         ;; they are relative to nearest-line and in the right direction
-        (ledgers0 (cn-ledger-pattern dist lr-args))
+        (ledgers0 (cn-ledger-pattern dist staff-symbol))
         (ledgers1 (map (lambda (n) (+ nearest-line (* dir n)))
                     ledgers0))
 
@@ -939,20 +951,6 @@
 
        ;; (display dist)(display ledgers2)(newline)
        ledgers2)))
-
-
-% default, gradual, conservative
-#(define cn-ledgers-gradual '(2 2 2 5))
-
-% jumps to two ledger lines immediately,
-% omits c ledger line quickly, no overlap
-#(define cn-ledgers-less-gradual '(2 2 5 2))
-
-% minimal ledger lines
-#(define cn-ledgers-minimal '(2 2 1 2))
-
-% no ledger-extra, solid notes in center of spaces don't get
-% a ledger beyond them, but float in space.
 
 
 %% USER: EXTENDING STAVES & STAVES WITH DIFFERENT OCTAVE SPANS
@@ -1190,8 +1188,9 @@ cnNoteheadStyle =
       symbol)))
 
   ;; StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
-  (add-grob-prop 'cn-is-clairnote-staff boolean?))
-
+  (add-grob-prop 'cn-is-clairnote-staff boolean?)
+  ;; StaffSymbol.cn-ledger-recipe used to produce ledger line pattern.
+  (add-grob-prop 'cn-ledger-recipe number-list?))
 
 
 %% LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC.
@@ -1417,8 +1416,8 @@ cnNoteheadStyle =
 
     #(if (cn-check-ly-version >= '(2 19 42))
          #{
-           \override StaffSymbol.ledger-positions-function =
-           #(cn-ledger-positions cn-ledgers-less-gradual)
+           \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
+           \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
          #}
          #{ #})
 
