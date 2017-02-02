@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151003
+%    Version: 20151004
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -49,8 +49,8 @@
 
 #(define (cn-get-base-staff-space grob)
    "Takes a grob and returns the custom StaffSymbol property
-    cn-base-staff-space.  Silently falls back to the default of 0.7."
-   (cn-staff-symbol-property 'cn-base-staff-space 0.7 grob))
+    cn-base-staff-space.  Silently falls back to the default of 0.75."
+   (cn-staff-symbol-property 'cn-base-staff-space 0.75 grob))
 
 #(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
@@ -750,9 +750,6 @@
 #(define (cn-timesigs grob)
    "Adjust vertical position of time sig based on vertical staff scaling."
    (let*
-    ;; default base-staff-space is 0.7
-    ;; default vscale-staff is 1.2
-    ;; default basic-y-offset is -0.75
     ((base-staff-space (cn-get-base-staff-space grob))
      (vscale-staff (* 12/7 base-staff-space))
      (basic-y-offset (* (- vscale-staff 0.9) -2.5))
@@ -771,7 +768,6 @@
    (if (and (ly:grob-property-data grob 'stencil)
             (not (equal? '() (ly:grob-object grob 'note-heads))))
        (let
-        ;; default base-staff-space-inverse is 1/0.7 = 1.42857714286...
         ((bss-inverse (/ 1 (cn-get-base-staff-space grob))))
         ;; multiply each of the values in the details property of the stem grob
         ;; by bss-inverse, except for stem-shorten values
@@ -918,14 +914,19 @@ cnFourOctaveStaff = \cnExtendStaff ##t 2 1
 
 % must be used before \magnifyStaff for both to work
 cnStaffCompression =
-#(define-music-function (parser location vscale-staff) (number?)
-   "1.2 is the default vscale-staff which gives default ss (staff-space) of 0.7
-    vscale-staff of 1 gives a staff with same size octave as traditional"
-   (define ss (* 7/12 vscale-staff))
-   #{
-     \override Staff.StaffSymbol.cn-base-staff-space = #ss
-     \override Staff.StaffSymbol.staff-space = #ss
-   #})
+#(define-music-function (parser location ss) (number?)
+   "0.75 is the default Clairnote staff-space (ss). An ss arg of
+    1 gives an uncompressed staff. 7/12 gives a staff with
+    same size octave as traditional"
+   (let*
+    ((trad-octave (/ (round (* 10000 (exact->inexact (* 12/7 ss)))) 10000))
+     (notehead-overlap (+ 0.5 (- 0.5 (/ ss 2)))))
+    (ly:message "Clairnote: custom staff compression of ~a will produce octaves ~a times the size of octaves in traditional notation; adjacent note heads (a semitone apart) will overlap by about ~a of their height."
+      ss trad-octave notehead-overlap)
+    #{
+      \override Staff.StaffSymbol.cn-base-staff-space = #ss
+      \override Staff.StaffSymbol.staff-space = #ss
+    #}))
 
 
 %% USER FUNCTIONS TO CUSTOMIZE NOTEADS
@@ -1019,16 +1020,18 @@ cnNoteheadWidth =
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
+
     % staff-space reflects vertical compression of Clairnote staff.
-    % Default of 0.7 makes the Clairnote octave 1.2 times
-    % the size of the traditional octave. 0.7 * 12/7 = 1.2
-    \override StaffSymbol.staff-space = #0.7
+    % Default of 0.75 makes the Clairnote octave 1.28571428571429
+    % times the size of the traditional octave (3/4 * 12/7 = 9/7).
+    % Adjacent note heads overlap by 0.625 (5/8).
+    \override StaffSymbol.staff-space = #0.75
 
     % Custom grob property that stores the base staff-space, encoding
     % the vertical compression of the Clairnote staff. It may differ from
     % the actual staff-space which is scaled by \magnifyStaff etc.
     % Stem and beam size, time sig and key sig position depend on it.
-    \override StaffSymbol.cn-base-staff-space = #0.7
+    \override StaffSymbol.cn-base-staff-space = #0.75
 
     \override StaffSymbol.cn-notehead-style = "lilypond"
     \override StaffSymbol.cn-notehead-width-scale = #1
