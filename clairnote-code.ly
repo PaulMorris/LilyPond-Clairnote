@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140523 (2014 May 23)
+%    Version: 20140524 (2014 May 24)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -40,7 +40,7 @@
 #(define (clnt-note-heads cfill xmod ymod)
    (lambda (grob)
      ;; make sure \omit is not in effect (i.e. stencil is not #f)
-     (if (ly:grob-property grob 'stencil)
+     (if (ly:grob-property-data grob 'stencil)
          (let*
           ((fsz  (ly:grob-property grob 'font-size 0.0))
            (mult (magstep fsz))
@@ -108,33 +108,33 @@
 
 #(define ((clnt-stems mult) grob)
    "Lengthen all stems and give half notes double stems."
-   ;; multiply each of the values in the details property of the stem grob
-   ;; by mult, except for stem-shorten values which remain unchanged
-   (ly:grob-set-property! grob 'details
-     (map
-      (lambda (detail)
-        (let ((head (car detail))
-              (args (cdr detail)))
-          (if (eq? head 'stem-shorten)
-              (cons head args)
-              (cons head
-                (map
-                 (lambda (arg) (* arg mult))
-                 args)))))
-      (ly:grob-property grob 'details)))
-   ;; double stems for half notes
-   ;; use -0.42 or 0.15 to change which side the 2nd stem appears
-   (if (and
-        (= 1 (ly:grob-property grob 'duration-log))
-        ;; make sure \omit is not in effect (i.e. stencil is not #f)
-        (ly:grob-property grob 'stencil))
-       (ly:grob-set-property! grob 'stencil
-         (ly:stencil-combine-at-edge
-          (ly:stem::print grob)
-          X
-          (- (ly:grob-property grob 'direction))
-          (ly:stem::print grob)
-          -0.42 ))))
+   ;; make sure \omit is not in effect (i.e. stencil is not #f)
+   (if (ly:grob-property-data grob 'stencil)
+       (begin
+        ;; multiply each of the values in the details property of the stem grob
+        ;; by mult, except for stem-shorten values which remain unchanged
+        (ly:grob-set-property! grob 'details
+          (map
+           (lambda (detail)
+             (let ((head (car detail))
+                   (args (cdr detail)))
+               (if (eq? head 'stem-shorten)
+                   (cons head args)
+                   (cons head
+                     (map
+                      (lambda (arg) (* arg mult))
+                      args)))))
+           (ly:grob-property grob 'details)))
+        ;; double stems for half notes
+        ;; use -0.42 or 0.15 to change which side the 2nd stem appears
+        (if (= 1 (ly:grob-property grob 'duration-log))
+            (ly:grob-set-property! grob 'stencil
+              (ly:stencil-combine-at-edge
+               (ly:stem::print grob)
+               X
+               (- (ly:grob-property grob 'direction))
+               (ly:stem::print grob)
+               -0.42 ))))))
 
 
 %% ACCIDENTAL SIGNS
@@ -213,7 +213,7 @@
         (pitch (ly:event-property (event-cause note-head) 'pitch))
         (semi (ly:pitch-semitones pitch))
         (semi-modulo (modulo semi 12))
-        (stl (ly:grob-property grob 'stencil))
+        (stl (ly:grob-property-data grob 'stencil))
 
         ;; key-sig is an association list of sharps or flats in the key.
         ;; Example: D major = ((0 . 1/2) (3 . 1/2))
@@ -320,7 +320,7 @@
 
        (cond
         ;; 0. \omit is in effect (stencil === #f), do nothing
-        ((not (ly:grob-property grob 'stencil))
+        ((not (ly:grob-property-data grob 'stencil))
          #f)
         ;; 1. if key stencil is already in key-stils use that
         ((ly:stencil? stil)
