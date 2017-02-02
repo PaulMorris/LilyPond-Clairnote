@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20160105
+%    Version: 20160106
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -331,25 +331,23 @@
        (modulo (- (/ (+ alt-count 1) 2) 4) 7)
        (modulo (/ alt-count 2) 7)))
 
+#(define (cn-make-keysig-posns prev pattern result x-inc)
+   "Recursive function to calculate x/y positions for keysig dots."
+   (if (equal? '() pattern)
+       result
+       (let*
+        ((whole-step (equal? (car pattern) prev))
+         (y-step (if whole-step 2 1))
+         (x-step (if whole-step 0 x-inc))
+         (last-xy (last result))
+         (new-xy (cons (+ x-step (car last-xy)) (+ y-step (cdr last-xy)))))
+        (cn-make-keysig-posns (car pattern) (cdr pattern)
+          (append result (list new-xy)) x-inc))))
+
 #(define (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num)
    "Create the stack of circles (and tonic oval) for the key sig."
-   (define y-posn-recurser
-     (lambda (prev pattern result)
-       (cond
-        ((equal? '() pattern) result)
-        ;; add 2
-        ((equal? (car pattern) prev)
-         (y-posn-recurser (car pattern) (cdr pattern)
-           (append result (list (+ (last result) 2)))))
-        ;; add 1
-        (else
-         (y-posn-recurser (car pattern) (cdr pattern)
-           (append result (list (+ (last result) 1))))))))
-
    (let*
-    ((raw-pattern (take (drop
-                         '(#t #t #t #f #f #f #f #t #t #t #f #f #f #f)
-                         mode) 7))
+    ((raw-pattern (take (drop '(#t #t #t #f #f #f #f #t #t #t #f #f #f #f) mode) 7))
      (raw-first-item (list-ref raw-pattern 0))
      ;; invert raw-pattern if needed, so that the first item is
      ;; #t for black tonic and #f for white tonic
@@ -359,21 +357,24 @@
                   (map not raw-pattern)
                   raw-pattern))
      (first-item (list-ref pattern 0))
+     (x-inc (if (and (pair? alt-list) (positive? (cdr (car alt-list)))) -0.6 0.6))
 
-     (xposns (map (lambda (n) (if (equal? n first-item) 0 0.6)) pattern))
-     (raw-yposns (y-posn-recurser (car pattern) (cdr pattern) '(0)))
-     (yposns (map (lambda (p) (* p note-space)) raw-yposns))
+     (raw-posns (cn-make-keysig-posns (car pattern) (cdr pattern) '((0 . 0)) x-inc))
+     (posns-b (map (lambda (p) (cons (car p) (* (cdr p) note-space))) raw-posns))
+
+     (posns (if (negative? x-inc)
+                (map (lambda (p) (cons (+ 1.2 (car p)) (cdr p))) posns-b)
+                posns-b))
+
 
      (black-dot (make-circle-stencil 0.3 0.001 #t))
      (white-dot (make-circle-stencil 0.25 0.15 #f))
 
-     (stack-list (map (lambda (x y bw)
-                        (ly:stencil-translate
-                         (if bw black-dot white-dot)
-                         (cons x y)))
-                   xposns yposns pattern))
+     (stack-list (map (lambda (xy bw)
+                        (ly:stencil-translate (if bw black-dot white-dot) xy))
+                   posns pattern))
 
-     ;; alterations - convert alt-list to relative tonic = 0 basis
+     ;; add alterations - convert alt-list to a relative basis, tonic = 0, etc.
      (relative-alt-list (map (lambda (n)
                                (cons (modulo (- (car n) tonic-num) 7) (cdr n))) alt-list))
      (full-alt-list (map (lambda (n)
@@ -385,18 +386,18 @@
      (flat-line (ly:stencil-translate-axis
                  (make-connected-path-stencil '((-0.7  0.7)) 0.2 1 1 #f #f)
                  0.2 Y))
-     (alt-stack-list (map (lambda (stil alt y)
+     (alt-stack-list (map (lambda (stil alt xy)
                             (cond
                              ((equal? alt -1/2)
                               (ly:stencil-combine-at-edge stil X -1
-                                (ly:stencil-translate-axis flat-line y Y)
+                                (ly:stencil-translate flat-line xy)
                                 -0.2))
                              ((equal? alt 1/2)
                               (ly:stencil-combine-at-edge stil X -1
-                                (ly:stencil-translate-axis sharp-line y Y)
+                                (ly:stencil-translate sharp-line xy)
                                 -0.2))
                              (else stil)))
-                       stack-list full-alt-list yposns)))
+                       stack-list full-alt-list posns)))
     (fold ly:stencil-add empty-stencil alt-stack-list)))
 
 #(define (cn-draw-keysig grob context)
@@ -429,9 +430,13 @@
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
      (stack (ly:stencil-translate-axis raw-stack vert-adj Y)))
     ;; shift the sig to the right for better spacing
+    (ly:stencil-translate-axis stack 0 X))
+   #!
     (if (> mode 2)
         (ly:stencil-translate-axis stack 0.35 X)
-        (ly:stencil-translate-axis stack 0.9 X))))
+        (ly:stencil-translate-axis stack 0.9 X))
+   !#
+   )
 
 #(define Cn_key_signature_engraver
    ;; Clairnote's staff definition has printKeyCancellation = ##f, which
@@ -456,6 +461,8 @@
 
          (ly:grob-set-property! grob 'stencil
            (ly:stencil-scale key-sig-stil mult mult))
+         (ly:grob-set-property! grob 'X-extent
+           (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
          )))))))
 
 
