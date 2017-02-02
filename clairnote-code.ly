@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140520 (2014 May 20)
+%    Version: 20140523 (2014 May 23)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -39,73 +39,75 @@
 
 #(define (clnt-note-heads cfill xmod ymod)
    (lambda (grob)
-     (let*
-      ((fsz  (ly:grob-property grob 'font-size 0.0))
-       (mult (magstep fsz))
+     ;; make sure \omit is not in effect (i.e. stencil is not #f)
+     (if (ly:grob-property grob 'stencil)
+         (let*
+          ((fsz  (ly:grob-property grob 'font-size 0.0))
+           (mult (magstep fsz))
 
-       (ptch (ly:event-property (event-cause grob) 'pitch))
-       (semi (ly:pitch-semitones ptch))
-       (note-type (modulo (+ semi cfill) 2))
-       (dur-log (ly:grob-property grob 'duration-log))
-       (whole-note (if (< dur-log 1) #t #f))
+           (ptch (ly:event-property (event-cause grob) 'pitch))
+           (semi (ly:pitch-semitones ptch))
+           (note-type (modulo (+ semi cfill) 2))
+           (dur-log (ly:grob-property grob 'duration-log))
+           (whole-note (if (< dur-log 1) #t #f))
 
-       (notecol (ly:grob-parent grob X))
-       (stm (ly:grob-object notecol 'stem))
-       (ypos (ly:grob-staff-position grob))
-       (fnt (ly:grob-default-font grob)))
+           (notecol (ly:grob-parent grob X))
+           (stm (ly:grob-object notecol 'stem))
+           (ypos (ly:grob-staff-position grob))
+           (fnt (ly:grob-default-font grob)))
 
-      ;; black notes can be rotated to -27, but -18 also works for white notes
-      ;; currently -9, half of -18
-      (if (not whole-note)
-          (ly:grob-set-property! grob 'rotation '(-9 0 0)))
+          ;; black notes can be rotated to -27, but -18 also works for white notes
+          ;; currently -9, half of -18
+          (if (not whole-note)
+              (ly:grob-set-property! grob 'rotation '(-9 0 0)))
 
-      ;; Note Heads
-      (ly:grob-set-property! grob 'stencil
-        (ly:stencil-scale
-         (case note-type
-           ;; white note
-           ((0) (if whole-note
-                    ;; white whole note
-                    ;; thicken top and bottom using an oval path so no white space shows
-                    ;; through above and below staff lines for hollow whole notes
-                    (ly:stencil-add
-                     (ly:stencil-translate
-                      (make-oval-stencil 0.7 0.58 0.11 #f)
-                      '(0.98 . 0))
-                     (ly:font-get-glyph fnt "noteheads.s0"))
-                    ;; white non-whole note
-                    ;; scale hollow note heads horizontally so they match solid ones
-                    (ly:stencil-scale
-                     (ly:font-get-glyph fnt "noteheads.s1")
-                     0.945 1)))
-           ;; black note
-           ((1) (if whole-note
-                    ;; black whole note
-                    ;; add a little black circle to make solid whole notes
-                    (ly:stencil-add
-                     (ly:font-get-glyph fnt "noteheads.s0")
-                     (ly:stencil-translate (make-circle-stencil 0.47 0.1 #t) '(0.95 . 0)))
-                    ;; black non-whole note
-                    (ly:font-get-glyph fnt "noteheads.s2"))))
-         (* xmod mult)
-         (* ymod mult)))
+          ;; Note Heads
+          (ly:grob-set-property! grob 'stencil
+            (ly:stencil-scale
+             (case note-type
+               ;; white note
+               ((0) (if whole-note
+                        ;; white whole note
+                        ;; thicken top and bottom using an oval path so no white space shows
+                        ;; through above and below staff lines for hollow whole notes
+                        (ly:stencil-add
+                         (ly:stencil-translate
+                          (make-oval-stencil 0.7 0.58 0.11 #f)
+                          '(0.98 . 0))
+                         (ly:font-get-glyph fnt "noteheads.s0"))
+                        ;; white non-whole note
+                        ;; scale hollow note heads horizontally so they match solid ones
+                        (ly:stencil-scale
+                         (ly:font-get-glyph fnt "noteheads.s1")
+                         0.945 1)))
+               ;; black note
+               ((1) (if whole-note
+                        ;; black whole note
+                        ;; add a little black circle to make solid whole notes
+                        (ly:stencil-add
+                         (ly:font-get-glyph fnt "noteheads.s0")
+                         (ly:stencil-translate (make-circle-stencil 0.47 0.1 #t) '(0.95 . 0)))
+                        ;; black non-whole note
+                        (ly:font-get-glyph fnt "noteheads.s2"))))
+             (* xmod mult)
+             (* ymod mult)))
 
-      ;; for testing
-      ;; (ly:grob-set-property! grob 'color (case note-type ((0) red) ((1) blue)))
+          ;; for testing
+          ;; (ly:grob-set-property! grob 'color (case note-type ((0) red) ((1) blue)))
 
-      ;; Stem Attachment
-      (ly:grob-set-property! grob 'stem-attachment
-        (if (= (remainder (abs semi) 2) 1)
-            ;; white notes: f g a b c# d#
-            (cons 1.06  0.3)
-            ;; black notes: c d e f# g# a#
-            (cons 1.04 0.3))))))
+          ;; Stem Attachment
+          (ly:grob-set-property! grob 'stem-attachment
+            (if (= (remainder (abs semi) 2) 1)
+                ;; white notes: f g a b c# d#
+                (cons 1.06  0.3)
+                ;; black notes: c d e f# g# a#
+                (cons 1.04 0.3)))))))
 
 
 %% STEM LENGTH AND DOUBLE STEMS
-% lengthen all stems and give half notes double stems
 
 #(define ((clnt-stems mult) grob)
+   "Lengthen all stems and give half notes double stems."
    ;; multiply each of the values in the details property of the stem grob
    ;; by mult, except for stem-shorten values which remain unchanged
    (ly:grob-set-property! grob 'details
@@ -122,7 +124,10 @@
       (ly:grob-property grob 'details)))
    ;; double stems for half notes
    ;; use -0.42 or 0.15 to change which side the 2nd stem appears
-   (if (= 1 (ly:grob-property grob 'duration-log))
+   (if (and
+        (= 1 (ly:grob-property grob 'duration-log))
+        ;; make sure \omit is not in effect (i.e. stencil is not #f)
+        (ly:grob-property grob 'stencil))
        (ly:grob-set-property! grob 'stencil
          (ly:stencil-combine-at-edge
           (ly:stem::print grob)
@@ -208,6 +213,7 @@
         (pitch (ly:event-property (event-cause note-head) 'pitch))
         (semi (ly:pitch-semitones pitch))
         (semi-modulo (modulo semi 12))
+        (stl (ly:grob-property grob 'stencil))
 
         ;; key-sig is an association list of sharps or flats in the key.
         ;; Example: D major = ((0 . 1/2) (3 . 1/2))
@@ -247,27 +253,32 @@
 
        (cond
         ;; 1. is an accidental and a new accidental in this measure
+        ;; and has not been omitted (stencil is not #f)
         ;; print sign and add accidental to clnt-acc-list
         ((and
           (not in-the-key)
-          (not (equal? (cons semi acc) (assoc semi acc-list))))
+          (not (equal? (cons semi acc) (assoc semi acc-list)))
+          stl)
          (clnt-redo-acc-signs grob acc mult)
          (ly:context-set-property! context 'clnt-acc-list
            (assoc-set! acc-list semi acc)))
 
         ;; 2. is not an accidental but is canceling a previous accidental in this measure
+        ;; and has not been omitted (stencil is not #f)
         ;; (semi is in acc-list (assoc-ref doesn't return #f) but the acc doesn't match)
         ;; print sign and remove accidental from the acc-list
         ((and
           in-the-key
           (assoc semi acc-list)
-          (not (equal? acc (assoc-ref semi acc-list))))
+          (not (equal? acc (assoc-ref semi acc-list)))
+          stl)
          (clnt-redo-acc-signs grob acc mult)
          (ly:context-set-property! context 'clnt-acc-list
            (assoc-remove! acc-list semi)))
 
         ;; 3. is an accidental but not a new accidental in this measure
         ;; 4. is not an accidental and is not canceling a previous accidental
+        ;; 5. \omit is in effect (stencil is #f)
         ;; print no acc sign
         ;; TODO: make sure this does not affect ledger line widths
         (else
@@ -308,6 +319,9 @@
         (mult (magstep (ly:grob-property grob 'font-size 0.0))))
 
        (cond
+        ;; 0. \omit is in effect (stencil === #f), do nothing
+        ((not (ly:grob-property grob 'stencil))
+         #f)
         ;; 1. if key stencil is already in key-stils use that
         ((ly:stencil? stil)
          (ly:grob-set-property! grob 'stencil (ly:stencil-scale stil mult mult)))
@@ -869,6 +883,23 @@ clefsTrad =
 #(add-bar-glyph-print-procedure ":" clnt-repeat-dot-bar-procedure)
 
 
+%% USER STAFF SCALING FUNCTION
+
+staffSize =
+#(define-music-function (parser location new-size) (number?)
+   "Helper macro that lets the user zoom a single staff size."
+   ;; TODO: this does not work perfectly combined with vertScaleStaff
+   ;; see especially key signatures and time signatures
+   #{
+     \set fontSize = #new-size
+     \override StaffSymbol.thickness = #(magstep new-size)
+     \override StaffSymbol.staff-space =
+     #(lambda (grob)
+        (* 7/12 (magstep new-size)
+          (ly:grob-property grob 'clnt-vscale-staff)))
+   #})
+
+
 %% CUSTOM GROB PROPERTIES
 
 % function from "scm/define-grob-properties.scm" (modified)
@@ -928,23 +959,6 @@ vertScaleStaff =
      % stores the vertical staff scaling value so it can be used with
      % key signatures and staffSize function
      \override StaffSymbol.clnt-vscale-staff = #vscale-staff
-   #})
-
-
-%% USER STAFF SCALING FUNCTION
-
-staffSize =
-#(define-music-function (parser location new-size) (number?)
-   "Helper macro that lets the user zoom a single staff size."
-   ;; TODO: this does not work perfectly combined with vertScaleStaff
-   ;; see especially key signatures and time signatures
-   #{
-     \set fontSize = #new-size
-     \override StaffSymbol.thickness = #(magstep new-size)
-     \override StaffSymbol.staff-space =
-     #(lambda (grob)
-        (* 7/12 (magstep new-size)
-          (ly:grob-property grob 'clnt-vscale-staff)))
    #})
 
 
