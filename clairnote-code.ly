@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151019
+%    Version: 20151020
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -40,25 +40,11 @@
    "Takes a note head grob and returns its semitone."
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
-#(define (cn-staff-symbol-property prop default grob)
-   "Takes a grob @var{grob}, a symbol @var{prop}, and
-    a @var{default} value. Returns that custom StaffSymbol
-    property or silently falls back to the default value."
-   (define staff-sym (ly:grob-object grob 'staff-symbol))
-   (if (ly:grob? staff-sym)
-       (ly:grob-property staff-sym prop)
-       default))
-
-#(define (cn-get-base-staff-space grob)
-   "Takes a grob and returns the custom StaffSymbol property
-    cn-base-staff-space.  Silently falls back to the default of 0.75."
-   (cn-staff-symbol-property 'cn-base-staff-space 0.75 grob))
-
-#(define (cn-magnification grob)
+#(define (cn-magnification grob context)
    "Return the current magnification (from magnifyStaff, etc.)
-    as the ratio of actual staff-space over cn-base-staff-space."
+    as the ratio of actual staff-space over cnBaseStaffSpace."
    (/ (ly:staff-symbol-staff-space grob)
-     (cn-get-base-staff-space grob)))
+     (ly:context-property context 'cnBaseStaffSpace)))
 
 #(if (not (defined? 'grob::name))
      ;; TODO: Delete this after we stop supporting LilyPond 2.18
@@ -113,72 +99,70 @@
       (closepath))))
 
 #(define Cn_note_heads_engraver
-   (lambda (context)
-     ;; Customizes stencil, stem-attachment, rotation.
-     (make-engraver
-      (acknowledgers
-       ((note-head-interface engraver grob source-engraver)
-        ;; make sure \omit is not in effect (i.e. stencil is not #f)
-        ;; and do nothing for certain notehead styles
-        (if
-         (and
-          (ly:grob-property-data grob 'stencil)
-          (not (memq (ly:grob-property-data grob 'style)
-                 (list 'harmonic 'harmonic-black 'harmonic-mixed
-                   'diamond 'cross 'xcircle 'triangle 'slash))))
-         ;; TODO: better handling of various notehead styles
-         ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
-         ;; output-lib.scm
-         (let ((black-note (= 0 (modulo (cn-notehead-semitone grob) 2))))
-           (if (< (ly:grob-property grob 'duration-log) 1)
+   ;; Customizes stencil, stem-attachment, rotation.
+   (make-engraver
+    (acknowledgers
+     ((note-head-interface engraver grob source-engraver)
+      ;; make sure \omit is not in effect (i.e. stencil is not #f)
+      ;; and do nothing for certain notehead styles
+      (if
+       (and
+        (ly:grob-property-data grob 'stencil)
+        (not (memq (ly:grob-property-data grob 'style)
+               (list 'harmonic 'harmonic-black 'harmonic-mixed
+                 'diamond 'cross 'xcircle 'triangle 'slash))))
+       ;; TODO: better handling of various notehead styles
+       ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
+       ;; output-lib.scm
+       (let ((context (ly:translator-context engraver))
+             (black-note (= 0 (modulo (cn-notehead-semitone grob) 2))))
 
-               ;; whole note
-               (let ((mag (cn-magnification grob)))
-                 (ly:grob-set-property! grob 'stencil
-                   (if black-note
-                       (ly:stencil-scale
-                        (grob-interpret-markup grob
-                          (markup (#:override '(filled . #t)
-                                    (#:path 0.0001 cn-whole-note-black))))
-                        mag mag)
-                       (ly:stencil-scale
-                        (grob-interpret-markup grob
-                          (markup (#:override '(filled . #t)
-                                    (#:path 0.0001 cn-whole-note-white))))
-                        mag mag))))
+         (if (< (ly:grob-property grob 'duration-log) 1)
 
-               ;; not whole note
-               (let ((font (ly:grob-default-font grob))
-                     (width-scale (ly:context-property context 'cnNoteheadWidthScale 1))
-                     (style (ly:context-property context 'cnNoteheadStyle "lilypond")))
+             ;; whole note
+             (let ((mag (cn-magnification grob context))
+                   (wn-path (if black-note
+                                cn-whole-note-black
+                                cn-whole-note-white)))
+               (ly:grob-set-property! grob 'stencil
+                 (ly:stencil-scale
+                  (grob-interpret-markup grob
+                    (markup (#:override '(filled . #t)
+                              (#:path 0.0001 wn-path))))
+                  mag mag)))
 
-                 (if (equal? style "funksol")
+             ;; not whole note
+             (let ((font (ly:grob-default-font grob))
+                   (width-scale (ly:context-property context 'cnNoteheadWidthScale 1))
+                   (style (ly:context-property context 'cnNoteheadStyle "lilypond")))
 
-                     ;; funk sol note heads
-                     (ly:grob-set-property! grob 'stencil
-                       (if black-note
-                           (ly:font-get-glyph font "noteheads.s2solFunk")
-                           (ly:font-get-glyph font "noteheads.s1solFunk")))
+               (if (equal? style "funksol")
 
-                     ;; standard style "lilypond" (emmentaler font) note heads
-                     (begin
-                      (ly:grob-set-property! grob 'stencil
-                        (if black-note
-                            (ly:font-get-glyph font "noteheads.s2")
-                            ;; white notes are scaled horizontally to match black ones
-                            (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
-                      ;; black notes can be rotated as far as -27,
-                      ;; but -18 also works for white notes, currently -9
-                      (ly:grob-set-property! grob 'rotation '(-9 0 0))
-                      (ly:grob-set-property! grob 'stem-attachment
-                        (if black-note
-                            (cons 1.04 0.3)
-                            (cons 1.06  0.3)))))
+                   ;; funk sol note heads
+                   (ly:grob-set-property! grob 'stencil
+                     (if black-note
+                         (ly:font-get-glyph font "noteheads.s2solFunk")
+                         (ly:font-get-glyph font "noteheads.s1solFunk")))
 
-                 (if (not (= 1 width-scale))
-                     (ly:grob-set-property! grob 'stencil
-                       (ly:stencil-scale (ly:grob-property grob 'stencil) width-scale 1)))
-                 )))))))))
+                   ;; standard style "lilypond" (emmentaler font) note heads
+                   (begin
+                    (ly:grob-set-property! grob 'stencil
+                      (if black-note
+                          (ly:font-get-glyph font "noteheads.s2")
+                          ;; white notes are scaled horizontally to match black ones
+                          (ly:stencil-scale (ly:font-get-glyph font "noteheads.s1") 0.945 1)))
+                    ;; black notes can be rotated as far as -27,
+                    ;; but -18 also works for white notes, currently -9
+                    (ly:grob-set-property! grob 'rotation '(-9 0 0))
+                    (ly:grob-set-property! grob 'stem-attachment
+                      (if black-note
+                          (cons 1.04 0.3)
+                          (cons 1.06  0.3)))))
+
+               (if (not (= 1 width-scale))
+                   (ly:grob-set-property! grob 'stencil
+                     (ly:stencil-scale (ly:grob-property grob 'stencil) width-scale 1)))
+               ))))))))
 
 
 %% DOTS ON DOTTED NOTES
@@ -238,12 +222,10 @@
   (set! cn-double-sharp-sign (draw-double-acc-sign cn-sharp-sign))
   (set! cn-double-flat-sign (draw-double-acc-sign cn-flat-sign)))
 
-
-#(define (cn-redo-acc-sign grob alt)
+#(define (cn-redo-acc-sign grob mag alt)
    "Replaces the accidental sign stencil."
    (let*
-    ((mag (cn-magnification grob))
-     (stil
+    ((stil
       (case alt
         ((-1/2) cn-flat-sign)
         ((1/2) cn-sharp-sign)
@@ -280,22 +262,19 @@
    (let
     ((note (ly:pitch-notename pitch))
      (alt (ly:pitch-alteration pitch)))
-    ;; is the note-and-alt-pair in the key sig?
-    (if (equal? (cons note alt) (assoc note key-sig))
-        ;; yes --> #t sharp/flat in key sig
-        #t
-        ;; no, is alt a sharp or flat (i.e. not a natural)?
-        (if (not (equal? 0 alt))
-            ;; yes --> #f sharp/flat not in key sig
-            #f
-            ;; no, is note (disregarding its alt) in the key sig?
-            (if (assoc-ref key-sig note)
-                ;; yes --> #f natural not in key sig
-                #f
-                ;; no --> #t natural in key sig
-                #t)))))
+    (cond
+     ;; 1. sharp or flat, in the key sig. (note-alt pair in key-sig)
+     ((equal? (cons note alt) (assoc note key-sig)) #t)
+     ;; 2. sharp or flat, not in key sig. (alt is sharp or flat)
+     ((not (equal? 0 alt)) #f)
+     ;; 3. not sharp or flat, not in the key sig. (note is in key-sig, alt is not)
+     ((assoc-ref key-sig note) #f)
+     ;; 4. not sharp or flat, in the key sig.
+     (else #t))))
 
 #(define Cn_accidental_engraver
+   ;; context has to be accessed like this (and not with
+   ;; ly:translator-context) for accidentals to be tracked per staff
    ;; using a closure for persistent barnum and alt-list (alteration list)
    (lambda (context)
      (let ((barnum 0)
@@ -319,42 +298,37 @@
               (key-alts
                ;; redo this when we drop support for LilyPond 2.18
                (ly:context-property context
-                 (if (cn-check-ly-version >= '(2 19 7)) 'keyAlterations 'keySignature)
+                 (if (cn-check-ly-version >= '(2 19 7))
+                     'keyAlterations 'keySignature)
                  '()))
               (in-the-key (cn-pitch-in-key pitch key-alts))
               (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
-              (semi-in-alt-list (equal? alt (assoc-ref alt-list semi))))
+              (semi-in-alt-list (equal? alt (assoc-ref alt-list semi)))
+              (mag (cn-magnification grob context)))
              ;;Show an acc sign? Yes: 1,2,3, No: 0,4,5
              (cond
               ;; 0. omit is in effect (stencil is #f)
-              ;; was (ly:grob-suicide! grob) but this led to crashes in 2.18
               ((not stl)
                (ly:grob-suicide! grob))
-              ; '())
-
               ;; 1. new acc: an acc not in the alt-list
               ;; add to alt-list (any previous alt for that semi is replaced)
               ((and (not in-the-key) (not in-alt-list))
-               (cn-redo-acc-sign grob alt)
+               (cn-redo-acc-sign grob mag alt)
                (set! alt-list (assoc-set! alt-list semi alt)))
               ;; 2. cancel acc: in the key, cancels a previous alt in alt-list
               ;; (i.e. semi is in alt-list but the alt does not match)
               ;; remove alt from alt-list
               ((and in-the-key (not in-alt-list) semi-in-alt-list)
-               (cn-redo-acc-sign grob alt)
+               (cn-redo-acc-sign grob mag alt)
                (set! alt-list (assoc-remove! alt-list semi)))
               ;; 3. forced acc: acc wouldn't be shown, but it was forced with !
               ;; no change to alt-list
               ((and (equal? #t (ly:grob-property grob 'forced)))
-               (cn-redo-acc-sign grob alt))
+               (cn-redo-acc-sign grob mag alt))
               ;; 4. is an acc but not a new one in this measure
               ;; 5. is not an acc and is not cancelling previous acc
-              ;; was (ly:grob-suicide! grob) but this led to crashes in 2.18
               ;; TODO: does grob-suicide affect ledger line widths?
-              (else
-               (ly:grob-suicide! grob)
-               ; (ly:grob-set-property! grob 'stencil #f)
-               ))
+              (else (ly:grob-suicide! grob)))
              ))))))))
 
 
@@ -407,11 +381,10 @@
        (if (odd? alt-count) (+ alt-count 6) alt-count)
        12) -12))
 
-#(define (cn-make-keysig-head grob alt-count)
+#(define (cn-make-keysig-head grob mag alt-count)
    "Make sig-head, the acc-sign and number at top of key sig."
    (let*
-    ((mag (cn-magnification grob))
-     (num-scale (/ 0.6 mag))
+    ((num-scale (/ 0.6 mag))
      (acc-scale (/ 0.65 mag))
      (acc (cond
            ((> alt-count 0) cn-sharp-sign)
@@ -440,7 +413,7 @@
        (else (* note-space 11.5)))
      Y)))
 
-#(define (cn-draw-keysig grob tonic-num)
+#(define (cn-draw-keysig grob tonic-num base-staff-space mag)
    "Draws Clairnote key signature stencils."
    (let*
     ((alt-count (cn-get-keysig-alt-count (ly:grob-property grob 'alteration-alist)))
@@ -448,12 +421,12 @@
      ;; number of the mode (0-6)
      (mode (modulo (- tonic-num major-tonic-num) 7))
      ;; the distance between two adjacent notes given vertical staff compression
-     (note-space (* 0.5 (cn-get-base-staff-space grob)))
+     (note-space (* 0.5 base-staff-space))
      (stack (cn-make-keysig-stack mode alt-count note-space))
      ;; position the sig vertically
      (vert-adj (* note-space (cn-get-keysig-vert-pos alt-count)))
      (stack (ly:stencil-translate-axis stack vert-adj Y))
-     (head (cn-make-keysig-head grob alt-count))
+     (head (cn-make-keysig-head grob mag alt-count))
      ;; add the head to the stack
      (head-stack (cn-make-keysig-head-stack head stack alt-count note-space)))
     ;; shift the sig to the right for better spacing
@@ -481,11 +454,14 @@
          ((context (ly:translator-context engraver))
           ;; number of the tonic note (0-6) (C-B) 'tonic (pitch) --> tonic-num
           (tonic-num (ly:pitch-notename (ly:context-property context 'tonic)))
+          (base-staff-space (ly:context-property context 'cnBaseStaffSpace))
+          (mag (cn-magnification grob context))
+          (key-sig-stil (cn-draw-keysig grob tonic-num base-staff-space mag))
           (mult (magstep (ly:grob-property grob 'font-size 0.0))))
+
          (ly:grob-set-property! grob 'stencil
-           (ly:stencil-scale
-            (cn-draw-keysig grob tonic-num)
-            mult mult)))))))))
+           (ly:stencil-scale key-sig-stil mult mult))
+         )))))))
 
 
 %% CHORDS
@@ -739,21 +715,24 @@
 
 #(define (cn-make-colon-bar-line grob extent)
    "A procedure that draws dots (repeat sign dots) at
-    @var{dot-positions}. The coordinates of @var{dot-positions} are
-    the same coordinates as @code{StaffSymbol.line-positions}, a
-    dot-position of X and a line-position of X are equivalent."
+    @code{dot-positions}. The coordinates are the same as
+    @code{StaffSymbol.line-positions}, a dot-position of X
+    is equivalent to a line-position of X."
    (let*
-    ((dot-positions
-      (if (cn-staff-symbol-property 'cn-is-clairnote-staff #t grob) '(-2 2) '(-1 1)))
+    ((staff-sym (ly:grob-object grob 'staff-symbol))
+     (is-clairnote-staff
+      (if (ly:grob? staff-sym)
+          (ly:grob-property staff-sym 'cn-is-clairnote-staff)
+          #t))
+     (dot-positions (if is-clairnote-staff '(-2 2) '(-1 1)))
      (staff-space (ly:staff-symbol-staff-space grob))
-     (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot"))
-     (stencil empty-stencil))
-    (for-each
-     (lambda (dp)
-       (set! stencil (ly:stencil-add stencil
-                       (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y))))
-     dot-positions)
-    stencil))
+     (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
+    (fold
+     (lambda (dp prev)
+       (ly:stencil-add prev
+         (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
+     empty-stencil
+     dot-positions)))
 
 #(add-bar-glyph-print-procedure ":" cn-make-colon-bar-line)
 
@@ -761,16 +740,17 @@
 %% TIME SIGNATURES
 
 #(define Cn_time_signature_engraver
-   ; "Adjust vertical position of time sig based on vertical staff scaling."
+   ;; "Adjust vertical position of time sig based on vertical staff scaling."
    (make-engraver
     (acknowledgers
      ((time-signature-interface engraver grob source-engraver)
       (let*
-       ((base-staff-space (cn-get-base-staff-space grob))
+       ((context (ly:translator-context engraver))
+        (base-staff-space (ly:context-property context 'cnBaseStaffSpace))
         (vscale-staff (* 12/7 base-staff-space))
         (basic-y-offset (* (- vscale-staff 0.9) -2.5))
         ;; adjustment for \magnifyStaff
-        (mag (cn-magnification grob)))
+        (mag (cn-magnification grob context)))
        (ly:grob-set-property! grob 'Y-offset
          (* basic-y-offset mag)))
       ))))
@@ -779,54 +759,54 @@
 %% STEM LENGTH AND DOUBLE STEMS
 
 #(define Cn_stem_engraver
-   (lambda (context)
-     ; "Lengthen all stems and give half notes double stems."
-     (make-engraver
-      (acknowledgers
-       ((stem-interface engraver grob source-engraver)
-        ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
-        ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
-        (if (and (ly:grob-property-data grob 'stencil)
-                 (not (equal? '() (ly:grob-object grob 'note-heads))))
-            (let
-             ((bss-inverse (/ 1 (cn-get-base-staff-space grob))))
-             ;; multiply each of the values in the details property of the stem grob
-             ;; by bss-inverse, except for stem-shorten values
-             (ly:grob-set-property! grob 'details
-               (map
-                (lambda (detail)
-                  (let ((head (car detail))
-                        (args (cdr detail)))
-                    (if (eq? head 'stem-shorten)
-                        (cons head args)
-                        (cons head
-                          (map
-                           (lambda (arg) (* arg bss-inverse))
-                           args)))))
-                (ly:grob-property grob 'details)))
+   ; "Lengthen all stems and give half notes double stems."
+   (make-engraver
+    (acknowledgers
+     ((stem-interface engraver grob source-engraver)
+      ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
+      ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
+      (if (and (ly:grob-property-data grob 'stencil)
+               (not (equal? '() (ly:grob-object grob 'note-heads))))
+          (let*
+           ((context (ly:translator-context engraver))
+            (bss-inverse (/ 1 (ly:context-property context 'cnBaseStaffSpace))))
+           ;; multiply each of the values in the details property of the stem grob
+           ;; by bss-inverse, except for stem-shorten values
+           (ly:grob-set-property! grob 'details
+             (map
+              (lambda (detail)
+                (let ((head (car detail))
+                      (args (cdr detail)))
+                  (if (eq? head 'stem-shorten)
+                      (cons head args)
+                      (cons head
+                        (map
+                         (lambda (arg) (* arg bss-inverse))
+                         args)))))
+              (ly:grob-property grob 'details)))
 
-             ;; double stems for half notes
-             (if (= 1 (ly:grob-property grob 'duration-log))
-                 (let*
-                  ((stem (ly:stem::print grob))
-                   ;; second stem is 1.5 times as thick as standard stem by default
-                   (thick-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
-                   (thick-stem (ly:stencil-scale stem thick-scale 1))
-                   (dir (- (ly:grob-property grob 'direction)))
-                   (stem-extent (ly:stencil-extent stem X))
-                   (stem-width (- (car stem-extent) (cdr stem-extent)))
-                   ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
-                   ;; 4.5 * stem-width = -0.585
-                   (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4.5))
-                   (spacing (* spacing-scale stem-width)))
+           ;; double stems for half notes
+           (if (= 1 (ly:grob-property grob 'duration-log))
+               (let*
+                ((stem (ly:stem::print grob))
+                 ;; second stem is 1.5 times as thick as standard stem by default
+                 (thick-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
+                 (thick-stem (ly:stencil-scale stem thick-scale 1))
+                 (dir (- (ly:grob-property grob 'direction)))
+                 (stem-extent (ly:stencil-extent stem X))
+                 (stem-width (- (car stem-extent) (cdr stem-extent)))
+                 ;; old: use -0.42 or 0.15 to change which side the 2nd stem appears
+                 ;; 4.5 * stem-width = -0.585
+                 (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 4.5))
+                 (spacing (* spacing-scale stem-width)))
 
-                  (ly:grob-set-property! grob 'stencil
-                    (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
-                  ;; X-extent needs to be set here because its usual callback
-                  ;; ly:stem::width doesn't take the actual stencil width into account
-                  (ly:grob-set-property! grob 'X-extent
-                    (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
-                  )))))))))
+                (ly:grob-set-property! grob 'stencil
+                  (ly:stencil-combine-at-edge stem X dir thick-stem spacing))
+                ;; X-extent needs to be set here because its usual callback
+                ;; ly:stem::width doesn't take the actual stencil width into account
+                (ly:grob-set-property! grob 'X-extent
+                  (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
+                ))))))))
 
 
 %% BEAMS
@@ -837,8 +817,9 @@
     (acknowledgers
      ((beam-interface engraver grob source-engraver)
       (let*
-       ((base-staff-space-inverse
-         (/ 1 (cn-get-base-staff-space grob)))
+       ((context (ly:translator-context engraver))
+        (base-staff-space-inverse
+         (/ 1 (ly:context-property context 'cnBaseStaffSpace)))
         (thick (ly:grob-property-data grob 'beam-thickness))
         (len-frac (ly:grob-property-data grob 'length-fraction))
         (space (if (number? len-frac) len-frac 1)))
@@ -911,14 +892,15 @@ cnExtendStaff =
   #{
     \context Staff \applyContext
     #(lambda (context)
-       (let*
-        ((grob-def (ly:context-grob-definition context 'StaffSymbol))
-         (current-lines (ly:assoc-get 'line-positions grob-def '(-8 -4 4 8)))
-         ;; base is '(-8 -4) for Clairnote
-         (base-lines (ly:context-property context 'cnBaseStaffLines))
-         (posns (if reset base-lines current-lines))
-         (new-posns (cn-get-new-staff-positions posns base-lines going-up going-down)))
-        (ly:context-pushpop-property context 'StaffSymbol 'line-positions new-posns)))
+       (if (not (equal? 'TradStaff (ly:context-name context)))
+           (let*
+            ((grob-def (ly:context-grob-definition context 'StaffSymbol))
+             (current-lines (ly:assoc-get 'line-positions grob-def '(-8 -4 4 8)))
+             ;; base is '(-8 -4) for Clairnote
+             (base-lines (ly:context-property context 'cnBaseStaffLines))
+             (posns (if reset base-lines current-lines))
+             (new-posns (cn-get-new-staff-positions posns base-lines going-up going-down)))
+            (ly:context-pushpop-property context 'StaffSymbol 'line-positions new-posns))))
     \stopStaff
     \startStaff
   #})
@@ -947,7 +929,7 @@ cnStaffCompression =
     (ly:message "Clairnote: custom staff compression of ~a will produce octaves ~a times the size of octaves in traditional notation; adjacent note heads (a semitone apart) will overlap by about ~a of their height."
       ss trad-octave notehead-overlap)
     #{
-      \override Staff.StaffSymbol.cn-base-staff-space = #ss
+      \set Staff.cnBaseStaffSpace = #ss
       \override Staff.StaffSymbol.staff-space = #ss
     #}))
 
@@ -977,6 +959,11 @@ cnNoteheadWidth =
    (set! all-translation-properties (cons symbol all-translation-properties))
    symbol)
 
+% Stores the base staff-space to store the vertical compression of the
+% Clairnote staff. The actual staff-space may differ with \magnifyStaff, etc.
+% Stem and beam size, time sig and key sig position, etc. depend on it.
+#(cn-translator-property-description 'cnBaseStaffSpace positive?)
+
 % Stores the base staff line positions used for extending the staff
 % up or down. See cnExtendStaff function.
 #(cn-translator-property-description 'cnBaseStaffLines list?)
@@ -1001,17 +988,12 @@ cnNoteheadWidth =
 % StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
 #(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
 
-% StaffSymbol.cn-base-staff-space stores the base staff space
-% given the vertical compression of the Clairnote staff. The actual
-% staff-space may differ from cn-base-staff-space, with \magnifyStaff, etc.
-#(cn-define-grob-property 'cn-base-staff-space positive?)
-
 
 %% STAFF CONTEXT DEFINITION
 
 \layout {
-  % copy \Staff context with its standard settings to
-  % a custom staff context called \TradStaff
+  % copy Staff context with its standard settings to
+  % a custom staff context called TradStaff
   \context {
     \Staff
     \name TradStaff
@@ -1031,7 +1013,7 @@ cnNoteheadWidth =
     \override SystemStartBar.collapse-height = #9
   }
 
-  % customize \Staff to make it a Clairnote staff
+  % customize Staff context to make it a Clairnote staff
   \context {
     \Staff
 
@@ -1046,13 +1028,14 @@ cnNoteheadWidth =
     \numericTimeSignature
 
     % custom context properties
+    cnBaseStaffSpace = #0.75
     cnBaseStaffLines = #'(-8 -4)
     cnDoubleStemSpacing = #4.5
     cnDoubleStemWidthScale = #1.5
     cnNoteheadStyle = "lilypond"
     cnNoteheadWidthScale = #1
 
-    % custom grob property overrides
+    % grob property overrides
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
@@ -1069,12 +1052,6 @@ cnNoteheadWidth =
     % Adjacent note heads overlap by 0.625 (5/8).
     \override StaffSymbol.staff-space = #0.75
 
-    % Custom grob property that stores the base staff-space, encoding
-    % the vertical compression of the Clairnote staff. It may differ from
-    % the actual staff-space which is scaled by \magnifyStaff etc.
-    % Stem and beam size, time sig and key sig position depend on it.
-    \override StaffSymbol.cn-base-staff-space = #0.75
-
     % custom engravers
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
@@ -1083,8 +1060,10 @@ cnNoteheadWidth =
     \consists \Cn_note_column_engraver
     \consists \Cn_stem_engraver
     \consists \Cn_beam_engraver
+
     #(if (cn-check-ly-version < '(2 19 18))
          #{ \with { \consists \Cn_dots_engraver } #})
+
     % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
     % Probably because accidentals can trigger ly:grob-suicide! on accidental grobs,
     % which seems to be the source of the problem.
