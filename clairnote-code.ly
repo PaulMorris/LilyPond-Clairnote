@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150307
+%    Version: 20150315
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for five functions:
 %    A. two functions copied and modified from LilyPond source code:
@@ -909,6 +909,64 @@ staffSize =
      #(lambda (grob)
         (* 7/12 (magstep new-size) (ly:grob-property grob 'cn-vscale-staff)))
    #})
+
+
+%% USER STAFF EXTENSION FUNCTIONS
+
+cn-extend-staff =
+#(lambda (upwards)
+   ;; upwards is a boolean
+   (lambda (grob)
+     (let*
+      ((positions (sort (ly:grob-property grob 'line-positions) <))
+       (furthest (if upwards
+                     (last positions)
+                     (first positions)))
+       (new-positions
+        (if upwards
+            ;; extendStaffUp
+            (append positions (list (+ 8 furthest) (+ 12 furthest)))
+            ;; extendStaffDown
+            (append (list (+ -12 furthest) (+ -8 furthest)) positions))))
+      (ly:grob-set-property! grob 'line-positions new-positions))))
+
+extendStaffUp = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #t)
+}
+
+extendStaffDown = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.before-line-breaking = #(cn-extend-staff #f)
+}
+
+unextendStaff = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.before-line-breaking = #'()
+}
+
+
+%% USER SHORTCUTS FOR DIFFERENT STAFF CONFIGURATIONS
+
+oneOctaveStaff = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.line-positions = #'(-8 -4)
+}
+
+twoOctaveStaff = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.line-positions = #'(-8 -4 4 8)
+}
+
+threeOctaveStaff = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.line-positions = #'(-20 -16 -8 -4 4 8)
+}
+
+fourOctaveStaff = {
+  \stopStaff \startStaff
+  \override Staff.StaffSymbol.line-positions = #'(-20 -16 -8 -4 4 8 16 20)
+}
 
 
 %% CUSTOM GROB PROPERTIES
