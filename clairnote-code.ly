@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20151004
+%    Version: 20151006
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -24,6 +24,8 @@
 
 
 %% UTILITY FUNCTIONS
+
+#(define (non-zero? n) (or (positive? n) (negative? n)))
 
 #(define (cn-notehead-pitch grob)
    "Takes a note head grob and returns its pitch."
@@ -959,9 +961,9 @@ cnNoteheadWidth =
 #(cn-define-grob-property 'cn-is-clairnote-staff boolean?)
 
 % StaffSymbol.cn-base-staff-space stores the base staff space
-% given the vertical compression of the Clairnote staff, which
-% may differ from the actual staff-space, with \magnifyStaff, etc.
-#(cn-define-grob-property 'cn-base-staff-space number?)
+% given the vertical compression of the Clairnote staff. The actual
+% staff-space may differ from cn-base-staff-space, with \magnifyStaff, etc.
+#(cn-define-grob-property 'cn-base-staff-space positive?)
 
 % VerticalAxisGroup.cn-current-staff-lines stores the current staff line positions.
 % Stored in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
@@ -976,11 +978,11 @@ cnNoteheadWidth =
 % StaffSymbol property for note head style, "funksol" or "lilypond".
 #(cn-define-grob-property 'cn-notehead-style string?)
 % StaffSymbol property for scaling width of note heads (no affect on whole notes).
-#(cn-define-grob-property 'cn-notehead-width-scale number?)
+#(cn-define-grob-property 'cn-notehead-width-scale non-zero?)
 
 % StaffSymbol properties for double stems for half notes.
 #(cn-define-grob-property 'cn-double-stem-spacing number?)
-#(cn-define-grob-property 'cn-double-stem-thickness number?)
+#(cn-define-grob-property 'cn-double-stem-thickness non-zero?)
 
 
 %% STAFF CONTEXT DEFINITION
@@ -996,11 +998,16 @@ cnNoteheadWidth =
     \override StaffSymbol.cn-is-clairnote-staff = ##f
   }
   % allow parent contexts to accept \TradStaff
-  \context { \Score \accepts TradStaff }
   \context { \ChoirStaff \accepts TradStaff }
   \context { \GrandStaff \accepts TradStaff }
   \context { \PianoStaff \accepts TradStaff }
   \context { \StaffGroup \accepts TradStaff }
+  \context {
+    \Score
+    \accepts TradStaff
+    % prevents barlines at start of single system from being shown
+    \override SystemStartBar.collapse-height = #9
+  }
 
   % customize \Staff to make it a Clairnote staff
   \context {
