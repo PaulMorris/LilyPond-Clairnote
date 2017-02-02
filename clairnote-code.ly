@@ -1,7 +1,7 @@
 %
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20140420 (2014 April 20)
+%    Version: 20140422 (2014 April 22)
 %
 %    Copyright © 2013, 2014 Paul Morris, except for three functions
 %    that are in the public domain: shift-noteheads, setOtherScriptParent,
@@ -745,16 +745,32 @@ staffSize =
    #})
 
 
-%% CLAIRNOTE STAFF DEFINITION
+%% CLAIRNOTE STAFF DEFINITIONS
 
 \layout {
+
+  % copy \Staff with its standard settings to a custom
+  % staff context called \StaffTrad
   \context {
     \Staff
-    \name StaffClairnote
+    \name StaffTrad
     \alias Staff
+  }
+
+  % allow parent contexts to accept \StaffTrad
+  \context { \Score \accepts StaffTrad }
+  \context { \ChoirStaff \accepts StaffTrad }
+  \context { \GrandStaff \accepts StaffTrad }
+  \context { \PianoStaff \accepts StaffTrad }
+  \context { \StaffGroup \accepts StaffTrad }
+
+  % customize \Staff to make it a Clairnote staff
+  \context {
+    \Staff
     staffLineLayoutFunction = #ly:pitch-semitones
     middleCPosition = -12
     clefPosition = -5
+
     \override StaffSymbol.line-positions = #'(-8 -4  4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override StaffSymbol.ledger-extra = 1
@@ -773,26 +789,20 @@ staffSize =
 
     \override NoteColumn.before-line-breaking = #chord-handler
     \numericTimeSignature
-
-    % currently not used:
-    % \consists \Clairnote_clef_engraver
   }
-  \context { \Score \accepts StaffClairnote }
-  \context { \ChoirStaff \accepts StaffClairnote }
-  \context { \GrandStaff \accepts StaffClairnote }
-  \context { \PianoStaff \accepts StaffClairnote }
-  \context { \StaffGroup \accepts StaffClairnote }
 }
 
+% to prevent logging errors, also allow parent contexts
+% to accept \StaffTrad in midi output.
 \midi {
   \context {
     \Staff
-    \name StaffClairnote
+    \name StaffTrad
     \alias Staff
   }
-  \context { \Score \accepts StaffClairnote }
-  \context { \ChoirStaff \accepts StaffClairnote }
-  \context { \GrandStaff \accepts StaffClairnote }
-  \context { \PianoStaff \accepts StaffClairnote }
-  \context { \StaffGroup \accepts StaffClairnote }
+  \context { \Score \accepts StaffTrad }
+  \context { \ChoirStaff \accepts StaffTrad }
+  \context { \GrandStaff \accepts StaffTrad }
+  \context { \PianoStaff \accepts StaffTrad }
+  \context { \StaffGroup \accepts StaffTrad }
 }
