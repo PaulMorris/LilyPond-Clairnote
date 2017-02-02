@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150326
+%    Version: 20150331
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for:
 %    A. functions copied and modified from LilyPond source code:
@@ -503,93 +503,170 @@
 
 % see /scm/parser-clef.scm
 
-#(define* (set-clairnote-clefs #:optional trad-settings)
-   "Set clef settings for clairnote staff when trad-settings = #f (or omitted) or
-    for traditional staff when trad-settings = #t. (c0-position is middle c position)
-    add-new-clef args: clef-name clef-glyph clef-position octavation c0-position"
-   ;; To calculate the middle c position subtract the clef position
-   ;; from 12 for bass clef or -12 for treble clef (to adjust the clef position
-   ;; without affecting the position of middle c or other notes)
-   (for-each
-    (lambda (c)
-      (add-new-clef
-       (list-ref c 0) (list-ref c 1) (list-ref c 2) (list-ref c 3) (list-ref c 4)))
-    (if (not trad-settings)
-        ;; clairnote clef settings
-        '(("treble" "clefs.G" -5 0 -7) ;; -7 = -12 minus -5
-           ("G" "clefs.G" -5 0 -7) ;; treble synonym
-           ("G2" "clefs.G" -5 0 -7) ;; treble synonym
-           ("violin" "clefs.G" -5 0 -7) ;; treble synonym
-           ("bass" "clefs.F" 5 0 7) ;; 7 = 12 minus 5
-           ("F" "clefs.F" 5 0 7) ;; bass synonym
-           ("tenor" "clefs.C" 0 0 0) ;; => alto
-           ("french" "clefs.G" -5 0 -7) ;; => treble
-           ("soprano" "clefs.G" -5 0 -7) ;; => treble
-           ("mezzosoprano" "clefs.C" 0 0 0) ;; => alto
-           ("baritone" "clefs.F" 5 0 7) ;; => bass
-           ("varbaritone" "clefs.F" 5 0 7) ;; => bass
-           ("subbass" "clefs.F" 5 0 7)) ;; => bass
-        ;; traditional clef settings
-        '(("treble" "clefs.G" -2 0 -4)
-          ("G" "clefs.G" -2 0 -4) ;; treble synonym
-          ("G2" "clefs.G" -2 0 -4) ;; treble synonym
-          ("violin" "clefs.G" -2 0 -4) ;; treble synonym
-          ("bass" "clefs.F" 2 0 4)
-          ("F" "clefs.F" 2 0 4) ;; bass synonym
-          ("tenor" "clefs.C" 2 0 2)
-          ("french" "clefs.G" -4 0 -4)
-          ("soprano" "clefs.C" -4 0 0)
-          ("mezzosoprano" "clefs.C" -2 0 0)
-          ("baritone" "clefs.C" 4 0 0)
-          ("varbaritone" "clefs.F" 0 0 4)
-          ("subbass" "clefs.F" 4 0 4)))))
+% Maintain clairnote clef settings separately from standard settings.
+% To calculate the clairnote middle c position subtract the clef position
+% from 12 for bass clef or -12 for treble clef (to adjust the clef position
+% without affecting the position of middle c or other notes)
+% No changes are needed for these clefs: alto, C, percussion
+#(define cn-supported-clefs
+   '(("treble" . ("clefs.G" -5 0))
+     ("violin" . ("clefs.G" -5 0)) ;; treble synonym
+     ("G" . ("clefs.G" -5 0)) ;; treble synonym
+     ("G2" . ("clefs.G" -5 0)) ;; treble synonym
+     ;; ("GG" . ("clefs.GG" -2 0))
+     ;; ("tenorG" . ("clefs.tenorG" -2 0))
+     ("french" . ("clefs.G" -5 0)) ;; => treble
+     ("soprano" . ("clefs.G" -5 0)) ;; => treble
+     ("mezzosoprano" . ("clefs.C" 0 0)) ;; => alto
+     ("alto" . ("clefs.C" 0 0)) ;; unchanged
+     ("C" . ("clefs.C" 0 0)) ;; unchanged, alto synonym
+     ;; ("varC" . ("clefs.varC" 0 0))
+     ;; ("altovarC" . ("clefs.varC" 0 0))
+     ("tenor" . ("clefs.C" 0 0)) ;; => alto
+     ;; ("tenorvarC" . ("clefs.varC" 2 0))
+     ("baritone" . ("clefs.F" 5 0)) ;; => bass
+     ;; ("baritonevarC" . ("clefs.varC" 4 0))
+     ("varbaritone" . ("clefs.F" 5 0)) ;; => bass
+     ;; ("baritonevarF" . ("clefs.F" 0 0))
+     ("bass" . ("clefs.F" 5 0))
+     ("F" . ("clefs.F" 5 0)) ;; bass synonym
+     ("subbass" . ("clefs.F" 5 0)) ;; => bass
+     ("percussion" . ("clefs.percussion" 0 0)) ;; unchanged
+     ;; ("varpercussion" . ("clefs.varpercussion" 0 0))
+     ;; ("tab" . ("clefs.tab" 0 0))
+     ))
 
-% No changes are needed for these clefs:
-% ("alto" "clefs.C" 0 0 0)
-% ("C" "clefs.C" 0 0 0)
-% ("percussion" "clefs.percussion" 0 0 0)
+#(define cn-c0-pitch-alist
+   '(("clefs.G" . -7) ;; -7 = -12 minus -5
+      ("clefs.C" . 0) ;; unchanged
+      ("clefs.F" . 7) ;; 7 = 12 minus 5
+      ("clefs.percussion" . 0))) % unchanged
 
-#(set-clairnote-clefs)
+% TODO: add mensural clefs?
+% TODO: check for use of supported-clefs in display functions
 
-#(define (set-traditional-clefs) (set-clairnote-clefs #t))
+% Standard c0-pitch-alist copied from scm/parser-clef.scm,
+% needed because it is not defined publicly there.
+
+% "an alist mapping GLYPHNAME to the position of the middle C for
+% that symbol"
+#(define c0-pitch-alist
+   '(("clefs.G" . -4)
+     ("clefs.GG" . 3)
+     ("clefs.tenorG" . 3)
+     ("clefs.C" . 0)
+     ("clefs.varC" . 0)
+     ("clefs.F" . 4)
+     ("clefs.percussion" . 0)
+     ("clefs.varpercussion" . 0)
+     ("clefs.tab" . 0 )
+     ("clefs.vaticana.do" . 0)
+     ("clefs.vaticana.fa" . 4)
+     ("clefs.medicaea.do" . 0)
+     ("clefs.medicaea.fa" . 4)
+     ("clefs.hufnagel.do" . 0)
+     ("clefs.hufnagel.fa" . 4)
+     ("clefs.hufnagel.do.fa" . 0)
+     ("clefs.mensural.c" . 0)
+     ("clefs.mensural.f" . 4)
+     ("clefs.mensural.g" . -4)
+     ("clefs.blackmensural.c" . 0)
+     ("clefs.neomensural.c" . 0)
+     ("clefs.petrucci.c1" . 0)
+     ("clefs.petrucci.c2" . 0)
+     ("clefs.petrucci.c3" . 0)
+     ("clefs.petrucci.c4" . 0)
+     ("clefs.petrucci.c5" . 0)
+     ("clefs.petrucci.f" . 4)
+     ("clefs.petrucci.g" . -4)
+     ("clefs.kievan.do" . 0)))
 
 
-%% CLEFS: TRANSPOSED CLEFS
-
-% see /scm/parser-clef.scm
-% and /ly/music-functions-init.ly
+%% CLEFS: PARSING
 
 #(use-modules (ice-9 regex))
 
-#(define (cn-clef-transposition type)
-   "Modify clef transposition number for Clairnote staff."
-   ;; ex: "treble^8" becomes "treble^13"
-   ;; ex: "bass_15" becomes "bass_25"
-   (let ((match (string-match "^(.*[_^][^0-9a-zA-Z]*)([1-9][0-9]*)([^0-9a-zA-Z]*)$" type)))
-     (if (and match (match:substring match 2))
-         (string-append
-          (match:substring match 1)
-          (let ((num (string->number (match:substring match 2))))
-            (number->string
-             ;; if input is 13 or 25, use that.
-             (if (or (= num 13) (= num 25))
-                 num
-                 ;; else convert from 7 notes per octave to 12
-                 ;; 8-> 13, 15-> 25
-                 ;; ((((X - 1) / 7) [round] * 12) + 1)
-                 (+ 1 (* 12 (round (/ (- num 1) 7)))))))
-          (match:substring match 3))
-         type)))
+% make-clef-set copied from scm/parser-clef.scm and modified.
+% Now inserts the name of the clef (as it was input by the user),
+% into the music data, stored in custom context property 'clefInput.
 
-clef =
-#(define-music-function (parser location type) (string?)
-   "Set the current clef to @var{type}. Replaces standard clef."
-   (make-clef-set (cn-clef-transposition type)))
+#(define (cn-parse-clef-input clef-input clef-list c0-list)
+   "Used by make-clef-set for clairnote clefs and by clefsTrad for trad clefs."
+   (let*
+    ((match (string-match "^(.*)([_^])([^0-9a-zA-Z]*)([1-9][0-9]*)([^0-9a-zA-Z]*)$" clef-input))
+     (e (assoc-get (if match (match:substring match 1) clef-input) clef-list))
+     (oct (if match
+              ((if (equal? (match:substring match 2) "^") - +)
+               (1- (string->number (match:substring match 4))))
+              0))
+     (style (cond ((not match) 'default)
+              ((equal? (match:substring match 3) "(") 'parenthesized)
+              ((equal? (match:substring match 3) "[") 'bracketed)
+              (else 'default)))
+     (clef-glyph (car e))
+     (c0 (+ oct (cadr e) (assoc-get (car e) c0-list)))
+     (clef-position (cadr e))
+     (clef-transposition (- oct)))
+    (list e clef-glyph c0 clef-position clef-transposition style)))
 
-cueClef =
-#(define-music-function (parser location type) (string?)
-   "Set the current cue clef to @var{type}. Replaces standard cueClef."
-   (make-cue-clef-set (cn-clef-transposition type)))
+#(define (make-clef-set clef-input)
+   "Generate the clef setting commands for a clef with name @var{clef-input}.
+    Differs from the standard function by using clairnote clef settings, inserting
+    clefInput property, and by modifying clef transposition values for clairnote."
+   (let*
+    ((clef-data (cn-parse-clef-input clef-input cn-supported-clefs cn-c0-pitch-alist))
+     (e (list-ref clef-data 0))
+     (ct (list-ref clef-data 4))
+     (ct-dir (if (< ct 0) -1 1))
+     (clef-trans
+      ;; allow "clairnote native" input of 13 or 25 (pass through ct of 12 or 24)
+      ;; 0 indicates no transposition.
+      (if (memq ct '(0 12 24 -12 -24))
+          ct
+          ;; else convert from 7 notes per octave to 12
+          ;; 8-> 13, 15-> 25
+          ;; (((((abs X) / 7) [round] * 12) * ct-dir)
+          (* ct-dir (* 12 (round (/ (abs ct) 7)))))))
+    (if e
+        (let
+         ((musics
+           (list
+            ;; added a custom context property to store the clef input string
+            (make-property-set 'clefInput clef-input)
+            (make-property-set 'clefGlyph (list-ref clef-data 1))
+            (make-property-set 'middleCClefPosition (list-ref clef-data 2))
+            (make-property-set 'clefPosition (list-ref clef-data 3))
+            (make-property-set 'clefTransposition clef-trans)
+            (make-property-set 'clefTranspositionStyle (list-ref clef-data 5))
+            (make-apply-context ly:set-middle-C!))))
+         (context-spec-music (make-sequential-music musics) 'Staff))
+        (begin
+         (ly:warning (_ "unknown clef type `~a'") clef-input)
+         (ly:warning (_ "supported clefs: ~a")
+           (string-join
+            (sort (map car cn-supported-clefs) string<?)))
+         (make-music 'Music)))))
+
+% Exact copy of make-cue-clef-set so that it calls the custom make-clef-set above.
+% Custom clefInput property is used for both clefs and cue clefs.
+#(define (make-cue-clef-set clef-name)
+   "Generate the clef setting commands for a cue clef with name
+@var{clef-name}."
+   (define cue-clef-map
+     '((clefGlyph . cueClefGlyph)
+       (middleCClefPosition . middleCCuePosition)
+       (clefPosition . cueClefPosition)
+       (clefTransposition . cueClefTransposition)
+       (clefTranspositionStyle . cueClefTranspositionStyle)))
+   (let ((clef (make-clef-set clef-name)))
+     (for-each
+      (lambda (m)
+        (let ((mapped (assq-ref cue-clef-map
+                        (ly:music-property m 'symbol))))
+          (if mapped
+              (set! (ly:music-property m 'symbol) mapped))))
+      (extract-named-music clef 'PropertySet))
+     clef))
 
 
 %% CLEFS: CLEFS FOR StaffTrad
@@ -600,68 +677,28 @@ clefsTrad =
 #(define-music-function (parser location mus) (ly:music?)
    "Takes music with Clairnote clef settings, and returns music
     with clef settings adjusted for use on a traditional staff."
-   (let ((current-glyph ""))
+   (let ((clef-data '()))
      (music-map
       (lambda (m)
         (let ((sym (ly:music-property m 'symbol)))
           (cond
 
-           ((or (eq? 'clefGlyph sym)
-                (eq? 'cueClefGlyph sym))
-            (set! current-glyph (ly:music-property m 'value)))
+           ((eq? 'clefInput sym)
+            (set! clef-data
+                  (cn-parse-clef-input (ly:music-property m 'value)
+                    supported-clefs c0-pitch-alist)))
 
-           ((or (eq? 'clefPosition sym)
-                (eq? 'cueClefPosition sym))
-            (ly:music-set-property! m 'value
-              (* 2/5 (ly:music-property m 'value))))
+           ((or (eq? 'middleCClefPosition sym) (eq? 'middleCCuePosition sym))
+            (ly:music-set-property! m 'value (list-ref clef-data 2)))
 
-           ((or (eq? 'middleCClefPosition sym)
-                (eq? 'middleCCuePosition sym))
-            (ly:music-set-property! m 'value
-              (+ (round (* 7/12 (ly:music-property m 'value)))
-                (cond
-                 ((equal? current-glyph "clefs.G") 1)
-                 ((equal? current-glyph "clefs.F") -1)
-                 (else 0))))) ;; includes "clefs.C"
+           ((or (eq? 'clefPosition sym) (eq? 'cueClefPosition sym))
+            (ly:music-set-property! m 'value (list-ref clef-data 3)))
 
-           ((or (eq? 'clefTransposition sym)
-                (eq? 'cueClefTransposition sym))
-            (ly:music-set-property! m 'value
-              (round (* 7/12 (ly:music-property m 'value)))))))
+           ((or (eq? 'clefTransposition sym) (eq? 'cueClefTransposition sym))
+            (ly:music-set-property! m 'value (list-ref clef-data 4)))))
+
         m)
       mus)))
-
-%{
-   actual expected values and conversions for clefsTrad function
-   clefPosition
-   ((-5) -2) ;; treble
-   ((5) 2) ;; bass
-   ;; ((0) 0) ;; alto - no change
-   ;; ((0) 2) ;; tenor - conflicts with alto clef
-   middleCClefPosition / clefs.G
-   ((-12) -6) ;; treble ;; -4 + -2
-   ((-24) -13) ;; treble^8
-   ((-36) -20) ;; treble^15
-   ((0) 1) ;; treble_8
-   ((12) 8) ;; treble_15
-   middleCClefPosition / clefs.F
-   ((12) 6) ;; bass ;; 4 + 2
-   ((24) 13) ;; bass_8
-   ((36) 20) ;; bass_15
-   ((0) -1) ;; bass^8
-   ((-12) -8) ;; bass^15
-   middleCClefPosition / clefs.C
-   ;; ((0) 0) ;; alto - no change
-   ((-12) -7) ;; alto^8
-   ((12) 7) ;; alto_8
-   ((-24) -14) ;; alto^15
-   ((24) 14) ;; alto_15
-   clefTransposition
-   ((12) 7) ;; ^8
-   ((-12) -7) ;; _8
-   ((24) 14) ;; ^15
-   ((-24) -14) ;; _15
-%}
 
 
 %% REPEAT SIGN DOTS (BAR LINES)
@@ -896,6 +933,19 @@ fourOctaveStaff = {
 % in VerticalAxisGroup so they are accessible after \stopStaff \startStaff.
 % Used with user functions for extending the staff, etc.
 #(cn-define-grob-property 'cn-staff-lines list?)
+
+
+%% CUSTOM CONTEXT PROPERTIES
+
+% function from "scm/define-context-properties.scm" (modified)
+#(define (cn-translator-property-description symbol type?)
+   (set-object-property! symbol 'translation-type? type?)
+   (set-object-property! symbol 'translation-doc "custom context property")
+   (set! all-translation-properties (cons symbol all-translation-properties))
+   symbol)
+
+% custom context property to store the name of a clef (or cue clef) as input by user
+#(cn-translator-property-description 'clefInput string?)
 
 
 %% STAFF DEFINITIONS
