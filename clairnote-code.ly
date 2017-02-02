@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20150406
+%    Version: 20150407
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code or from the LilyPond Snippet
@@ -201,20 +201,29 @@
                 #f
                 #t)))))
 
+#(define (cn-get-key-alts context)
+   "Needed because LilyPond 2.20 has 'keyAlterations and
+    2.18 has 'keySignature for the same context property.
+    No way to test for existence of context property..."
+   (define key-alts (ly:context-property context 'keyAlterations '()))
+   (if (equal? key-alts '())
+       (ly:context-property context 'keySignature '())
+       key-alts))
+
 #(define Cn_accidental_engraver
-   ;; using a closure for persistent barnum and acclist
+   ;; using a closure for persistent barnum and alt-list (alteration list)
    (lambda (context)
      (let ((barnum 0)
-           (acclist '()))
+           (alt-list '()))
        (make-engraver
         (acknowledgers
          ((accidental-interface engraver grob source-engraver)
           (let ((current-barnum (ly:context-property context 'currentBarNumber)))
             ;; another option: (ly:context-property context 'internalBarNumber)
-            ;; if we're in a new bar, clear acclist and set barnum
+            ;; if we're in a new bar, clear alt-list and set barnum
             (if (not (equal? barnum current-barnum))
                 (begin
-                 (set! acclist '())
+                 (set! alt-list '())
                  (set! barnum current-barnum)))
             (let*
              ((alt (accidental-interface::calc-alteration grob))
@@ -222,25 +231,25 @@
               (note-head (ly:grob-parent grob Y))
               (pitch (cn-notehead-pitch note-head))
               (semi (ly:pitch-semitones pitch))
-              (key-sig (ly:context-property context 'keySignature))
-              (in-the-key (pitch-in-key pitch key-sig))
-              (in-acclist (equal? (cons semi alt) (assoc semi acclist)))
-              (semi-in-acclist (equal? alt (assoc-ref acclist semi))))
+              (key-alts (cn-get-key-alts context))
+              (in-the-key (pitch-in-key pitch key-alts))
+              (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
+              (semi-in-alt-list (equal? alt (assoc-ref alt-list semi))))
              ;;Show an acc sign? Yes: 1,2,3, No: 4,5,6
              (cond
-              ;; 1. new acc: an acc not in the acclist
-              ;; add to acclist (any previous alt for that semi is replaced)
-              ((and (not in-the-key) (not in-acclist) stl)
+              ;; 1. new acc: an acc not in the alt-list
+              ;; add to alt-list (any previous alt for that semi is replaced)
+              ((and (not in-the-key) (not in-alt-list) stl)
                (cn-redo-acc-signs grob alt)
-               (set! acclist (assoc-set! acclist semi alt)))
+               (set! alt-list (assoc-set! alt-list semi alt)))
               ;; 2. cancel acc: in key, cancels a previous acc in acc list
-              ;; (i.e. semi is in acclist but the alt does not match)
-              ;; remove acc from acclist
-              ((and in-the-key (not in-acclist) semi-in-acclist stl)
+              ;; (i.e. semi is in alt-list but the alt does not match)
+              ;; remove acc from alt-list
+              ((and in-the-key (not in-alt-list) semi-in-alt-list stl)
                (cn-redo-acc-signs grob alt)
-               (set! acclist (assoc-remove! acclist semi)))
+               (set! alt-list (assoc-remove! alt-list semi)))
               ;; 3. forced acc: acc wouldn't be shown, but it was forced with !
-              ;; no change to acclist
+              ;; no change to alt-list
               ((and (equal? #t (ly:grob-property grob 'forced)) stl)
                (cn-redo-acc-signs grob alt))
               ;; 4. is an acc but not a new one in this measure
