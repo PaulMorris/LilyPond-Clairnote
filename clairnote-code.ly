@@ -1,6 +1,6 @@
 %    This file "clairnote-code.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20161208-3
+%    Version: 20161213
 %
 %    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
 %    and modified from LilyPond source code, the LilyPond Snippet
@@ -511,8 +511,9 @@
      (black-tonic (equal? 0 (modulo tonic-semi 2)))
      (raw-stack (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num))
 
-     ;; position the sig vertically
-     (base-vert-adj (- tonic-semi 12))
+     ;; position the sig vertically, C-tonic keys stay in place, the rest are moved down.
+     (base-vert-adj (if (= tonic-semi 0) tonic-semi (- tonic-semi 12)))
+
      ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
      (staff-clef-adjust (cn-get-staff-clef-adjust
                          (ly:context-property context 'cnStaffOctaves)
@@ -674,9 +675,9 @@
            (get-context-prop (lambda (prop) (ly:context-property context prop)))
            (now-clef (map get-context-prop clef-prop-list))
            (now-cue (map get-context-prop cue-prop-list))
-           (now-mid-c-off (ly:context-property context 'middleCOffset))
-           (now-staff-octaves (ly:context-property context 'cnStaffOctaves))
-           (now-clef-shift (ly:context-property context 'cnClefShift))
+           (now-mid-c-off (get-context-prop 'middleCOffset))
+           (now-staff-octaves (get-context-prop 'cnStaffOctaves))
+           (now-clef-shift (get-context-prop 'cnClefShift))
 
            (changed-staff (not (equal? now-staff-octaves prev-staff-octaves)))
            (changed-clef (not (equal? now-clef prev-clef)))
@@ -738,7 +739,153 @@
                (set! prev-mid-c-off (* now-mid-c-off 12/7))
                (ly:context-set-property! context 'middleCOffset prev-mid-c-off)
                (ly:set-middle-C! context)
-               )))))))))
+               )))))
+
+       ;; copy clefTransposition context property to a custom Clef grob property
+       (acknowledgers
+        ((clef-interface engraver clef-grob source-engraver)
+         (ly:grob-set-property! clef-grob 'cn-clef-transposition
+           (ly:context-property context 'clefTransposition))))
+       ))))
+
+
+%--- CLEF GLYPHS
+
+#(define cn-clef-curves
+   ;; treble
+   '(("clefs.G" .
+       ((moveto 1.5506 4.76844)
+        (curveto 1.5376 4.76844 1.5066 4.75114 1.5136 4.73384)
+        (lineto 1.7544 4.17292)
+        (curveto 1.8234 3.97367 1.8444 3.88334 1.8444 3.66416)
+        (curveto 1.8444 3.16204 1.5635 2.76967 1.2174 2.38312)
+        (lineto 1.0789 2.2278)
+        (curveto 0.5727 1.68982 0 1.16441 0 0.45906)
+        (curveto 0 -0.36713 0.6414 -1.05 1.4549 -1.05)
+        (curveto 1.5319 -1.05 1.6984 -1.0492 1.8799 -1.0372)
+        (curveto 2.0139 -1.0282 2.1594 -0.9969 2.2732 -0.9744)
+        (curveto 2.3771 -0.9538 2.5752 -0.8757 2.5752 -0.8757)
+        (curveto 2.7512 -0.8152 2.6612 -0.62915 2.5442 -0.6835)
+        (curveto 2.5442 -0.6835 2.3481 -0.7626 2.2449 -0.7822)
+        (curveto 2.1355 -0.803 1.9939 -0.8319 1.8645 -0.8382)
+        (curveto 1.6935 -0.8462 1.5257 -0.8402 1.4569 -0.8352)
+        (curveto 1.1541 -0.8139 0.8667 -0.67432 0.6558 -0.48763)
+        (curveto 0.5148 -0.36284 0.3782 -0.17408 0.3582 0.12709)
+        (curveto 0.3582 0.76471 0.792 1.23147 1.255 1.71365)
+        (lineto 1.3978 1.86523)
+        (curveto 1.8046 2.29959 2.185 2.75829 2.185 3.32815)
+        (curveto 2.185 3.77846 1.9185 4.42204 1.6113 4.75678)
+        (curveto 1.5983 4.76858 1.5713 4.77188 1.5513 4.76828)
+        (closepath)))
+
+     ;; bass
+     ("clefs.F" .
+       ((moveto 0.2656 0.78107)
+        (curveto 0.3775 0.79547 0.4351 0.84567 0.7003 0.85587)
+        (curveto 0.9459 0.86587 1.0531 0.85987 1.1805 0.83797)
+        (curveto 1.6967 0.74937 2.1173 0.13032 2.1173 -0.64059)
+        (curveto 2.1173 -2.10531 0.9987 -3.04975 0.019 -3.8078)
+        (curveto 0 -3.8345 0 -3.846 0 -3.8652)
+        (curveto 0 -3.9101 0.022 -3.94 0.056 -3.94)
+        (curveto 0.071 -3.94 0.079 -3.93904 0.107 -3.9231)
+        (curveto 1.3341 -3.23572 2.6095 -2.2656 2.6095 -0.57604)
+        (curveto 2.6095 0.4711 2.0006 1.05061 1.1664 1.05061)
+        (curveto 0.9058 1.05561 0.7658 1.05861 0.5568 1.02591)
+        (curveto 0.4588 1.01061 0.248 0.97281 0.219 0.92831)
+        (curveto 0.165 0.89151 0.162 0.77308 0.266 0.78129)
+        (closepath)))
+
+     ;; alto
+     ("clefs.C" .
+       ((moveto 1.0406 2.93878)
+        (curveto 0.9606 2.93578 0.8881 2.93178 0.8237 2.92878)
+        (lineto 0.8237 2.92846)
+        (curveto 0.6586 2.92046 0.4659 2.89806 0.3697 2.87906)
+        (curveto 0.1409 2.83386 0.0236 2.78916 0 2.75937)
+        (curveto -0.018 2.73927 -0.015 2.71087 0 2.69037)
+        (curveto 0.023 2.64587 0.145 2.67017 0.4188 2.72887)
+        (curveto 0.5108 2.74867 0.6924 2.76597 0.8607 2.77257)
+        (curveto 1.0868 2.78157 1.2883 2.70417 1.3194 2.69167)
+        (curveto 1.7053 2.53668 2.0444 2.24033 2.0444 1.46855)
+        (curveto 2.0444 0.8488 1.8942 0.04261 1.4629 0.04261)
+        (curveto 1.4489 0.04061 1.4419 0.03861 1.4289 0.02891)
+        (curveto 1.4149 0.01311 1.4179 0.00091 1.4169 -0.01179)
+        (curveto 1.4169 -0.01193 1.4169 -0.01195 1.4169 -0.01211)
+        (curveto 1.4169 -0.01225 1.4169 -0.01227 1.4169 -0.01243)
+        (curveto 1.4169 -0.02513 1.4169 -0.03723 1.4289 -0.05313)
+        (curveto 1.4389 -0.06213 1.4479 -0.06493 1.4629 -0.06683)
+        (curveto 1.8942 -0.06683 2.0444 -0.87302 2.0444 -1.49278)
+        (curveto 2.0444 -2.26455 1.7053 -2.56059 1.3194 -2.71559)
+        (curveto 1.2884 -2.72799 1.0868 -2.80579 0.8607 -2.79679)
+        (curveto 0.6924 -2.78979 0.5113 -2.77259 0.4188 -2.75279)
+        (curveto 0.145 -2.69409 0.0231 -2.66979 0 -2.71429)
+        (curveto -0.011 -2.73479 -0.014 -2.76349 0 -2.78359)
+        (curveto 0.024 -2.81339 0.1409 -2.85799 0.3697 -2.90328)
+        (curveto 0.4657 -2.92228 0.6586 -2.94468 0.8237 -2.95268)
+        (lineto 0.8237 -2.953)
+        (curveto 0.9525 -2.958 1.1126 -2.9714 1.305 -2.96)
+        (curveto 1.9479 -2.916 2.5587 -2.47655 2.5587 -1.48844)
+        (curveto 2.5587 -0.89409 2.1807 -0.20184 1.7065 -0.01218)
+        (curveto 2.1807 0.17748 2.5587 0.86972 2.5587 1.46406)
+        (curveto 2.5587 2.45218 1.9479 2.89194 1.305 2.93594)
+        (curveto 1.209 2.94194 1.1207 2.94094 1.0406 2.93794)
+        (closepath)))
+     ))
+
+#(define (cn-number-stencil grob number)
+   "Returned stencils are centered horizontally, number must be 0-9."
+   (ly:stencil-aligned-to
+    (ly:font-get-glyph (ly:grob-default-font grob)
+      (list-ref '("zero" "one" "two" "three" "four"
+                   "five" "six" "seven" "eight" "nine") number))
+    X 0))
+
+#(define (cn-clef-stencil-callback clef-grob)
+
+   ;; (glyph-name (ly:grob-property clef-grob 'glyph-name))
+   ;; glyph-name is e.g. "clefs.G_change"
+   ;; for if we ever want to deal with clef changes vs initial clefs
+
+   (let* ((glyph (ly:grob-property clef-grob 'glyph))
+          (curve-path (assoc-ref cn-clef-curves glyph)))
+     (if curve-path
+         (let*
+          ((curve-stil (grob-interpret-markup clef-grob
+                         (markup (#:override '(filled . #t) (#:path 0.0001 curve-path)))))
+           (mult (magstep (ly:grob-property clef-grob 'font-size 0.0)))
+           (scaled-curve (ly:stencil-scale curve-stil mult mult))
+
+           (transpo (ly:grob-property clef-grob 'cn-clef-transposition))
+           ;; bass clef default octave is 3, treble and alto are 4
+           (default-octave (if (string=? "clefs.F" glyph) 3 4))
+           (octave (+ default-octave (/ transpo 12)))
+           (number-shift (cond
+                          ((string=? glyph "clefs.G") (case octave
+                                                        ((4) '(1.5 . -0.63))
+                                                        ((6) '(1.6 . -0.63))
+                                                        (else '(1.7 . -0.63))))
+                          ((string=? glyph "clefs.F") '(1.0 . -1.33))
+                          ((string=? glyph "clefs.C") '(0.9 . 0.48))
+                          (else '(0 . 0))))
+           (scale 0.9)
+           (number-stil
+            (ly:stencil-translate
+             (ly:stencil-scale (cn-number-stencil clef-grob octave) scale scale)
+             (cons
+              (* mult (car number-shift))
+              (* mult (cdr number-shift))))))
+
+          (if (string=? glyph "clefs.C")
+              (ly:stencil-add scaled-curve number-stil
+                (ly:stencil-translate
+                 (ly:stencil-scale
+                  (cn-number-stencil clef-grob (1- octave)) scale scale)
+                 (cons (* mult 0.9) (* mult -2.46))))
+
+              (ly:stencil-add scaled-curve number-stil)))
+
+         ;; else other clef e.g. percussion clef
+         (ly:clef::print clef-grob))))
 
 
 %--- REPEAT SIGN DOTS (BAR LINES) ----------------
@@ -1418,7 +1565,10 @@
   (add-grob-prop 'cn-is-clairnote-staff boolean?)
 
   ;; StaffSymbol.cn-ledger-recipe used to produce ledger line pattern.
-  (add-grob-prop 'cn-ledger-recipe number-list?))
+  (add-grob-prop 'cn-ledger-recipe number-list?)
+
+  ;; Clef.cn-clef-transposition makes clef transposition accessible from clef grobs
+  (add-grob-prop 'cn-clef-transposition integer?))
 
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
@@ -1622,6 +1772,11 @@
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
+
+    \override Clef.stencil = #cn-clef-stencil-callback
+    \override CueClef.stencil = #cn-clef-stencil-callback
+    \override CueEndClef.stencil = #cn-clef-stencil-callback
+    \override ClefModifier.stencil = ##f
 
     % empty else clauses are needed for 2.18 compatibility
     #(if (cn-check-ly-version >= '(2 19 34))
