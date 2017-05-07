@@ -1239,25 +1239,17 @@
 
 %--- BEAMS ----------------
 
-#(define Cn_beam_engraver
-   ;; "Adjust size and spacing of beams, needed due to vertically compressed staff."
-   (make-engraver
-    (acknowledgers
-     ((beam-interface engraver grob source-engraver)
-      (let*
-       ((context (ly:translator-context engraver))
-        (base-staff-space-inverse
-         (/ 1 (ly:context-property context 'cnBaseStaffSpace)))
-        (thick (ly:grob-property-data grob 'beam-thickness))
-        (len-frac (ly:grob-property-data grob 'length-fraction))
-        (space (if (number? len-frac) len-frac 1)))
-       (ly:grob-set-property! grob 'beam-thickness
-         (* thick base-staff-space-inverse))
-       ;; TODO: the 1.1 adjustment below was just visually estimated
-       (ly:grob-set-property! grob 'length-fraction
-         (* space 1.1 base-staff-space-inverse)))
-      ))))
+#(define (cn-beam-grob-callback grob)
+   "Adjust size and spacing of beams. Needed due to vertically compressed staff."
+   (let* ((bss-inverse (/ 1 (ly:grob-property grob 'cn-base-staff-space)))
+          (thick (ly:grob-property grob 'beam-thickness))
+          (len-frac (ly:grob-property grob 'length-fraction))
+          (space (if (number? len-frac) len-frac 1)))
 
+     ;; TODO: the 1.1 adjustment below was just visually estimated
+     (ly:grob-set-property! grob 'length-fraction (* space 1.1 bss-inverse))
+     (ly:grob-set-property! grob 'beam-thickness (* thick bss-inverse))
+     ))
 
 %--- LEDGER LINES ----------------
 
@@ -1473,6 +1465,7 @@
        ss trad-octave notehead-overlap)
       #{
         \set Staff.cnBaseStaffSpace = #ss
+        \override Staff.Beam.cn-base-staff-space = #ss
         \override Staff.StaffSymbol.staff-space = #ss
       #})))
 
@@ -1522,7 +1515,7 @@
 
 %--- CUSTOM CONTEXT PROPERTIES ----------------
 
-#(let
+#(let*
   ;; translator-property-description function
   ;; from "scm/define-context-properties.scm" (modified)
   ((add-prop
@@ -1567,7 +1560,7 @@
 
 %--- CUSTOM GROB PROPERTIES ----------------
 
-#(let
+#(let*
   ;; define-grob-property function
   ;; from "scm/define-grob-properties.scm" (modified)
   ((add-grob-prop
@@ -1583,7 +1576,12 @@
   (add-grob-prop 'cn-ledger-recipe number-list?)
 
   ;; Clef.cn-clef-transposition makes clef transposition accessible from clef grobs
-  (add-grob-prop 'cn-clef-transposition integer?))
+  (add-grob-prop 'cn-clef-transposition integer?)
+
+  ;; The base staff-space for the vertical compression of the Clairnote staff.
+  ;; The actual staff-space may differ with \magnifyStaff, etc.
+  ;; Stem and beam size, time sig and key sig position, etc. depend on it.
+  (add-grob-prop 'cn-base-staff-space positive?))
 
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
@@ -1781,6 +1779,8 @@
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
     \override Stem.no-stem-extend = ##t
+    \override Beam.cn-base-staff-space = #0.75
+    \override Beam.before-line-breaking = #cn-beam-grob-callback
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
     \override KeySignature.horizontal-skylines = #'()
@@ -1839,7 +1839,6 @@
     \consists \Cn_time_signature_engraver
     \consists \Cn_note_heads_engraver
     \consists \Cn_stem_engraver
-    \consists \Cn_beam_engraver
 
     #(if (ly:version? < '(2 19 18))
          #{ \with { \consists \Cn_dots_engraver } #})
