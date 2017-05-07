@@ -75,21 +75,30 @@
 
 %--- LILYPOND VERSION CHECKING ----------------
 
-%% copied and modified from openLilyLib, lilypond-version-predicates.ily
+% borrowed from scm/lily-library.scm (added in LilyPond 2.19.57)
+% TODO: not needed after we drop support for LilyPond 2.18
 
-#(define (cn-calculate-version version-list)
-   "Return an integer representation of the LilyPond version,
-    can be compared with =, <, >, etc."
-   (+ (* 1000000 (list-ref version-list 0))
-     (* 1000 (list-ref version-list 1))
-     (list-ref version-list 2)))
+#(if (not (defined? 'lexicographic-list-compare?))
+     (define (lexicographic-list-compare? op a b)
+       "Lexicographically compare two lists @var{a} and @var{b} using
+        the operator @var{op}. The types of the list elements have to
+        be comparable with @var{op}. If the lists are of different length
+        the trailing elements of the longer list are ignored."
+       (let* ((ca (car a))
+              (iseql (op ca ca)))
+         (let loop ((ca ca) (cb (car b)) (a (cdr a)) (b (cdr b)))
+           (let ((axb (op ca cb)))
+             (if (and (pair? a) (pair? b)
+                      (eq? axb iseql (op cb ca)))
+                 (loop (car a) (car b) (cdr a) (cdr b))
+                 axb))))))
 
-#(define (cn-check-ly-version proc ref-version-list)
-   "Compare the LilyPond version with the reference version
-    in @code{ref-version-list} (e.g. (list 2 18 2) or '(2 19 7) )
-    using @code{proc} (e.g. >  <  >=  <=) and return #t or #f."
-   (proc (cn-calculate-version (ly:version))
-     (cn-calculate-version ref-version-list)))
+#(if (not (defined? 'ly:version?))
+     (define (ly:version? op ver)
+       "Using the operator @var{op} compare the currently executed LilyPond
+        version with a given version @var{ver} which is passed as a list of
+        numbers."
+       (lexicographic-list-compare? op (ly:version) ver)))
 
 
 %--- NOTE HEADS AND STEM ATTACHMENT ----------------
@@ -321,7 +330,7 @@
                 0.63 0.63))))
     (ly:grob-set-property! grob 'stencil
       (ly:stencil-scale stil mag mag))
-    (if (cn-check-ly-version <= '(2 19 0))
+    (if (ly:version? <= '(2 19 0))
         (cn-set-acc-extents grob alt))))
 
 #(define (cn-pitch-in-key note alt key-sig)
@@ -370,7 +379,7 @@
                   (alt (accidental-interface::calc-alteration grob))
                   (key-alts
                    (ly:context-property context
-                     (if (cn-check-ly-version >= '(2 19 7))
+                     (if (ly:version? >= '(2 19 7))
                          'keyAlterations 'keySignature) '()))
 
                   (in-the-key (cn-pitch-in-key note alt key-alts))
@@ -1581,7 +1590,7 @@
 
 %--- LEGACY DOTS ON DOTTED NOTES ----------------
 
-#(if (cn-check-ly-version < '(2 19 18))
+#(if (ly:version? < '(2 19 18))
      ;; TODO: remove when we stop supporting LilyPond 2.18
      (define Cn_dots_engraver
        ;; "Adjust vertical position of dots for certain notes."
@@ -1613,7 +1622,7 @@
 %% Use that snippet for any manual adjustments of note head positions.
 
 #(if
-  (cn-check-ly-version < '(2 19 34))
+  (ly:version? < '(2 19 34))
   (begin
 
    (define (cn-shift-notehead nh nh-dir stem-dir)
@@ -1785,7 +1794,7 @@
     \override ClefModifier.stencil = ##f
 
     % empty else clauses are needed for 2.18 compatibility
-    #(if (cn-check-ly-version >= '(2 19 34))
+    #(if (ly:version? >= '(2 19 34))
          #{
            \override Stem.note-collision-threshold = 2
            \override NoteCollision.note-collision-threshold = 2
@@ -1793,7 +1802,7 @@
          #{ #})
 
     % LilyPond bug with "ledger-extra = 2" before 2.19.36
-    #(if (cn-check-ly-version >= '(2 19 36))
+    #(if (ly:version? >= '(2 19 36))
          #{
            \override StaffSymbol.ledger-extra = 2
          #}
@@ -1801,7 +1810,7 @@
            \override StaffSymbol.ledger-extra = 1
          #})
 
-    #(if (cn-check-ly-version >= '(2 19 42))
+    #(if (ly:version? >= '(2 19 42))
          #{
            \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
            \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
@@ -1810,7 +1819,7 @@
 
     % NoteColumn override doesn't work as an engraver for some reason,
     % crashes with manual beams on chords.
-    #(if (cn-check-ly-version < '(2 19 34))
+    #(if (ly:version? < '(2 19 34))
          #{
            \override NoteColumn.before-line-breaking = #cn-note-column-callback
          #})
@@ -1832,7 +1841,7 @@
     \consists \Cn_stem_engraver
     \consists \Cn_beam_engraver
 
-    #(if (cn-check-ly-version < '(2 19 18))
+    #(if (ly:version? < '(2 19 18))
          #{ \with { \consists \Cn_dots_engraver } #})
 
     % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
