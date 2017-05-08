@@ -324,10 +324,12 @@
        ;; else covers natural sign (0)
        (else '(-0.0 . 0.44)))))
 
-#(define (cn-redo-acc-sign grob alt mag)
+#(define (cn-redo-acc-sign grob)
    "Replaces the accidental sign stencil."
    (let*
-    ((acc-lookup (assoc-ref cn-acc-sign-stils alt))
+    ((mag (cn-magnification2 grob))
+     (alt (accidental-interface::calc-alteration grob))
+     (acc-lookup (assoc-ref cn-acc-sign-stils alt))
      (stil (if acc-lookup
                acc-lookup
                ;; natural sign (alt is 0)
@@ -335,7 +337,9 @@
                 (ly:grob-property grob 'stencil)
                 0.63 0.63))))
     (ly:grob-set-property! grob 'stencil
-      (ly:stencil-scale stil mag mag))
+      (if acc-lookup
+          (ly:stencil-scale stil mag mag)
+          stil))
     (if (ly:version? <= '(2 19 0))
         (cn-set-acc-extents grob alt))))
 
@@ -355,64 +359,67 @@
     ;; 3. not sharp or flat, in the key sig.
     (else #t)))
 
-#(define Cn_accidental_engraver
-   ;; context has to be accessed like this (and not with
-   ;; ly:translator-context) for accidentals to be tracked per staff
-   ;; using a closure for persistent barnum and alt-list (alteration list)
-   (lambda (context)
-     (let ((barnum 0)
-           (alt-list '()))
-       (make-engraver
-        (acknowledgers
-         ((accidental-interface engraver grob source-engraver)
+#(define (cn-accidental-grob-callback grob)
+   (if (ly:grob-property grob 'cn-suicide-grob #f)
+       ;; TODO: does grob-suicide affect ledger line widths?
+       (ly:grob-suicide! grob)
+       (cn-redo-acc-sign grob)))
 
-          ;; refresh barnum and acc-list if we're in a new bar
-          (let ((current-barnum (ly:context-property context 'currentBarNumber)))
-            ;; another option: (ly:context-property context 'internalBarNumber)
-            (if (not (equal? barnum current-barnum))
-                (begin
-                 (set! alt-list '())
-                 (set! barnum current-barnum)))
+#(define (Cn_accidental_engraver context)
+   "The context has to be accessed like this (and not with
+    ly:translator-context) for accidentals to be tracked per staff,
+    using a closure for storing barnum and alt-list (alteration list)."
+   (let ((barnum 0)
+         (alt-list '()))
+     (make-engraver
+      (acknowledgers
+       ((accidental-interface engraver grob source-engraver)
 
-            ;; 0. omit in effect, stencil = #f
-            (if (not (ly:grob-property-data grob 'stencil))
-                (ly:grob-suicide! grob)
+        ;; refresh barnum and acc-list if we're in a new bar
+        (let ((current-barnum (ly:context-property context 'currentBarNumber)))
+          ;; another option: (ly:context-property context 'internalBarNumber)
+          (if (not (equal? barnum current-barnum))
+              (begin
+               (set! alt-list '())
+               (set! barnum current-barnum)))
 
-                (let*
-                 ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
-                  (semi (ly:pitch-semitones pitch))
-                  (note (ly:pitch-notename pitch))
-                  (alt (accidental-interface::calc-alteration grob))
-                  (key-alts
-                   (ly:context-property context
-                     (if (ly:version? >= '(2 19 7))
-                         'keyAlterations 'keySignature) '()))
+          ;; 0. omit in effect, stencil is #f
+          (if (not (ly:grob-property-data grob 'stencil))
+              (ly:grob-set-property! grob 'cn-suicide-grob #t)
 
-                  (in-the-key (cn-pitch-in-key note alt key-alts))
-                  (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
-                  (semi-in-alt-list (equal? alt (assoc-ref alt-list semi)))
+              (let*
+               ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
+                (semi (ly:pitch-semitones pitch))
+                (note (ly:pitch-notename pitch))
+                (alt (accidental-interface::calc-alteration grob))
+                (key-alts
+                 (ly:context-property context
+                   (if (ly:version? >= '(2 19 7))
+                       'keyAlterations 'keySignature) '()))
 
-                  ;; 1. new acc
-                  ;; 2. cancel acc: in the key, cancels an alt in alt-list
-                  ;;     (semi is in alt-list but the alt does not match)
-                  ;; 3. forced acc: forced with !
-                  (new-acc (and (not in-the-key) (not in-alt-list)))
-                  (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
-                  (forced-acc (equal? #t (ly:grob-property grob 'forced))))
+                (in-the-key (cn-pitch-in-key note alt key-alts))
+                (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
+                (semi-in-alt-list (equal? alt (assoc-ref alt-list semi)))
 
-                 (if (or new-acc cancel-acc forced-acc)
-                     (cn-redo-acc-sign grob alt (cn-magnification grob context))
-                     ;; 4. is an acc but not a new one in this measure
-                     ;; 5. is not an acc and is not cancelling previous acc
-                     ;; TODO: does grob-suicide affect ledger line widths?
-                     (ly:grob-suicide! grob))
+                ;; 1. new acc
+                ;; 2. cancel acc: in the key, cancels an alt in alt-list
+                ;;     (semi is in alt-list but the alt does not match)
+                ;; 3. forced acc: forced with !
+                (new-acc (and (not in-the-key) (not in-alt-list)))
+                (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
+                (forced-acc (equal? #t (ly:grob-property grob 'forced))))
 
-                 ;; add to or remove from alt-list
-                 ;; add replaces any existing alt for that semi
-                 (cond
-                  (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
-                  (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))
-                 )))))))))
+               (if (not (or new-acc cancel-acc forced-acc))
+                   ;; 4. is an acc but not a new one in this measure
+                   ;; 5. is not an acc and is not cancelling previous acc
+                   (ly:grob-set-property! grob 'cn-suicide-grob #t))
+
+               ;; add to or remove from alt-list
+               ;; add replaces any existing alt for that semi
+               (cond
+                (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
+                (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))
+               ))))))))
 
 
 %--- KEY SIGNATURES ----------------
@@ -1480,6 +1487,7 @@
         \override Staff.Beam.cn-base-staff-space = #ss
         \override Staff.KeySignature.cn-base-staff-space = #ss
         \override Staff.Stem.cn-base-staff-space = #ss
+        \override Staff.Accidental.cn-base-staff-space = #ss
         \override Staff.StaffSymbol.staff-space = #ss
       #})))
 
@@ -1592,6 +1600,9 @@
 
   ;; StaffSymbol.cn-ledger-recipe used to produce ledger line pattern.
   (add-grob-prop 'cn-ledger-recipe number-list?)
+
+  ;; whether to destroy a grob (e.g. an unneeded accidental)
+  (add-grob-prop 'cn-suicide-grob boolean?)
 
   ;; Clef.cn-clef-transposition makes clef transposition accessible from clef grobs
   (add-grob-prop 'cn-clef-transposition integer?)
@@ -1800,6 +1811,7 @@
     \override Beam.cn-base-staff-space = #0.75
     \override KeySignature.cn-base-staff-space = #0.75
     \override TimeSignature.cn-base-staff-space = #0.75
+    \override Accidental.cn-base-staff-space = #0.75
 
     \override KeySignature.cn-staff-octaves = #2
     \override TimeSignature.cn-staff-octaves = #2
@@ -1816,8 +1828,14 @@
     \override Stem.before-line-breaking = #cn-stem-grob-callback
 
     \override Beam.before-line-breaking = #cn-beam-grob-callback
+
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
+    \override Accidental.before-line-breaking = #cn-accidental-grob-callback
+    \override AccidentalCautionary.before-line-breaking = #cn-accidental-grob-callback
+    \override AccidentalSuggestion.before-line-breaking = #cn-accidental-grob-callback
+    \override AmbitusAccidental.before-line-breaking = #cn-accidental-grob-callback
+    \override TrillPitchAccidental.before-line-breaking = #cn-accidental-grob-callback
 
     \override KeySignature.horizontal-skylines = #'()
     \override KeySignature.before-line-breaking = #cn-key-signature-grob-callback
@@ -1888,8 +1906,9 @@
     \consists \Cn_note_heads_engraver
 
     % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
-    % Probably because it does ly:grob-suicide! on some accidental grobs –
-    % that seems to be the source of the problem.
+    % Probably because it does ly:grob-suicide! on some accidental grobs.
+    % That seems to be the source of the problem.
+    % Note: This may no longer apply now that grob suicide is handled by grob callback.
     \consists \Cn_accidental_engraver
   }
 }
