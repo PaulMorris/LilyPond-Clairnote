@@ -48,6 +48,12 @@
    (/ (ly:staff-symbol-staff-space grob)
      (ly:context-property context 'cnBaseStaffSpace)))
 
+#(define (cn-magnification2 grob)
+   "Return the current magnification (from magnifyStaff, etc.)
+    as the ratio of actual staff-space over cn-base-staff-space."
+   (/ (ly:staff-symbol-staff-space grob)
+     (ly:grob-property grob 'cn-base-staff-space)))
+
 #(define (cn-get-staff-clef-adjust staff-octaves clef-octave-shift)
    "Calculate the amount to vertically adjust the position of the clef,
     key signature, and time signature, in note-spaces / half-staff-spaces."
@@ -499,16 +505,16 @@
       (ly:stencil-translate-axis combined-stack (- (car extent)) X)))
     positioned-stack))
 
-#(define (cn-draw-keysig grob context)
+#(define (cn-draw-keysig grob)
    "Draws Clairnote key signature stencils."
    (let*
-    ((base-staff-space (ly:context-property context 'cnBaseStaffSpace))
-     (tonic-pitch (ly:context-property context 'tonic))
+    ((base-staff-space (ly:grob-property grob 'cn-base-staff-space))
+     (tonic-pitch (ly:grob-property grob 'cn-tonic))
      ;; number of the tonic (0-6) (C-B)
      (tonic-num (ly:pitch-notename tonic-pitch))
      ;; semitone of tonic (0-11) (C-B)
      (tonic-semi (modulo (ly:pitch-semitones tonic-pitch) 12))
-     (mag (cn-magnification grob context))
+     (mag (cn-magnification2 grob))
 
      (alt-list (ly:grob-property grob 'alteration-alist))
      (alt-count (cn-get-keysig-alt-count alt-list))
@@ -525,8 +531,8 @@
 
      ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
      (staff-clef-adjust (cn-get-staff-clef-adjust
-                         (ly:context-property context 'cnStaffOctaves)
-                         (ly:context-property context 'cnClefShift)))
+                         (ly:grob-property grob 'cn-staff-octaves)
+                         (ly:grob-property grob 'cn-clef-shift)))
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
      (stack (ly:stencil-translate-axis raw-stack vert-adj Y)))
 
@@ -539,32 +545,38 @@
 
     stack))
 
-#(define Cn_key_signature_engraver
-   ;; Clairnote's staff definition has printKeyCancellation = ##f, which
-   ;; prevents key cancellations, except for changing to C major
-   ;; or A minor, so this engraver prevents all key cancellations.
+#(define (cn-customize-key-signature grob)
+   (let* ((stil (cn-draw-keysig grob))
+          (mult (magstep (ly:grob-property grob 'font-size 0.0)))
+          (stil-mult (ly:stencil-scale stil mult mult)))
+
+     (ly:grob-set-property! grob 'stencil stil-mult)
+     ))
+
+#(define (cn-key-signature-grob-callback grob)
+   "Clairnote's staff definition has printKeyCancellation = ##f, which
+    prevents key cancellations, except for changing to C major or
+    A minor. So here we prevent even those key cancellations."
+   (cond
+    ;; key cancellation?
+    ((grob::has-interface grob 'key-cancellation-interface)
+     (ly:grob-set-property! grob 'stencil #f))
+
+    ;; omitted?
+    ((not (ly:grob-property-data grob 'stencil)) #f)
+
+    (else (cn-customize-key-signature grob))
+    ))
+
+#(define (Cn_key_signature_engraver context)
+   "Sets the tonic for the key on key signature grobs."
    ;; Spare parts: (ly:context-property context 'printKeyCancellation)
    (make-engraver
     (acknowledgers
      ((key-signature-interface engraver grob source-engraver)
-      (cond
-       ;; key cancellation?
-       ((grob::has-interface grob 'key-cancellation-interface)
-        (ly:grob-set-property! grob 'stencil #f))
-       ;; omitted?
-       ((equal? #f (ly:grob-property-data grob 'stencil)) #f)
-       ;; else set grob stencil
-       (else
-        (let*
-         ((context (ly:translator-context engraver))
-          (key-sig-stil (cn-draw-keysig grob context))
-          (mult (magstep (ly:grob-property grob 'font-size 0.0))))
-
-         (ly:grob-set-property! grob 'stencil
-           (ly:stencil-scale key-sig-stil mult mult))
-         (ly:grob-set-property! grob 'X-extent
-           (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
-         )))))))
+      (ly:grob-set-property! grob 'cn-tonic
+        (ly:context-property context 'tonic))
+      ))))
 
 
 %--- CLEFS AND OTTAVA (8VA 8VB 15MA 15MB) ----------------
@@ -1422,6 +1434,7 @@
        (downwards (if odd-octs n (floor n))))
       #{
         \set Staff.cnStaffOctaves = #octaves
+        \override Staff.KeySignature.cn-staff-octaves = #octaves
         \set Staff.cnBaseStaffLines = #base-lines
         \override Staff.StaffSymbol.ledger-positions = #base-lines
         \cnStaffExtender ##t #upwards #downwards
@@ -1429,7 +1442,10 @@
 
 #(define cnClefPositionShift
    (define-music-function (parser location octaves) (integer?)
-     #{ \set Staff.cnClefShift = #octaves #}))
+     #{
+       \set Staff.cnClefShift = #octaves
+       \override Staff.KeySignature.cn-clef-shift = #octaves
+     #}))
 
 
 %--- USER: ALTERNATE STAVES (EXPERIMENTAL) ----------------
@@ -1464,6 +1480,7 @@
       #{
         \set Staff.cnBaseStaffSpace = #ss
         \override Staff.Beam.cn-base-staff-space = #ss
+        \override Staff.KeySignature.cn-base-staff-space = #ss
         \override Staff.Stem.cn-base-staff-space = #ss
         \override Staff.StaffSymbol.staff-space = #ss
       #})))
@@ -1567,6 +1584,10 @@
   ;; StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
   (add-grob-prop 'cn-is-clairnote-staff boolean?)
 
+  ;; KeySignature.cn-tonic tonic note of the key.
+  ;; The 'tonic context property turned into a grob property.
+  (add-grob-prop 'cn-tonic ly:pitch?)
+
   ;; For double stems for half notes.
   (add-grob-prop 'cn-double-stem-spacing number?)
   (add-grob-prop 'cn-double-stem-width-scale non-zero?)
@@ -1580,7 +1601,14 @@
   ;; The base staff-space for the vertical compression of the Clairnote staff.
   ;; The actual staff-space may differ with \magnifyStaff, etc.
   ;; Stem and beam size, time sig and key sig position, etc. depend on it.
-  (add-grob-prop 'cn-base-staff-space positive?))
+  (add-grob-prop 'cn-base-staff-space positive?)
+
+  ;; Indicates number of octaves the staff spans, lets us use
+  ;; different clef settings so stems always flip at center of staff
+  (add-grob-prop 'cn-staff-octaves positive-integer?)
+
+  ;; For shifting clef position up or down an octave
+  (add-grob-prop 'cn-clef-shift integer?))
 
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
@@ -1775,6 +1803,11 @@
     % grob property overrides
     \override Stem.cn-base-staff-space = #0.75
     \override Beam.cn-base-staff-space = #0.75
+    \override KeySignature.cn-base-staff-space = #0.75
+
+    \override KeySignature.cn-staff-octaves = #2
+
+    \override KeySignature.cn-clef-shift = #0
 
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
@@ -1787,7 +1820,12 @@
     \override Beam.before-line-breaking = #cn-beam-grob-callback
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
+
     \override KeySignature.horizontal-skylines = #'()
+    \override KeySignature.before-line-breaking = #cn-key-signature-grob-callback
+    \override KeyCancellation.horizontal-skylines = #'()
+    \override KeyCancellation.before-line-breaking =#cn-key-signature-grob-callback
+
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
