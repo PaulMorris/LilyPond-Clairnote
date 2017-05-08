@@ -986,7 +986,7 @@
              (cdr grobs))))
      final-edge))
 
-#(define (cn-double-stem grob context)
+#(define (cn-double-stem grob)
    (let*
     ((stem-stil (ly:stem::print grob))
      (dir (ly:grob-property grob 'direction))
@@ -998,14 +998,14 @@
      (stem-width (abs (- (car stem-x-extent) (cdr stem-x-extent))))
 
      ;; by default second stem is 1.5 times as thick as standard stem
-     (width-scale (ly:context-property context 'cnDoubleStemWidthScale 1.5))
+     (width-scale (ly:grob-property grob 'cn-double-stem-width-scale 1.5))
      (stem2-width (* stem-width width-scale))
 
      ;; amount to move the edges outward to achieve 2nd stem width
      (width-shift (/ (abs (- stem-width stem2-width)) 2))
 
      ;; spacing is 3.5 times stem-width by default
-     (spacing-scale (ly:context-property context 'cnDoubleStemSpacing 3.5))
+     (spacing-scale (ly:grob-property grob 'cn-double-stem-spacing 3.5))
      (spacing-shift (* dir spacing-scale stem-width))
 
      (stem-left-edge (car stem-x-extent))
@@ -1054,30 +1054,28 @@
                        (map multiply-by vals)))))
     details))
 
-#(define Cn_stem_engraver
-   ;; "Lengthen all stems to undo staff compression side effects,
-   ;; and give half notes double stems."
-   (make-engraver
-    (acknowledgers
-     ((stem-interface engraver grob source-engraver)
-      ;; make sure \omit is not in effect (i.e. stencil is not #f) and the stem has a
-      ;; notehead (is not for a rest, rest grobs have stem grobs that have no stencil)
-      (if (and (ly:grob-property-data grob 'stencil)
-               (not (null? (ly:grob-object grob 'note-heads))))
-          (let*
-           ((context (ly:translator-context engraver))
-            (bss-inverse (/ 1 (ly:context-property context 'cnBaseStaffSpace)))
-            (deets (ly:grob-property grob 'details))
-            (deets2 (cn-multiply-details deets bss-inverse '(stem-shorten))))
+#(define (cn-customize-stem grob)
+   "Lengthen all stems to undo staff compression side effects,
+    and give half notes double stems."
+   (let* ((bss-inverse (/ 1 (ly:grob-property grob 'cn-base-staff-space)))
+          (deets (ly:grob-property grob 'details))
+          (deets2 (cn-multiply-details deets bss-inverse '(stem-shorten))))
 
-           (ly:grob-set-property! grob 'details deets2)
+     (ly:grob-set-property! grob 'details deets2)
 
-           ;; double stems for half notes
-           (if (= 1 (ly:grob-property grob 'duration-log))
-               (cn-double-stem grob context)
-               #f)
-           ))))))
+     ;; double stems for half notes
+     (if (= 1 (ly:grob-property grob 'duration-log))
+         (cn-double-stem grob)
+         )))
 
+#(define (cn-stem-grob-callback grob)
+   "Make sure omit is not in effect (i.e. stencil is not #f)
+    and the stem has a notehead (i.e. is not for a rest,
+    rest grobs have stem grobs that have no stencil)"
+   (if (and (ly:grob-property-data grob 'stencil)
+            (not (null? (ly:grob-object grob 'note-heads))))
+       (cn-customize-stem grob)
+       ))
 
 %--- CROSS-STAFF STEMS ----------------
 
@@ -1466,6 +1464,7 @@
       #{
         \set Staff.cnBaseStaffSpace = #ss
         \override Staff.Beam.cn-base-staff-space = #ss
+        \override Staff.Stem.cn-base-staff-space = #ss
         \override Staff.StaffSymbol.staff-space = #ss
       #})))
 
@@ -1536,10 +1535,6 @@
   ;; up or down. See cnExtendStaff function.
   (add-prop 'cnBaseStaffLines list?)
 
-  ;; For double stems for half notes.
-  (add-prop 'cnDoubleStemSpacing number?)
-  (add-prop 'cnDoubleStemWidthScale non-zero?)
-
   ;; For note head styles
   (add-prop 'cnNoteheadStencilProcedure procedure?)
   (add-prop 'cnNoteheadWidthScale non-zero?)
@@ -1571,6 +1566,10 @@
 
   ;; StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
   (add-grob-prop 'cn-is-clairnote-staff boolean?)
+
+  ;; For double stems for half notes.
+  (add-grob-prop 'cn-double-stem-spacing number?)
+  (add-grob-prop 'cn-double-stem-width-scale non-zero?)
 
   ;; StaffSymbol.cn-ledger-recipe used to produce ledger line pattern.
   (add-grob-prop 'cn-ledger-recipe number-list?)
@@ -1769,17 +1768,22 @@
     % custom context properties
     cnBaseStaffSpace = #0.75
     cnBaseStaffLines = #'(-8 -4)
-    cnDoubleStemSpacing = #3.5
-    cnDoubleStemWidthScale = #1.5
     cnNoteheadStencilProcedure = #cn-default-note-stencil
     cnStaffOctaves = #2
     cnClefShift = #0
 
     % grob property overrides
+    \override Stem.cn-base-staff-space = #0.75
+    \override Beam.cn-base-staff-space = #0.75
+
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
+
     \override Stem.no-stem-extend = ##t
-    \override Beam.cn-base-staff-space = #0.75
+    \override Stem.cn-double-stem-spacing = #3.5
+    \override Stem.cn-double-stem-width-scale = #1.5
+    \override Stem.before-line-breaking = #cn-stem-grob-callback
+
     \override Beam.before-line-breaking = #cn-beam-grob-callback
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
@@ -1838,7 +1842,6 @@
     \consists \Cn_key_signature_engraver
     \consists \Cn_time_signature_engraver
     \consists \Cn_note_heads_engraver
-    \consists \Cn_stem_engraver
 
     #(if (ly:version? < '(2 19 18))
          #{ \with { \consists \Cn_dots_engraver } #})
