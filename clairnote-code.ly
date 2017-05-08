@@ -1615,25 +1615,22 @@
 
 #(if (ly:version? < '(2 19 18))
      ;; TODO: remove when we stop supporting LilyPond 2.18
-     (define Cn_dots_engraver
-       ;; "Adjust vertical position of dots for certain notes."
-       (make-engraver
-        (acknowledgers
-         ((dots-interface engraver grob source-engraver)
-          (let* ((parent (ly:grob-parent grob Y))
-                 ;; parent is a Rest grob or a NoteHead grob
-                 (semi (if (grob::has-interface parent 'rest-interface)
-                           #f
-                           (modulo (cn-notehead-semitone parent) 12))))
-            (cond
-             ((equal? semi 0)
-              (ly:grob-set-property! grob 'staff-position
-                (if (equal? -1 (ly:grob-property grob 'direction))
-                    -1 ;; down
-                    1))) ;; up or neutral
-             ((member semi '(2 6 10))
-              (ly:grob-set-property! grob 'Y-offset -0.36))
-             )))))))
+     (define (cn-dots-grob-callback grob)
+       "Adjust vertical position of dots for certain notes."
+       (let* ((parent (ly:grob-parent grob Y))
+              ;; parent is a Rest grob or a NoteHead grob
+              (semi (if (grob::has-interface parent 'rest-interface)
+                        #f
+                        (modulo (cn-notehead-semitone parent) 12))))
+         (cond
+          ((equal? semi 0)
+           (ly:grob-set-property! grob 'staff-position
+             (if (equal? -1 (ly:grob-property grob 'direction))
+                 -1 ;; down
+                 1))) ;; up or neutral
+          ((member semi '(2 6 10))
+           (ly:grob-set-property! grob 'Y-offset -0.36))
+          ))))
 
 
 %--- LEGACY CHORDS ----------------
@@ -1867,7 +1864,14 @@
     #(if (ly:version? < '(2 19 34))
          #{
            \override NoteColumn.before-line-breaking = #cn-note-column-callback
-         #})
+         #}
+         #{ #})
+
+    #(if (ly:version? < '(2 19 18))
+         #{
+           \override Dots.before-line-breaking = #cn-dots-grob-callback
+         #}
+         #{ #})
 
     % staff-space reflects vertical compression of Clairnote staff.
     % Default of 0.75 makes the Clairnote octave 1.28571428571429
@@ -1882,9 +1886,6 @@
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
     \consists \Cn_note_heads_engraver
-
-    #(if (ly:version? < '(2 19 18))
-         #{ \with { \consists \Cn_dots_engraver } #})
 
     % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
     % Probably because it does ly:grob-suicide! on some accidental grobs –
