@@ -946,31 +946,27 @@
 
 %--- TIME SIGNATURES ----------------
 
-#(define Cn_time_signature_engraver
+#(define (cn-time-signature-grob-callback grob)
    ;; "Adjust vertical position of time sig based on vertical staff scaling."
-   (make-engraver
-    (acknowledgers
-     ((time-signature-interface engraver grob source-engraver)
-      (let*
-       ((context (ly:translator-context engraver))
-        (base-staff-space (ly:context-property context 'cnBaseStaffSpace))
-        (vscale-staff (* 12/7 base-staff-space))
-        (base-y-offset (* (+ vscale-staff -0.9) -2.5))
+   (let*
+    ((base-staff-space (ly:grob-property grob 'cn-base-staff-space))
+     (vscale-staff (* 12/7 base-staff-space))
+     (base-y-offset (* (+ vscale-staff -0.9) -2.5))
 
-        ;; adjust position for odd octave staves and clefs shifted up/down an octave
-        ;; note-space is the distance between two adjacent notes given vertical staff compression
-        (note-space (* 0.5 base-staff-space))
-        (staff-clef-adjust (cn-get-staff-clef-adjust
-                            (ly:context-property context 'cnStaffOctaves)
-                            (ly:context-property context 'cnClefShift)))
+     ;; adjust position for odd octave staves and clefs shifted up/down an octave
+     ;; note-space is the distance between two adjacent notes given vertical staff compression
+     (note-space (* 0.5 base-staff-space))
+     (staff-clef-adjust (cn-get-staff-clef-adjust
+                         (ly:grob-property grob 'cn-staff-octaves)
+                         (ly:grob-property grob 'cn-clef-shift)))
 
-        (y-offset (+ base-y-offset (* note-space staff-clef-adjust)))
+     (y-offset (+ base-y-offset (* note-space staff-clef-adjust)))
 
-        ;; adjustment for \magnifyStaff
-        (mag (cn-magnification grob context))
-        (final-y-offset (* y-offset mag)))
+     ;; adjustment for \magnifyStaff
+     (mag (cn-magnification2 grob))
+     (final-y-offset (* y-offset mag)))
 
-       (ly:grob-set-property! grob 'Y-offset final-y-offset))))))
+    (ly:grob-set-property! grob 'Y-offset final-y-offset)))
 
 
 %--- STEM LENGTH AND DOUBLE STEMS ----------------
@@ -1435,6 +1431,7 @@
       #{
         \set Staff.cnStaffOctaves = #octaves
         \override Staff.KeySignature.cn-staff-octaves = #octaves
+        \override Staff.TimeSignature.cn-staff-octaves = #octaves
         \set Staff.cnBaseStaffLines = #base-lines
         \override Staff.StaffSymbol.ledger-positions = #base-lines
         \cnStaffExtender ##t #upwards #downwards
@@ -1445,6 +1442,7 @@
      #{
        \set Staff.cnClefShift = #octaves
        \override Staff.KeySignature.cn-clef-shift = #octaves
+       \override Staff.TimeSignature.cn-clef-shift = #octaves
      #}))
 
 
@@ -1804,10 +1802,13 @@
     \override Stem.cn-base-staff-space = #0.75
     \override Beam.cn-base-staff-space = #0.75
     \override KeySignature.cn-base-staff-space = #0.75
+    \override TimeSignature.cn-base-staff-space = #0.75
 
     \override KeySignature.cn-staff-octaves = #2
+    \override TimeSignature.cn-staff-octaves = #2
 
     \override KeySignature.cn-clef-shift = #0
+    \override TimeSignature.cn-clef-shift = #0
 
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
@@ -1825,6 +1826,8 @@
     \override KeySignature.before-line-breaking = #cn-key-signature-grob-callback
     \override KeyCancellation.horizontal-skylines = #'()
     \override KeyCancellation.before-line-breaking =#cn-key-signature-grob-callback
+
+    \override TimeSignature.before-line-breaking = #cn-time-signature-grob-callback
 
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
@@ -1878,7 +1881,6 @@
     % custom engravers
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
-    \consists \Cn_time_signature_engraver
     \consists \Cn_note_heads_engraver
 
     #(if (ly:version? < '(2 19 18))
