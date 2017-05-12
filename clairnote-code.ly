@@ -51,11 +51,16 @@
        (ly:grob-property staff-sym prop)
        default))
 
+#(define (cn-get-base-staff-space grob)
+   "Takes a grob and returns the custom StaffSymbol property
+    cn-base-staff-space.  Silently falls back to the default of 0.75."
+   (cn-staff-symbol-property grob 'cn-base-staff-space 0.75))
+
 #(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
     as the ratio of actual staff-space over cn-base-staff-space."
    (/ (ly:staff-symbol-staff-space grob)
-     (ly:grob-property grob 'cn-base-staff-space)))
+     (cn-get-base-staff-space grob)))
 
 #(define (cn-get-staff-clef-adjust staff-octaves clef-octave-shift)
    "Calculate the amount to vertically adjust the position of the clef,
@@ -512,7 +517,7 @@
 #(define (cn-draw-keysig grob)
    "Draws Clairnote key signature stencils."
    (let*
-    ((base-staff-space (ly:grob-property grob 'cn-base-staff-space))
+    ((base-staff-space (cn-get-base-staff-space grob))
      (tonic-pitch (ly:grob-property grob 'cn-tonic))
      ;; number of the tonic (0-6) (C-B)
      (tonic-num (ly:pitch-notename tonic-pitch))
@@ -953,7 +958,7 @@
 #(define (cn-time-signature-grob-callback grob)
    ;; "Adjust vertical position of time sig based on vertical staff scaling."
    (let*
-    ((base-staff-space (ly:grob-property grob 'cn-base-staff-space))
+    ((base-staff-space (cn-get-base-staff-space grob))
      (vscale-staff (* 12/7 base-staff-space))
      (base-y-offset (* (+ vscale-staff -0.9) -2.5))
 
@@ -1069,7 +1074,7 @@
 #(define (cn-customize-stem grob)
    "Lengthen all stems to undo staff compression side effects,
     and give half notes double stems."
-   (let* ((bss-inverse (/ 1 (ly:grob-property grob 'cn-base-staff-space)))
+   (let* ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
           (deets (ly:grob-property grob 'details))
           (deets2 (cn-multiply-details deets bss-inverse '(stem-shorten))))
 
@@ -1251,7 +1256,7 @@
 
 #(define (cn-beam-grob-callback grob)
    "Adjust size and spacing of beams. Needed due to vertically compressed staff."
-   (let* ((bss-inverse (/ 1 (ly:grob-property grob 'cn-base-staff-space)))
+   (let* ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
           (thick (ly:grob-property grob 'beam-thickness))
           (len-frac (ly:grob-property grob 'length-fraction))
           (space (if (number? len-frac) len-frac 1)))
@@ -1481,11 +1486,7 @@
        ss trad-octave notehead-overlap)
       #{
         \set Staff.cnBaseStaffSpace = #ss
-        \override Staff.NoteHead.cn-base-staff-space = #ss
-        \override Staff.Beam.cn-base-staff-space = #ss
-        \override Staff.KeySignature.cn-base-staff-space = #ss
-        \override Staff.Stem.cn-base-staff-space = #ss
-        \override Staff.Accidental.cn-base-staff-space = #ss
+        \override Staff.StaffSymbol.cn-base-staff-space = #ss
         \override Staff.StaffSymbol.staff-space = #ss
       #})))
 
@@ -1799,13 +1800,6 @@
     cnClefShift = #0
 
     % grob property overrides
-    \override Stem.cn-base-staff-space = #0.75
-    \override Beam.cn-base-staff-space = #0.75
-    \override KeySignature.cn-base-staff-space = #0.75
-    \override TimeSignature.cn-base-staff-space = #0.75
-    \override Accidental.cn-base-staff-space = #0.75
-    \override NoteHead.cn-base-staff-space = #0.75
-
     \override KeySignature.cn-staff-octaves = #2
     \override TimeSignature.cn-staff-octaves = #2
 
@@ -1896,6 +1890,12 @@
     % times the size of the traditional octave (3/4 * 12/7 = 9/7).
     % Adjacent note heads overlap by 0.625 (5/8).
     \override StaffSymbol.staff-space = #0.75
+
+    % Custom grob property that stores the base staff-space, encoding
+    % the vertical compression of the Clairnote staff. It may differ from
+    % the actual staff-space which is scaled by \magnifyStaff etc.
+    % Stem and beam size, time sig and key sig position depend on it.
+    \override StaffSymbol.cn-base-staff-space = #0.75
 
     % adjust x-axis dots position to not collide with double-stemmed half notes
     \override Dots.extra-offset = #cn-dots-callback
