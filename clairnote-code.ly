@@ -42,6 +42,15 @@
    "Takes a note head grob and returns its semitone."
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
+#(define (cn-staff-symbol-property grob prop default)
+   "Takes a grob @var{grob}, a symbol @var{prop}, and
+    a @var{default} value. Returns that custom StaffSymbol
+    property or silently falls back to the default value."
+   (define staff-sym (ly:grob-object grob 'staff-symbol))
+   (if (ly:grob? staff-sym)
+       (ly:grob-property staff-sym prop)
+       default))
+
 #(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
     as the ratio of actual staff-space over cn-base-staff-space."
