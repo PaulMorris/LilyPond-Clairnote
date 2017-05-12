@@ -247,25 +247,17 @@
 
 #(define (cn-customize-note-head grob)
    (let ((width-scale (ly:grob-property grob 'cn-note-head-width-scale 1))
-         (height-scale (ly:grob-property grob 'cn-note-head-height-scale 1))
-         (stem-attach (ly:grob-property grob 'cn-stem-attachment #f)))
+         (height-scale (ly:grob-property grob 'cn-note-head-height-scale 1)))
 
      ;; width and height
      (if (not (and (= 1 width-scale) (= 1 height-scale)))
          (ly:grob-set-property! grob 'stencil
            (ly:stencil-scale
             (ly:grob-property grob 'stencil)
-            width-scale height-scale)))
-
-     ;; stem attachment
-     (if stem-attach
-         (ly:grob-set-property! grob 'stem-attachment
-           (if (cn-black-note? grob)
-               (car stem-attach)
-               (cdr stem-attach))))))
+            width-scale height-scale)))))
 
 #(define (cn-note-head-grob-callback grob)
-   "Customizes width, height, stem-attachment."
+   "Customizes width, height."
    ;; don't customize whole notes or larger
    ;; make sure omit is not in effect (i.e. stencil is not #f)
    ;; and do nothing for certain notehead styles
@@ -283,6 +275,18 @@
              (cn-stylish-note? grob))
          #f
          rotn)))
+
+#(define (cn-make-stem-attachment-callback black-attach white-attach)
+   "Returns a callback function for stem attachment,
+    that excludes whole notes and stylish notes.
+    The arguments are pairs of numbers for black and white notes."
+   (lambda (grob)
+     (if (or (cn-whole-note? grob)
+             (cn-stylish-note? grob))
+         (ly:note-head::calc-stem-attachment grob)
+         (if (cn-black-note? grob)
+             black-attach
+             white-attach))))
 
 
 %--- ACCIDENTAL SIGNS ----------------
@@ -1509,22 +1513,22 @@
       ((equal? style "funksol")
        #{
          \override Staff.NoteHead.stencil = #cn-funksol-note-stencil
+         \override Staff.NoteHead.stem-attachment = #(cn-make-stem-attachment-callback '(1 . 0.2) '(1 . 0.2))
          \override Staff.NoteHead.rotation = ##f
          % 1.4 results in approx. width of standard LilyPond noteheads.
          \override Staff.NoteHead.cn-note-head-width-scale = #1.35
          \override Staff.NoteHead.cn-note-head-height-scale = #1
-         \override Staff.NoteHead.cn-stem-attachment = #'((1 . 0.2) . (1 . 0.2))
        #})
 
       ((equal? style "lilypond")
        #{
          \override Staff.NoteHead.stencil = #cn-lilypond-note-stencil
+         \override Staff.NoteHead.stem-attachment = #(cn-make-stem-attachment-callback '(1.04 . 0.3) '(1.06 . 0.3))
          % black notes can be rotated as far as -27,
          % but -18 also works for white notes, currently -9
          \override Staff.NoteHead.rotation = #(cn-make-note-head-rotation-callback '(-9 0 0))
          \override Staff.NoteHead.cn-note-head-width-scale = #1
          \override Staff.NoteHead.cn-note-head-height-scale = #1
-         \override Staff.NoteHead.cn-stem-attachment = #'((1.04 . 0.3) . (1.06 . 0.3))
        #})
 
       (else
@@ -1534,10 +1538,10 @@
             style))
        #{
          \override Staff.NoteHead.stencil = #cn-default-note-stencil
+         \override Staff.NoteHead.stem-attachment = #ly:note-head::calc-stem-attachment
          \override Staff.NoteHead.rotation = ##f
          \override Staff.NoteHead.cn-note-head-width-scale = #1
          \override Staff.NoteHead.cn-note-head-height-scale = #1
-         \override Staff.NoteHead.cn-stem-attachment = ##f
        #})
       )))
 
@@ -1594,10 +1598,6 @@
   ;; For note head styles
   (add-grob-prop 'cn-note-head-width-scale non-zero?)
   (add-grob-prop 'cn-note-head-height-scale non-zero?)
-
-  ;; cn-stem-attachment should be a pair of pairs: '((1 . 2) . (3 . 4))
-  ;; the first for black notes, the second for white notes
-  (add-grob-prop 'cn-stem-attachment pair?)
 
   ;; For double stems for half notes.
   (add-grob-prop 'cn-double-stem-spacing number?)
