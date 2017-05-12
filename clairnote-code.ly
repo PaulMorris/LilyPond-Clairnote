@@ -1485,7 +1485,6 @@
        "Clairnote: custom staff compression of ~a will produce octaves ~a times the size of octaves in traditional notation; adjacent note heads (a semitone apart) will overlap by about ~a of their height."
        ss trad-octave notehead-overlap)
       #{
-        \set Staff.cnBaseStaffSpace = #ss
         \override Staff.StaffSymbol.cn-base-staff-space = #ss
         \override Staff.StaffSymbol.staff-space = #ss
       #})))
@@ -1552,11 +1551,6 @@
       symbol)))
 
   ;; All are Staff context properties unless otherwise noted.
-
-  ;; Stores the base staff-space to store the vertical compression of the
-  ;; Clairnote staff. The actual staff-space may differ with \magnifyStaff, etc.
-  ;; Stem and beam size, time sig and key sig position, etc. depend on it.
-  (add-prop 'cnBaseStaffSpace positive?)
 
   ;; Stores the base staff line positions used for extending the staff
   ;; up or down. See cnExtendStaff function.
@@ -1794,7 +1788,6 @@
     \numericTimeSignature
 
     % custom context properties
-    cnBaseStaffSpace = #0.75
     cnBaseStaffLines = #'(-8 -4)
     cnStaffOctaves = #2
     cnClefShift = #0
