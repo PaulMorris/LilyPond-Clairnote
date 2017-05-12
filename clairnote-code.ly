@@ -42,13 +42,7 @@
    "Takes a note head grob and returns its semitone."
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
-#(define (cn-magnification grob context)
-   "Return the current magnification (from magnifyStaff, etc.)
-    as the ratio of actual staff-space over cnBaseStaffSpace."
-   (/ (ly:staff-symbol-staff-space grob)
-     (ly:context-property context 'cnBaseStaffSpace)))
-
-#(define (cn-magnification2 grob)
+#(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
     as the ratio of actual staff-space over cn-base-staff-space."
    (/ (ly:staff-symbol-staff-space grob)
@@ -158,7 +152,7 @@
 
 #(define (cn-whole-note-stencil grob)
    "Returns default Clairnote whole note stencils."
-   (let ((mag (cn-magnification2 grob))
+   (let ((mag (cn-magnification grob))
          (wn-path (if (cn-black-note? grob)
                       cn-whole-note-black-path
                       cn-whole-note-white-path)))
@@ -211,7 +205,7 @@
     http://scripts.sil.org/OFL
     http://www.smufl.org/fonts/
     http://blog.steinberg.net/2013/05/introducing-bravura-music-font/"
-   (let ((mag (cn-magnification2 grob))
+   (let ((mag (cn-magnification grob))
          (nh-path (if (cn-black-note? grob)
                       cn-note-black-path
                       cn-note-white-path)))
@@ -321,7 +315,7 @@
 #(define (cn-redo-acc-sign grob)
    "Replaces the accidental sign stencil."
    (let*
-    ((mag (cn-magnification2 grob))
+    ((mag (cn-magnification grob))
      (alt (accidental-interface::calc-alteration grob))
      (acc-lookup (assoc-ref cn-acc-sign-stils alt))
      (stil (if acc-lookup
@@ -515,7 +509,7 @@
      (tonic-num (ly:pitch-notename tonic-pitch))
      ;; semitone of tonic (0-11) (C-B)
      (tonic-semi (modulo (ly:pitch-semitones tonic-pitch) 12))
-     (mag (cn-magnification2 grob))
+     (mag (cn-magnification grob))
 
      (alt-list (ly:grob-property grob 'alteration-alist))
      (alt-count (cn-get-keysig-alt-count alt-list))
@@ -964,7 +958,7 @@
      (y-offset (+ base-y-offset (* note-space staff-clef-adjust)))
 
      ;; adjustment for \magnifyStaff
-     (mag (cn-magnification2 grob))
+     (mag (cn-magnification grob))
      (final-y-offset (* y-offset mag)))
 
     (ly:grob-set-property! grob 'Y-offset final-y-offset)))
