@@ -202,69 +202,52 @@
      (curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555)
      (closepath)))
 
-#(define (cn-default-note-stencil grob)
-   "Callback for default Clairnote note heads.  Shapes for half-note and
-    quarter-note glyphs are modified versions (rotated -4 degrees then
-    scaled vertically by 0.9299) of these glyphs from the
-    Bravura font, licensed under the SIL Open Font License (OFL), see:
+#(define (cn-default-note-head-stencil grob)
+   "Returns default Clairnote note head stencils.
+    The hollow half-note and solid quarter-note glyphs are modified versions
+    (rotated -4 degrees then scaled vertically by 0.9299)
+    of these glyphs from the Bravura font,
+    licensed under the SIL Open Font License (OFL), see:
     http://scripts.sil.org/OFL
     http://www.smufl.org/fonts/
     http://blog.steinberg.net/2013/05/introducing-bravura-music-font/"
-   (cond
-    ((cn-stylish-note? grob) (ly:note-head::print grob))
-    ((cn-whole-note? grob) (cn-whole-note-stencil grob))
-    ;; not whole note
-    (else (let ((mag (cn-magnification2 grob))
-                (path (if (cn-black-note? grob)
-                          cn-note-black-path
-                          cn-note-white-path)))
-            (ly:stencil-scale
-             (grob-interpret-markup grob
-               (markup (#:override '(filled . #t) (#:path 0.0001 path))))
-             mag mag)))))
+   (let ((mag (cn-magnification2 grob))
+         (nh-path (if (cn-black-note? grob)
+                      cn-note-black-path
+                      cn-note-white-path)))
+     (ly:stencil-scale
+      (grob-interpret-markup grob
+        (markup (#:override '(filled . #t) (#:path 0.0001 nh-path))))
+      mag mag)))
 
-#(define (cn-lilypond-note-stencil grob)
-   "Callback for 'lilypond' style note heads (Emmentaler font)."
-   (cond
-    ((cn-stylish-note? grob) (ly:note-head::print grob))
-    ((cn-whole-note? grob) (cn-whole-note-stencil grob))
-    ((cn-black-note? grob)
-     (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2"))
-    ;; white notes are scaled horizontally to match black ones
-    (else (ly:stencil-scale
-           (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1")
-           0.945 1))))
+#(define (cn-lilypond-note-head-stencil grob)
+   "Returns 'lilypond' style note head stencils (Emmentaler font)."
+   (if (cn-black-note? grob)
+       (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2")
+       ;; white notes are scaled horizontally to match black ones
+       (ly:stencil-scale
+        (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1")
+        0.945 1)))
 
-#(define (cn-funksol-note-stencil grob)
-   "Callback for 'funksol' style note heads."
-   (cond
-    ((cn-stylish-note? grob) (ly:note-head::print grob))
-    ((cn-whole-note? grob) (cn-whole-note-stencil grob))
-    (else (ly:font-get-glyph (ly:grob-default-font grob)
-            (if (cn-black-note? grob)
-                "noteheads.s2solFunk"
-                "noteheads.s1solFunk")))))
+#(define (cn-funksol-note-head-stencil grob)
+   "Returns 'funksol' style note head stencils."
+   (ly:font-get-glyph (ly:grob-default-font grob)
+     (if (cn-black-note? grob)
+         "noteheads.s2solFunk"
+         "noteheads.s1solFunk")))
 
-#(define (cn-customize-note-head grob)
-   (let ((width-scale (ly:grob-property grob 'cn-note-head-width-scale 1))
-         (height-scale (ly:grob-property grob 'cn-note-head-height-scale 1)))
-
-     ;; width and height
-     (if (not (and (= 1 width-scale) (= 1 height-scale)))
-         (ly:grob-set-property! grob 'stencil
-           (ly:stencil-scale
-            (ly:grob-property grob 'stencil)
-            width-scale height-scale)))))
-
-#(define (cn-note-head-grob-callback grob)
-   "Customizes width, height."
-   ;; don't customize whole notes or larger
-   ;; make sure omit is not in effect (i.e. stencil is not #f)
-   ;; and do nothing for certain notehead styles
-   (if (and (not (cn-whole-note? grob))
-            (ly:grob-property-data grob 'stencil)
-            (not (cn-stylish-note? grob)))
-       (cn-customize-note-head grob)))
+#(define (cn-make-note-head-stencil-callback style-fn width-scale height-scale)
+   "Returns a callback function for note head stencil.
+    style-fn is a function that takes a grob and returns a stencil.
+    width-scale and height-scale are numbers for scaling the stencil."
+   (lambda (grob)
+     (cond
+      ((cn-stylish-note? grob) (ly:note-head::print grob))
+      ((cn-whole-note? grob) (cn-whole-note-stencil grob))
+      (else (let ((stil (style-fn grob)))
+              (if (and (= 1 width-scale) (= 1 height-scale))
+                  stil
+                  (ly:stencil-scale stil width-scale height-scale)))))))
 
 #(define (cn-make-note-head-rotation-callback rotn)
    "Returns a callback function for note head rotation,
@@ -1512,23 +1495,28 @@
 
       ((equal? style "funksol")
        #{
-         \override Staff.NoteHead.stencil = #cn-funksol-note-stencil
-         \override Staff.NoteHead.stem-attachment = #(cn-make-stem-attachment-callback '(1 . 0.2) '(1 . 0.2))
+         % 1.4 width-scale results in approx. width of standard LilyPond noteheads.
+         \override Staff.NoteHead.stencil =
+         #(cn-make-note-head-stencil-callback cn-funksol-note-head-stencil 1.35 1)
+
+         \override Staff.NoteHead.stem-attachment =
+         #(cn-make-stem-attachment-callback '(1 . 0.2) '(1 . 0.2))
+
          \override Staff.NoteHead.rotation = ##f
-         % 1.4 results in approx. width of standard LilyPond noteheads.
-         \override Staff.NoteHead.cn-note-head-width-scale = #1.35
-         \override Staff.NoteHead.cn-note-head-height-scale = #1
        #})
 
       ((equal? style "lilypond")
        #{
-         \override Staff.NoteHead.stencil = #cn-lilypond-note-stencil
-         \override Staff.NoteHead.stem-attachment = #(cn-make-stem-attachment-callback '(1.04 . 0.3) '(1.06 . 0.3))
+         \override Staff.NoteHead.stencil =
+         #(cn-make-note-head-stencil-callback cn-lilypond-note-head-stencil 1 1)
+
+         \override Staff.NoteHead.stem-attachment =
+         #(cn-make-stem-attachment-callback '(1.04 . 0.3) '(1.06 . 0.3))
+
          % black notes can be rotated as far as -27,
          % but -18 also works for white notes, currently -9
-         \override Staff.NoteHead.rotation = #(cn-make-note-head-rotation-callback '(-9 0 0))
-         \override Staff.NoteHead.cn-note-head-width-scale = #1
-         \override Staff.NoteHead.cn-note-head-height-scale = #1
+         \override Staff.NoteHead.rotation =
+         #(cn-make-note-head-rotation-callback '(-9 0 0))
        #})
 
       (else
@@ -1537,11 +1525,12 @@
             "unrecognized style ~s used with \\cnNoteheadStyle, using default instead."
             style))
        #{
-         \override Staff.NoteHead.stencil = #cn-default-note-stencil
+         \override Staff.NoteHead.stencil =
+         #(cn-make-note-head-stencil-callback cn-default-note-head-stencil 1 1)
+
          \override Staff.NoteHead.stem-attachment = #ly:note-head::calc-stem-attachment
+
          \override Staff.NoteHead.rotation = ##f
-         \override Staff.NoteHead.cn-note-head-width-scale = #1
-         \override Staff.NoteHead.cn-note-head-height-scale = #1
        #})
       )))
 
@@ -1594,10 +1583,6 @@
   ;; KeySignature.cn-tonic tonic note of the key.
   ;; The 'tonic context property turned into a grob property.
   (add-grob-prop 'cn-tonic ly:pitch?)
-
-  ;; For note head styles
-  (add-grob-prop 'cn-note-head-width-scale non-zero?)
-  (add-grob-prop 'cn-note-head-height-scale non-zero?)
 
   ;; For double stems for half notes.
   (add-grob-prop 'cn-double-stem-spacing number?)
@@ -1827,8 +1812,12 @@
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
 
-    \override NoteHead.stencil = #cn-default-note-stencil
-    \override NoteHead.before-line-breaking = #cn-note-head-grob-callback
+    \override NoteHead.stencil =
+    #(cn-make-note-head-stencil-callback cn-default-note-head-stencil 1 1)
+    \override AmbitusNoteHead.stencil =
+    #(cn-make-note-head-stencil-callback cn-default-note-head-stencil 1 1)
+    \override TrillPitchGroup.stencil =
+    #(cn-make-note-head-stencil-callback cn-default-note-head-stencil 1 1)
 
     \override Stem.no-stem-extend = ##t
     \override Stem.cn-double-stem-spacing = #3.5
