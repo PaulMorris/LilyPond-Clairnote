@@ -109,173 +109,174 @@
 
 %--- NOTE HEADS AND STEM ATTACHMENT ----------------
 
-%% use make-path-stencil when we drop 2.18 support, see v.20150410
+#(define (cn-black-note? grob)
+   (even? (cn-notehead-semitone grob)))
 
-#(define (cn-whole-note-stencil grob context black-note)
-   "default Clairnote whole notes"
-   (let*
-    ((black-path
-      '((moveto 0 0)
-        (curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432)
-        (curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784)
-        (curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432)
-        (curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0)
-        (curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448)
-        (curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768)
-        (curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448)
-        (curveto 0.12694192 -0.2800192 0 -0.16054432 0 0)
-        (closepath)))
+#(define (cn-whole-note? grob)
+   "Note: longer durations than whole note also return #t.
+    duration-log: 0 is whole, 1 is half, 2 is quarter and shorter."
+   (< (ly:grob-property grob 'duration-log) 1))
 
-     ;; white-path is the black path with the center hole added
-     (white-path
-      (append
-       black-path
-       '((moveto 1.06033904 -0.36566768)
-         (curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328)
-         (curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752)
-         (curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312)
-         (curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768)
-         (closepath))))
+#(define (cn-stylish-note? grob)
+   "Does a note head grob have one of these style properties."
+   (define style (ly:grob-property-data grob 'style))
+   ;; TODO: better handling of various notehead styles
+   ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
+   ;; output-lib.scm
+   (and (not (null? style))
+        (memq style '(harmonic
+                      harmonic-black
+                      harmonic-mixed
+                      diamond
+                      cross
+                      xcircle
+                      triangle
+                      slash))))
 
-     (path-to-use (if black-note black-path white-path))
-     (mag (cn-magnification grob context)))
+#(define cn-whole-note-black-path
+   '((moveto 0 0)
+     (curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432)
+     (curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784)
+     (curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432)
+     (curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0)
+     (curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448)
+     (curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768)
+     (curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448)
+     (curveto 0.12694192 -0.2800192 0 -0.16054432 0 0)
+     (closepath)))
 
-    (ly:stencil-scale
-     (grob-interpret-markup grob
-       (markup (#:override '(filled . #t) (#:path 0.0001 path-to-use))))
-     mag mag)))
+#(define cn-whole-note-white-path
+   ;; white-path is the black path with the center hole added
+   (append
+    cn-whole-note-black-path
+    '((moveto 1.06033904 -0.36566768)
+      (curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328)
+      (curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752)
+      (curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312)
+      (curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768)
+      (closepath))))
 
-#(define (cn-default-note-stencil grob context black-note dur-log)
-   "Default Clairnote note heads.  Shapes for half-note and
+#(define (cn-whole-note-stencil grob)
+   "Returns default Clairnote whole note stencils."
+   (let ((mag (cn-magnification2 grob))
+         (wn-path (if (cn-black-note? grob)
+                      cn-whole-note-black-path
+                      cn-whole-note-white-path)))
+     ;; use make-path-stencil when we drop 2.18 support, see v.20150410
+     (ly:stencil-scale
+      (grob-interpret-markup grob
+        (markup (#:override '(filled . #t) (#:path 0.0001 wn-path))))
+      mag mag)))
+
+#(define cn-note-black-path
+   '((moveto 1.0161518991984164 0.5004939160736768)
+     (curveto 1.1900858991984165 0.45804726744838686 1.3000056991984164 0.36006297281891986 1.3267185991984165 0.22365338254444356)
+     (curveto 1.3472530991984164 0.11878494731492373 1.3090816991984164 -0.03242382812749062 1.2346937991984164 -0.14100554722801906)
+     (curveto 1.1037044991984164 -0.3321698541497182 0.8786728091984164 -0.46440803197455877 0.6176073691984164 -0.5036333230878486)
+     (curveto 0.5243774691984164 -0.517643902935715 0.36590771919841636 -0.5120649140876494 0.28844503919841635 -0.49205136745873423)
+     (curveto -0.029717590801583628 -0.40984214143367353 -0.09642331080158363 -0.0917693764989545 0.14752670919841637 0.17990713903061328)
+     (curveto 0.2984087391984164 0.347937968940766 0.5439097091984164 0.4755783490866303 0.7757855691984165 0.5065506656056886)
+     (curveto 0.8399878691984165 0.5151219432426919 0.9695811491984164 0.5118635199715458 1.0161502991984164 0.5005020382431211)
+     (closepath)))
+
+#(define cn-note-white-path
+   '((moveto 1.026468864255086 0.4998680875655276)
+     (curveto 1.215249864255086 0.4618436649454002 1.337174464255086 0.35147108531050375 1.354920364255086 0.20252749405141746)
+     (curveto 1.369178964255086 0.08282868839604651 1.312372764255086 -0.07672001395465605 1.209350364255086 -0.20633856802981299)
+     (curveto 1.077365164255086 -0.37239062345611024 0.889153024255086 -0.47211463127579484 0.6458905642550861 -0.5048878796193299)
+     (curveto 0.585101844255086 -0.5130801213612108 0.548868934255086 -0.5134163330622651 0.443309034255086 -0.5067845101638356)
+     (curveto 0.32885581425508603 -0.49958868733223255 0.30882433425508604 -0.4965974421400958 0.260617494255086 -0.47979947287536673)
+     (curveto 0.118058624255086 -0.4300386473948317 0.024819864255086005 -0.335419029253747 0.0042339542550860025 -0.21961971038330325)
+     (curveto -0.015404825744913999 -0.1091556900709823 0.035236334255086 0.05025573233647185 0.132092634255086 0.18283290751856218)
+     (curveto 0.268217284255086 0.3691712451565947 0.47658985425508604 0.48176186299022195 0.730680684255086 0.5062696961187646)
+     (curveto 0.823563584255086 0.5152225290660725 0.965453244255086 0.5121589666760266 1.026469764255086 0.4998666604401908)
+     (closepath)
+     (moveto 0.8920403042550861 0.32723653716982337)
+     (curveto 0.801899114255086 0.305937547790631 0.674353834255086 0.25092305532124815 0.517242874255086 0.16559336664623436)
+     (curveto 0.199745884255086 -0.006853856240945699 0.109727534255086 -0.09774589911519554 0.151265174255086 -0.2039339094078499)
+     (curveto 0.168776074255086 -0.24869436361851288 0.191705974255086 -0.27755407274963595 0.226470474255086 -0.2985602160096806)
+     (curveto 0.309656374255086 -0.34884402584120455 0.42197617425508605 -0.33748020734960626 0.634757234255086 -0.25724484236248213)
+     (curveto 0.9774722042550861 -0.1280260070658748 1.216026564255086 0.03390026706789495 1.2240259642550861 0.14273918170232358)
+     (curveto 1.2287459642550862 0.20700273076812625 1.184881964255086 0.28132959706261473 1.121983764255086 0.3156476039275703)
+     (curveto 1.083730764255086 0.33652340307350437 1.077348764255086 0.3379303583723863 1.015085564255086 0.3392592023444909)
+     (curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555)
+     (closepath)))
+
+#(define (cn-default-note-stencil grob)
+   "Callback for default Clairnote note heads.  Shapes for half-note and
     quarter-note glyphs are modified versions (rotated -4 degrees then
     scaled vertically by 0.9299) of these glyphs from the
     Bravura font, licensed under the SIL Open Font License (OFL), see:
     http://scripts.sil.org/OFL
     http://www.smufl.org/fonts/
     http://blog.steinberg.net/2013/05/introducing-bravura-music-font/"
-   (let*
-    ((black-path
-      '((moveto 1.0161518991984164 0.5004939160736768)
-        (curveto 1.1900858991984165 0.45804726744838686 1.3000056991984164 0.36006297281891986 1.3267185991984165 0.22365338254444356)
-        (curveto 1.3472530991984164 0.11878494731492373 1.3090816991984164 -0.03242382812749062 1.2346937991984164 -0.14100554722801906)
-        (curveto 1.1037044991984164 -0.3321698541497182 0.8786728091984164 -0.46440803197455877 0.6176073691984164 -0.5036333230878486)
-        (curveto 0.5243774691984164 -0.517643902935715 0.36590771919841636 -0.5120649140876494 0.28844503919841635 -0.49205136745873423)
-        (curveto -0.029717590801583628 -0.40984214143367353 -0.09642331080158363 -0.0917693764989545 0.14752670919841637 0.17990713903061328)
-        (curveto 0.2984087391984164 0.347937968940766 0.5439097091984164 0.4755783490866303 0.7757855691984165 0.5065506656056886)
-        (curveto 0.8399878691984165 0.5151219432426919 0.9695811491984164 0.5118635199715458 1.0161502991984164 0.5005020382431211)
-        (closepath)))
+   (cond
+    ((cn-stylish-note? grob) (ly:note-head::print grob))
+    ((cn-whole-note? grob) (cn-whole-note-stencil grob))
+    ;; not whole note
+    (else (let ((mag (cn-magnification2 grob))
+                (path (if (cn-black-note? grob)
+                          cn-note-black-path
+                          cn-note-white-path)))
+            (ly:stencil-scale
+             (grob-interpret-markup grob
+               (markup (#:override '(filled . #t) (#:path 0.0001 path))))
+             mag mag)))))
 
-     (white-path
-      '((moveto 1.026468864255086 0.4998680875655276)
-        (curveto 1.215249864255086 0.4618436649454002 1.337174464255086 0.35147108531050375 1.354920364255086 0.20252749405141746)
-        (curveto 1.369178964255086 0.08282868839604651 1.312372764255086 -0.07672001395465605 1.209350364255086 -0.20633856802981299)
-        (curveto 1.077365164255086 -0.37239062345611024 0.889153024255086 -0.47211463127579484 0.6458905642550861 -0.5048878796193299)
-        (curveto 0.585101844255086 -0.5130801213612108 0.548868934255086 -0.5134163330622651 0.443309034255086 -0.5067845101638356)
-        (curveto 0.32885581425508603 -0.49958868733223255 0.30882433425508604 -0.4965974421400958 0.260617494255086 -0.47979947287536673)
-        (curveto 0.118058624255086 -0.4300386473948317 0.024819864255086005 -0.335419029253747 0.0042339542550860025 -0.21961971038330325)
-        (curveto -0.015404825744913999 -0.1091556900709823 0.035236334255086 0.05025573233647185 0.132092634255086 0.18283290751856218)
-        (curveto 0.268217284255086 0.3691712451565947 0.47658985425508604 0.48176186299022195 0.730680684255086 0.5062696961187646)
-        (curveto 0.823563584255086 0.5152225290660725 0.965453244255086 0.5121589666760266 1.026469764255086 0.4998666604401908)
-        (closepath)
-        (moveto 0.8920403042550861 0.32723653716982337)
-        (curveto 0.801899114255086 0.305937547790631 0.674353834255086 0.25092305532124815 0.517242874255086 0.16559336664623436)
-        (curveto 0.199745884255086 -0.006853856240945699 0.109727534255086 -0.09774589911519554 0.151265174255086 -0.2039339094078499)
-        (curveto 0.168776074255086 -0.24869436361851288 0.191705974255086 -0.27755407274963595 0.226470474255086 -0.2985602160096806)
-        (curveto 0.309656374255086 -0.34884402584120455 0.42197617425508605 -0.33748020734960626 0.634757234255086 -0.25724484236248213)
-        (curveto 0.9774722042550861 -0.1280260070658748 1.216026564255086 0.03390026706789495 1.2240259642550861 0.14273918170232358)
-        (curveto 1.2287459642550862 0.20700273076812625 1.184881964255086 0.28132959706261473 1.121983764255086 0.3156476039275703)
-        (curveto 1.083730764255086 0.33652340307350437 1.077348764255086 0.3379303583723863 1.015085564255086 0.3392592023444909)
-        (curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555)
-        (closepath)))
+#(define (cn-lilypond-note-stencil grob)
+   "Callback for 'lilypond' style note heads (Emmentaler font)."
+   (cond
+    ((cn-stylish-note? grob) (ly:note-head::print grob))
+    ((cn-whole-note? grob) (cn-whole-note-stencil grob))
+    ((cn-black-note? grob)
+     (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2"))
+    ;; white notes are scaled horizontally to match black ones
+    (else (ly:stencil-scale
+           (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1")
+           0.945 1))))
 
-     (path-to-use (if black-note black-path white-path))
-     (mag (cn-magnification grob context)))
+#(define (cn-funksol-note-stencil grob)
+   "Callback for 'funksol' style note heads."
+   (cond
+    ((cn-stylish-note? grob) (ly:note-head::print grob))
+    ((cn-whole-note? grob) (cn-whole-note-stencil grob))
+    (else (ly:font-get-glyph (ly:grob-default-font grob)
+            (if (cn-black-note? grob)
+                "noteheads.s2solFunk"
+                "noteheads.s1solFunk")))))
 
-    (if (< dur-log 1)
-        ;; whole note
-        (cn-whole-note-stencil grob context black-note)
-        ;; not whole note
-        (ly:stencil-scale
-         (grob-interpret-markup grob
-           (markup (#:override '(filled . #t) (#:path 0.0001 path-to-use))))
-         mag mag))))
+#(define (cn-customize-note-head grob)
+   (let ((width-scale (ly:grob-property grob 'cn-note-head-width-scale 1))
+         (height-scale (ly:grob-property grob 'cn-note-head-height-scale 1))
+         (rotn (ly:grob-property grob 'cn-note-head-rotation #f))
+         (stem-attach (ly:grob-property grob 'cn-stem-attachment #f)))
 
-#(define (cn-lilypond-note-stencil grob context black-note dur-log)
-   "lilypond style note heads (Emmentaler font)"
-   (if (< dur-log 1)
-       ;; whole note
-       (cn-whole-note-stencil grob context black-note)
-       ;; not whole note
-       (if black-note
-           (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2")
-           ;; white notes are scaled horizontally to match black ones
+     ;; width and height
+     (if (not (and (= 1 width-scale) (= 1 height-scale)))
+         (ly:grob-set-property! grob 'stencil
            (ly:stencil-scale
-            (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1")
-            0.945 1)
-           )))
+            (ly:grob-property grob 'stencil)
+            width-scale height-scale)))
 
-#(define (cn-funksol-note-stencil grob context black-note dur-log)
-   "funksol style note heads"
-   (if (< dur-log 1)
-       ;; whole note
-       (cn-whole-note-stencil grob context black-note)
-       ;; not whole note
-       (if black-note
-           (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2solFunk")
-           (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1solFunk"))))
+     ;; rotation
+     (if rotn (ly:grob-set-property! grob 'rotation (list rotn 0 0)))
 
-#(define Cn_note_heads_engraver
-   ;; Customizes stencil, stencil-width/height, stem-attachment, rotation.
-   (make-engraver
-    (acknowledgers
-     ((note-head-interface engraver grob source-engraver)
-      ;; make sure \omit is not in effect (i.e. stencil is not #f)
-      ;; and do nothing for certain notehead styles
-      (if
-       (and
-        (ly:grob-property-data grob 'stencil)
-        (not (memq (ly:grob-property-data grob 'style)
-               '(harmonic harmonic-black harmonic-mixed
-                  diamond cross xcircle triangle slash))))
-       ;; TODO: better handling of various notehead styles
-       ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
-       ;; output-lib.scm
-       (let*
-        ((context (ly:translator-context engraver))
-         (black-note (= 0 (modulo (cn-notehead-semitone grob) 2)))
-         (dur-log (ly:grob-property grob 'duration-log))
-         (stil-proc (ly:context-property context 'cnNoteheadStencilProcedure))
-         (width-scale (ly:context-property context 'cnNoteheadWidthScale 1))
-         (height-scale (ly:context-property context 'cnNoteheadHeightScale 1))
-         (rotn (ly:context-property context 'cnNoteheadRotation #f))
-         (stem-attach (ly:context-property context 'cnStemAttachment #f)))
+     ;; stem attachment
+     (if stem-attach
+         (ly:grob-set-property! grob 'stem-attachment
+           (if (cn-black-note? grob)
+               (car stem-attach)
+               (cdr stem-attach))))))
 
-        (ly:grob-set-property! grob 'stencil
-          (stil-proc grob context black-note dur-log))
-
-        ;; if not a whole note (or longer)
-        ;; dur-logs: 0 = whole, 1 = half, 2 = quarter and shorter
-        (if (>= dur-log 1)
-            (begin
-
-             ;; width and height
-             (if (not (and (= 1 width-scale) (= 1 height-scale)))
-                 (ly:grob-set-property! grob 'stencil
-                   (ly:stencil-scale
-                    (ly:grob-property grob 'stencil)
-                    width-scale height-scale)))
-
-             ;; rotation
-             (if rotn
-                 (ly:grob-set-property! grob 'rotation (list rotn 0 0)))
-
-             ;; stem attachment
-             (if stem-attach
-                 (ly:grob-set-property! grob 'stem-attachment
-                   (if black-note
-                       (car stem-attach)
-                       (cdr stem-attach))))
-             ))))))))
+#(define (cn-note-head-grob-callback grob)
+   "Customizes width, height, stem-attachment, and rotation."
+   ;; don't customize whole notes or larger
+   ;; make sure omit is not in effect (i.e. stencil is not #f)
+   ;; and do nothing for certain notehead styles
+   (if (and (not (cn-whole-note? grob))
+            (ly:grob-property-data grob 'stencil)
+            (not (cn-stylish-note? grob)))
+       (cn-customize-note-head grob)))
 
 
 %--- ACCIDENTAL SIGNS ----------------
@@ -1484,6 +1485,7 @@
        ss trad-octave notehead-overlap)
       #{
         \set Staff.cnBaseStaffSpace = #ss
+        \override Staff.NoteHead.cn-base-staff-space = #ss
         \override Staff.Beam.cn-base-staff-space = #ss
         \override Staff.KeySignature.cn-base-staff-space = #ss
         \override Staff.Stem.cn-base-staff-space = #ss
@@ -1500,24 +1502,23 @@
 
       ((equal? style "funksol")
        #{
-         \set Staff.cnNoteheadStencilProcedure = #cn-funksol-note-stencil
+         \override Staff.NoteHead.stencil = #cn-funksol-note-stencil
          % 1.4 results in approx. width of standard LilyPond noteheads.
-         \set Staff.cnNoteheadWidthScale = #1.35
-         \set Staff.cnNoteheadHeightScale = #1
-         \set Staff.cnNoteheadRotation = ##f
-         % \set Staff.cnStemAttachment = ##f
-         \set Staff.cnStemAttachment = #'((1 . 0.2) . (1 . 0.2))
+         \override Staff.NoteHead.cn-note-head-width-scale = #1.35
+         \override Staff.NoteHead.cn-note-head-height-scale = #1
+         \override Staff.NoteHead.cn-note-head-rotation = ##f
+         \override Staff.NoteHead.cn-stem-attachment = #'((1 . 0.2) . (1 . 0.2))
        #})
 
       ((equal? style "lilypond")
        #{
-         \set Staff.cnNoteheadStencilProcedure = #cn-lilypond-note-stencil
-         \set Staff.cnNoteheadWidthScale = #1
-         \set Staff.cnNoteheadHeightScale = #1
+         \override Staff.NoteHead.stencil = #cn-lilypond-note-stencil
+         \override Staff.NoteHead.cn-note-head-width-scale = #1
+         \override Staff.NoteHead.cn-note-head-height-scale = #1
          % black notes can be rotated as far as -27,
          % but -18 also works for white notes, currently -9
-         \set Staff.cnNoteheadRotation = #-9
-         \set Staff.cnStemAttachment = #'((1.04 . 0.3) . (1.06 . 0.3))
+         \override Staff.NoteHead.cn-note-head-rotation = #-9
+         \override Staff.NoteHead.cn-stem-attachment = #'((1.04 . 0.3) . (1.06 . 0.3))
        #})
 
       (else
@@ -1526,11 +1527,11 @@
             "unrecognized style ~s used with \\cnNoteheadStyle, using default instead."
             style))
        #{
-         \set Staff.cnNoteheadStencilProcedure = #cn-default-note-stencil
-         \set Staff.cnNoteheadWidthScale = #1
-         \set Staff.cnNoteheadHeightScale = #1
-         \set Staff.cnNoteheadRotation = #0
-         \set Staff.cnStemAttachment = ##f
+         \override Staff.NoteHead.stencil = #cn-default-note-stencil
+         \override Staff.NoteHead.cn-note-head-width-scale = #1
+         \override Staff.NoteHead.cn-note-head-height-scale = #1
+         \override Staff.NoteHead.cn-note-head-rotation = #0
+         \override Staff.NoteHead.cn-stem-attachment = ##f
        #})
       )))
 
@@ -1558,16 +1559,6 @@
   ;; up or down. See cnExtendStaff function.
   (add-prop 'cnBaseStaffLines list?)
 
-  ;; For note head styles
-  (add-prop 'cnNoteheadStencilProcedure procedure?)
-  (add-prop 'cnNoteheadWidthScale non-zero?)
-  (add-prop 'cnNoteheadHeightScale non-zero?)
-  (add-prop 'cnNoteheadRotation number?)
-
-  ;; cnStemAttachment should be a pair of pairs: '((1 . 2) . (3 . 4))
-  ;; the first for black notes, the second for white notes
-  (add-prop 'cnStemAttachment scheme?)
-
   ;; Indicates number of octaves the staff spans, lets us use
   ;; different clef settings so stems always flip at center of staff
   (add-prop 'cnStaffOctaves positive-integer?)
@@ -1593,6 +1584,15 @@
   ;; KeySignature.cn-tonic tonic note of the key.
   ;; The 'tonic context property turned into a grob property.
   (add-grob-prop 'cn-tonic ly:pitch?)
+
+  ;; For note head styles
+  (add-grob-prop 'cn-note-head-width-scale non-zero?)
+  (add-grob-prop 'cn-note-head-height-scale non-zero?)
+  (add-grob-prop 'cn-note-head-rotation number?)
+
+  ;; cn-stem-attachment should be a pair of pairs: '((1 . 2) . (3 . 4))
+  ;; the first for black notes, the second for white notes
+  (add-grob-prop 'cn-stem-attachment pair?)
 
   ;; For double stems for half notes.
   (add-grob-prop 'cn-double-stem-spacing number?)
@@ -1802,7 +1802,6 @@
     % custom context properties
     cnBaseStaffSpace = #0.75
     cnBaseStaffLines = #'(-8 -4)
-    cnNoteheadStencilProcedure = #cn-default-note-stencil
     cnStaffOctaves = #2
     cnClefShift = #0
 
@@ -1812,6 +1811,7 @@
     \override KeySignature.cn-base-staff-space = #0.75
     \override TimeSignature.cn-base-staff-space = #0.75
     \override Accidental.cn-base-staff-space = #0.75
+    \override NoteHead.cn-base-staff-space = #0.75
 
     \override KeySignature.cn-staff-octaves = #2
     \override TimeSignature.cn-staff-octaves = #2
@@ -1821,6 +1821,9 @@
 
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
+
+    \override NoteHead.stencil = #cn-default-note-stencil
+    \override NoteHead.before-line-breaking = #cn-note-head-grob-callback
 
     \override Stem.no-stem-extend = ##t
     \override Stem.cn-double-stem-spacing = #3.5
@@ -1903,7 +1906,6 @@
     % custom engravers
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
-    \consists \Cn_note_heads_engraver
 
     % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
     % Probably because it does ly:grob-suicide! on some accidental grobs.
