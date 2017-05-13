@@ -71,6 +71,11 @@
         6
         (if (> staff-octaves 2) 12 0))))
 
+#(define (cn-staff-clef-adjust-from-grob grob)
+   (cn-get-staff-clef-adjust
+    (cn-staff-symbol-property grob 'cn-staff-octaves 2)
+    (cn-staff-symbol-property grob 'cn-clef-shift 0)))
+
 #(define (cn-note-heads-from-grob grob default)
    "Takes a grob like a Stem and returns a list of NoteHead grobs or default."
    (let* ((heads-array (ly:grob-object grob 'note-heads))
@@ -539,9 +544,7 @@
      (base-vert-adj (if (= tonic-semi 0) tonic-semi (- tonic-semi 12)))
 
      ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
-     (staff-clef-adjust (cn-get-staff-clef-adjust
-                         (ly:grob-property grob 'cn-staff-octaves)
-                         (ly:grob-property grob 'cn-clef-shift)))
+     (staff-clef-adjust (cn-staff-clef-adjust-from-grob grob))
      (vert-adj (* note-space (+ base-vert-adj staff-clef-adjust)))
      (stack (ly:stencil-translate-axis raw-stack vert-adj Y)))
 
@@ -965,9 +968,7 @@
      ;; adjust position for odd octave staves and clefs shifted up/down an octave
      ;; note-space is the distance between two adjacent notes given vertical staff compression
      (note-space (* 0.5 base-staff-space))
-     (staff-clef-adjust (cn-get-staff-clef-adjust
-                         (ly:grob-property grob 'cn-staff-octaves)
-                         (ly:grob-property grob 'cn-clef-shift)))
+     (staff-clef-adjust (cn-staff-clef-adjust-from-grob grob))
 
      (y-offset (+ base-y-offset (* note-space staff-clef-adjust)))
 
@@ -1439,8 +1440,7 @@
        (downwards (if odd-octs n (floor n))))
       #{
         \set Staff.cnStaffOctaves = #octaves
-        \override Staff.KeySignature.cn-staff-octaves = #octaves
-        \override Staff.TimeSignature.cn-staff-octaves = #octaves
+        \override Staff.StaffSymbol.cn-staff-octaves = #octaves
         \set Staff.cnBaseStaffLines = #base-lines
         \override Staff.StaffSymbol.ledger-positions = #base-lines
         \cnStaffExtender ##t #upwards #downwards
@@ -1450,8 +1450,9 @@
    (define-music-function (parser location octaves) (integer?)
      #{
        \set Staff.cnClefShift = #octaves
-       \override Staff.KeySignature.cn-clef-shift = #octaves
-       \override Staff.TimeSignature.cn-clef-shift = #octaves
+       \override Staff.StaffSymbol.cn-clef-shift = #octaves
+       \stopStaff
+       \startStaff
      #}))
 
 
@@ -1793,12 +1794,8 @@
     cnClefShift = #0
 
     % grob property overrides
-    \override KeySignature.cn-staff-octaves = #2
-    \override TimeSignature.cn-staff-octaves = #2
-
-    \override KeySignature.cn-clef-shift = #0
-    \override TimeSignature.cn-clef-shift = #0
-
+    \override StaffSymbol.cn-staff-octaves = #2
+    \override StaffSymbol.cn-clef-shift = #0
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
 
