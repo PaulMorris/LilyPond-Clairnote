@@ -1539,74 +1539,69 @@
       )))
 
 
-%--- CUSTOM CONTEXT PROPERTIES ----------------
+%--- CUSTOM PROPERTIES ----------------
+
+% Define custom context properties and grob properties.
 
 #(let*
   ;; translator-property-description function
   ;; from "scm/define-context-properties.scm" (modified)
-  ((add-prop
+  ((context-prop
     (lambda (symbol type?)
       (set-object-property! symbol 'translation-type? type?)
       (set-object-property! symbol 'translation-doc "custom context property")
       (set! all-translation-properties (cons symbol all-translation-properties))
-      symbol)))
+      symbol))
 
-  ;; All are Staff context properties unless otherwise noted.
-
-  ;; Stores the base staff line positions used for extending the staff
-  ;; up or down. See cnExtendStaff function.
-  (add-prop 'cnBaseStaffLines list?)
-
-  ;; Indicates number of octaves the staff spans, lets us use
-  ;; different clef settings so stems always flip at center of staff
-  (add-prop 'cnStaffOctaves positive-integer?)
-
-  ;; For shifting clef position up or down an octave
-  (add-prop 'cnClefShift integer?))
-
-
-%--- CUSTOM GROB PROPERTIES ----------------
-
-#(let*
-  ;; define-grob-property function
-  ;; from "scm/define-grob-properties.scm" (modified)
-  ((add-grob-prop
+   ;; define-grob-property function
+   ;; from "scm/define-grob-properties.scm" (modified)
+   (grob-prop
     (lambda (symbol type?)
       (set-object-property! symbol 'backend-type? type?)
       (set-object-property! symbol 'backend-doc "custom grob property")
       symbol)))
 
-  ;; StaffSymbol.cn-is-clairnote-staff is used for repeat sign dots.
-  (add-grob-prop 'cn-is-clairnote-staff boolean?)
+  ;; For Staff contexts or StaffSymbol grobs unless otherwise noted.
+  ;; Some values need to be accessed by both custom engravers and grob
+  ;; callbacks so they are kept in both grob and context properties.
 
-  ;; KeySignature.cn-tonic tonic note of the key.
-  ;; The 'tonic context property turned into a grob property.
-  (add-grob-prop 'cn-tonic ly:pitch?)
-
-  ;; For double stems for half notes.
-  (add-grob-prop 'cn-double-stem-spacing number?)
-  (add-grob-prop 'cn-double-stem-width-scale non-zero?)
-
-  ;; StaffSymbol.cn-ledger-recipe used to produce ledger line pattern.
-  (add-grob-prop 'cn-ledger-recipe number-list?)
-
-  ;; whether to destroy a grob (e.g. an unneeded accidental)
-  (add-grob-prop 'cn-suicide-grob boolean?)
-
-  ;; Clef.cn-clef-transposition makes clef transposition accessible from clef grobs
-  (add-grob-prop 'cn-clef-transposition integer?)
-
-  ;; The base staff-space for the vertical compression of the Clairnote staff.
-  ;; The actual staff-space may differ with \magnifyStaff, etc.
-  ;; Stem and beam size, time sig and key sig position, etc. depend on it.
-  (add-grob-prop 'cn-base-staff-space positive?)
+  ;; Stores the base staff line positions used for extending the staff
+  ;; up or down. See cnExtendStaff function.
+  (context-prop 'cnBaseStaffLines list?)
 
   ;; Indicates number of octaves the staff spans, lets us use
-  ;; different clef settings so stems always flip at center of staff
-  (add-grob-prop 'cn-staff-octaves positive-integer?)
+  ;; different clef settings so stems always flip at center of staff.
+  (context-prop 'cnStaffOctaves positive-integer?)
+  (grob-prop 'cn-staff-octaves positive-integer?)
 
-  ;; For shifting clef position up or down an octave
-  (add-grob-prop 'cn-clef-shift integer?))
+  ;; For moving clef position up or down by one or more octaves.
+  (context-prop 'cnClefShift integer?)
+  (grob-prop 'cn-clef-shift integer?)
+
+  ;; For Clef grobs, makes clef transposition accessible.
+  (grob-prop 'cn-clef-transposition integer?)
+
+  ;; Base staff-space for the vertical compression of the Clairnote staff.
+  ;; Actual staff-space may differ with \magnifyStaff, etc.
+  ;; Affects stem and beam size, time sig, key sig position, etc.
+  (grob-prop 'cn-base-staff-space positive?)
+
+  ;; Used for repeat sign dots.
+  (grob-prop 'cn-is-clairnote-staff boolean?)
+
+  ;; For KeySignature grobs, stores the tonic note of the key.
+  ;; The 'tonic context property turned into a grob property.
+  (grob-prop 'cn-tonic ly:pitch?)
+
+  ;; For Stem grobs, for double stems for half notes.
+  (grob-prop 'cn-double-stem-spacing number?)
+  (grob-prop 'cn-double-stem-width-scale non-zero?)
+
+  ;; Used to produce ledger line pattern.
+  (grob-prop 'cn-ledger-recipe number-list?)
+
+  ;; For Accidental grobs, whether to destroy the grob.
+  (grob-prop 'cn-suicide-grob boolean?))
 
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
