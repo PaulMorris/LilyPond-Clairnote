@@ -1776,7 +1776,7 @@
   \context {
     \Staff
 
-    % context property settings
+    % CONTEXT PROPERTIES
     % traditional clef settings are immediately converted to
     % clairnote settings by custom clef engraver
     clefGlyph = "clefs.G"
@@ -1784,20 +1784,32 @@
     middleCClefPosition = -6
     clefTransposition = 0
     middleCPosition = -12
+
     staffLineLayoutFunction = #ly:pitch-semitones
     printKeyCancellation = ##f
     \numericTimeSignature
 
-    % custom context properties
     cnBaseStaffLines = #'(-8 -4)
     cnStaffOctaves = #2
     cnClefShift = #0
 
-    % grob property overrides
+    % GROB PROPERTIES
     \override StaffSymbol.cn-staff-octaves = #2
     \override StaffSymbol.cn-clef-shift = #0
     \override StaffSymbol.line-positions = #'(-8 -4 4 8)
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
+
+    % staff-space reflects vertical compression of Clairnote staff.
+    % Default of 0.75 makes the Clairnote octave 1.28571428571429
+    % times the size of the traditional octave (3/4 * 12/7 = 9/7).
+    % Adjacent note heads overlap by 0.625 (5/8).
+    \override StaffSymbol.staff-space = #0.75
+
+    % Custom grob property that stores the base staff-space, encoding
+    % the vertical compression of the Clairnote staff. It may differ from
+    % the actual staff-space which is scaled by \magnifyStaff etc.
+    % Stem and beam size, time sig and key sig position depend on it.
+    \override StaffSymbol.cn-base-staff-space = #0.75
 
     \override NoteHead.stencil =
     #(cn-make-note-head-stencil-callback cn-default-note-head-stencil 1 1)
@@ -1837,35 +1849,28 @@
     \override CueEndClef.stencil = #cn-clef-stencil-callback
     \override ClefModifier.stencil = ##f
 
-    % empty else clauses are needed for 2.18 compatibility
+    % adjust x-axis dots position to not collide with double-stemmed half notes
+    \override Dots.extra-offset = #cn-dots-callback
+
     #(if (ly:version? >= '(2 19 34))
          #{
            \override Stem.note-collision-threshold = 2
            \override NoteCollision.note-collision-threshold = 2
          #}
-         #{ #})
-
-    % LilyPond bug with "ledger-extra = 2" before 2.19.36
-    #(if (ly:version? >= '(2 19 36))
          #{
-           \override StaffSymbol.ledger-extra = 2
-         #}
-         #{
-           \override StaffSymbol.ledger-extra = 1
+           % NoteColumn override doesn't work as an engraver for some reason,
+           % crashes with manual beams on chords.
+           \override NoteColumn.before-line-breaking = #cn-note-column-callback
          #})
 
+    % LilyPond bug with "ledger-extra = 2" before 2.19.36
+    \override StaffSymbol.ledger-extra = #(if (ly:version? >= '(2 19 36)) 2 1)
+
+    % empty else clauses are needed for 2.18 compatibility
     #(if (ly:version? >= '(2 19 42))
          #{
            \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
            \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
-         #}
-         #{ #})
-
-    % NoteColumn override doesn't work as an engraver for some reason,
-    % crashes with manual beams on chords.
-    #(if (ly:version? < '(2 19 34))
-         #{
-           \override NoteColumn.before-line-breaking = #cn-note-column-callback
          #}
          #{ #})
 
@@ -1875,29 +1880,16 @@
          #}
          #{ #})
 
-    % staff-space reflects vertical compression of Clairnote staff.
-    % Default of 0.75 makes the Clairnote octave 1.28571428571429
-    % times the size of the traditional octave (3/4 * 12/7 = 9/7).
-    % Adjacent note heads overlap by 0.625 (5/8).
-    \override StaffSymbol.staff-space = #0.75
-
-    % Custom grob property that stores the base staff-space, encoding
-    % the vertical compression of the Clairnote staff. It may differ from
-    % the actual staff-space which is scaled by \magnifyStaff etc.
-    % Stem and beam size, time sig and key sig position depend on it.
-    \override StaffSymbol.cn-base-staff-space = #0.75
-
-    % adjust x-axis dots position to not collide with double-stemmed half notes
-    \override Dots.extra-offset = #cn-dots-callback
-
-    % custom engravers
+    % ENGRAVERS
+    % There is also the customized Span_stem_engraver (added in LilyPond 2.19.??)
+    % which does not need to be consisted here.
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
 
-    % Put all engravers before Cn_accidental_engraver or we may get a segfault crash.
-    % Probably because it does ly:grob-suicide! on some accidental grobs.
-    % That seems to be the source of the problem.
-    % Note: This may no longer apply now that grob suicide is handled by grob callback.
+    % This probably no longer applies now that grob suicide happens in a grob callback.
+    % We put all engravers before Cn_accidental_engraver because we got segfault
+    % crashes otherwise. Probably because it used to call ly:grob-suicide! on
+    % some accidental grobs.
     \consists \Cn_accidental_engraver
   }
 }
