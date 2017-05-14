@@ -600,186 +600,226 @@
 %% themselves at the source.  This allows TradStaff to work
 %% fully for any clef.
 
-#(define (trad-to-cn-clef glyph pos)
-   "Takes trad clef glyph and position and returns a symbol
-    indicating the Clairnote clef to use.  Separating this
-    into two steps means this function is never fed Clairnote
-    clef positions, only trad clef positions."
-   (let*
-    ((new-clef
-      (cond
-       ((string= "clefs.G" glyph)
-        (assoc-ref
-         '((-4 . cn-treble) ;; french => treble
-            (-2 . cn-treble)) ;; treble => treble
-         pos))
+#(define (cn-convert-clef-glyph glyph pos)
+   "Takes a standard clefGlyph or cueClefGlyph string and
+    a clefPosition or cueClefPosition integer.
+    Returns the corresponding Clairnote clef glyph string."
+   ;; Return '() when \cueClefUnset.
+   (if (null? glyph)
+       '()
+       (or
+        (cond
+         ;; G clef glyph
+         ;; -4 french => treble
+         ;; -2 treble => treble
+         ((string= "clefs.G" glyph)
+          (if (member pos '(-2 -4)) "clefs.G" #f))
 
-       ((string= "clefs.C" glyph)
-        (assoc-ref
-         '((-4 . cn-treble) ;; soprano => treble
-            (-2 . cn-alto) ;; mezzosoprano => alto
-            (0 . cn-alto) ;; alto => alto (settings unchanged, but needed)
-            (2 . cn-alto) ;; tenor => alto
-            (4 . cn-bass)) ;; baritone => bass
-         pos))
+         ;; F clef glyph
+         ;; 0 varbaritone => bass
+         ;; 2 bass => bass
+         ;; 4 subbass => bass
+         ((string= "clefs.F" glyph)
+          (if (member pos '(2 0 4)) "clefs.F" #f))
 
-       ((string= "clefs.F" glyph)
-        (assoc-ref
-         '((0 . cn-bass) ;; varbaritone => bass
-            (2 . cn-bass) ;; bass => bass
-            (4 . cn-bass)) ;; subbass => bass
-         pos))
+         ;; C clef glyph
+         ;; -4 soprano => treble
+         ;; -2 mezzosoprano => alto
+         ;; 0 alto => alto (settings unchanged, but needed)
+         ;; 2 tenor => alto
+         ;; 4 baritone => bass
+         ((string= "clefs.C" glyph)
+          (cond
+           ((member pos '(0 2 -2)) "clefs.C")
+           ((= pos -4) "clefs.G")
+           ((= pos 4) "clefs.F")
+           (else #f)))
 
-       ((string= "clefs.percussion" glyph) 'cn-percussion)
-       (else #f))))
+         ((string= "clefs.percussion" glyph) "clefs.percussion")
+         (else #f))
 
-    (if new-clef
-        new-clef
         (begin
          (ly:warning "clef unsupported by clairnote-code.ly, using another clef instead.")
          (cond
-          ((string= "clefs.F" glyph) 'cn-bass)
-          ((string= "clefs.C" glyph) 'cn-alto)
-          (else 'cn-treble))))))
+          ((string= "clefs.F" glyph) "clefs.F")
+          ((string= "clefs.C" glyph) "clefs.C")
+          (else "clefs.G"))))))
 
-#(define (trad-to-cn-clef-transposition trans)
-   "If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
+#(define (cn-convert-clef-transposition trans)
+   "Takes standard clefTransposition or cueClefTransposition values and
+    converts them.
+    If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
     else convert from 7 notes per octave to 12.  7-->12, 14-->24. Rounding
     means only multiples of 12 are ever returned (... -24, -12, 0, 12, 24 ...)."
-   (if (= 0 (modulo trans 12))
-       trans
-       (* 12 (round (/ trans 7)))))
+   ;; Return '() when \cueClefUnset.
+   (cond
+    ((null? trans) '())
+    ((= 0 (modulo trans 12)) trans)
+    (else (* 12 (round (/ trans 7))))))
 
-#(define (cn-get-clef-props clef-name clef-transpo staff-clef-adjust)
-   "In order to have stems change direction at the vertical center
-    of the staff we use different clef settings for staves with odd
-    or even numbers of octaves."
+#(define (cn-convert-clef-position glyph clef-adjust)
+   "Takes standard clefPosition or cueClefPosition values and converts
+    them. Returns defaults for two-octave staves."
+   ;; Return '() when \cueClefUnset.
+   (if (null? glyph)
+       '()
+       (+ clef-adjust
+         (cond
+          ((string= "clefs.G" glyph) -5)
+          ((string= "clefs.F" glyph) 5)
+          ;; clefs.C and clefs.percussion
+          (else 0)))))
 
+#(define (cn-convert-middle-c-clef-position glyph clef-adjust trans)
+   "Takes standard middleCClefPosition or middleCCuePosition values
+    and converts them. trans is clefTransposition or cueClefTransposition.
+    Returns defaults for two-octave staves."
    ;; To calculate the clairnote middle c position subtract the clef position
    ;; from 12 for bass clef or from -12 for treble clef (to adjust the clef
-   ;; position without affecting the position of middle c or other notes)
-   (let*
-    ((clef-data
-      ;; default for staves with two octaves
-      (assoc-ref
-       '((cn-treble . ("clefs.G" -5 -12))
-         (cn-bass . ("clefs.F" 5 12))
-         (cn-alto . ("clefs.C" 0 0))
-         (cn-percussion . ("clefs.percussion" 0 0)))
-       clef-name))
+   ;; position without affecting the position of middle c or other notes).
+   ;; Return '() when \cueClefUnset.
+   (if (null? glyph)
+       '()
+       (+ clef-adjust
+         (- trans)
+         (cond
+          ((string= "clefs.G" glyph) -12)
+          ((string= "clefs.F" glyph) 12)
+          ;; clefs.C and clefs.percussion
+          (else 0)))))
 
-     ;; clef transposition
-     (new-transpo (trad-to-cn-clef-transposition clef-transpo))
-     (mid-c-pos (- (list-ref clef-data 2) new-transpo))
+#(define (cn-convert-middle-c-offset offset)
+   "Takes standard middleCOffset values for Ottava/8va and converts them."
+   (if (null? offset)
+       '()
+       (* offset 12/7)))
 
-     ;; staff-clef-adjust shifts clefPosition and middleCClefPosition:
-     ;; up 6 note-positions for odd octave staves
-     ;; up 12 for even octave staves with 4 or more octaves
-     ;; up or down 12 * Staff.cnClefShift
-     (new-pos (+ (list-ref clef-data 1) staff-clef-adjust))
-     (new-mid-c-pos (+ mid-c-pos staff-clef-adjust)))
-    (list (list-ref clef-data 0) new-pos new-mid-c-pos new-transpo)))
+#(define (Cn_clef_ottava_engraver context)
+   "Overrides clef and ottava settings. A closure stores the previous
+    properties in order to detect changed settings. Uses listeners
+    to modify context properties before grobs are created.
 
-#(define Cn_clef_ottava_engraver
-   ;; Override clef and ottava settings. A closure stores the previous
-   ;; properties in order to detect new settings (sigh). Uses listeners
-   ;; to modify context properties before grobs are created.
-   (lambda (context)
-     (let*
-      ((prev-mid-c-off '())
-       ;; clefGlyph clefPosition middleCClefPosition clefTransposition
-       (prev-clef '(() () () ()))
-       (prev-cue '(() () () ()))
-       (prev-clef-name '())
-       (prev-cue-name '())
-       (prev-staff-octaves #f)
-       (prev-clef-shift 0))
+    In order to have stems change direction at the vertical center
+    of the staff we use different clef settings for staves with odd
+    or even numbers of octaves (with clef-adjust)."
+   (let
+    ((props (alist->hash-table '((clefGlyph . ())
+                                 (clefPosition . ())
+                                 (middleCClefPosition . ())
+                                 (clefTransposition . ())
 
-      (make-engraver
-       (listeners
-        ;; TODO: confirm that rhythmic-event is best event to listen to.
-        ((rhythmic-event engraver event)
-         (let*
-          ((clef-prop-list
-            '(clefGlyph clefPosition middleCClefPosition clefTransposition))
-           (cue-prop-list
-            '(cueClefGlyph cueClefPosition middleCCuePosition cueClefTransposition))
+                                 (cueClefGlyph . ())
+                                 (cueClefPosition . ())
+                                 (middleCCuePosition . ())
+                                 (cueClefTransposition . ())
 
-           (get-context-prop (lambda (prop) (ly:context-property context prop)))
-           (now-clef (map get-context-prop clef-prop-list))
-           (now-cue (map get-context-prop cue-prop-list))
-           (now-mid-c-off (get-context-prop 'middleCOffset))
-           (now-staff-octaves (get-context-prop 'cnStaffOctaves))
-           (now-clef-shift (get-context-prop 'cnClefShift))
+                                 ;; for ottava, 8va
+                                 (middleCOffset . ())
 
-           (changed-staff (not (equal? now-staff-octaves prev-staff-octaves)))
-           (changed-clef (not (equal? now-clef prev-clef)))
-           (changed-cue (not (equal? now-cue prev-cue)))
-           (cue-unset (equal? now-cue '(() () () ())))
-           (changed-clef-shift (not (equal? now-clef-shift prev-clef-shift)))
+                                 (cnStaffOctaves . ())
+                                 (cnClefShift . ())))))
+    (make-engraver
+     (listeners
+      ;; TODO: confirm that rhythmic-event is best event to listen to.
+      ((rhythmic-event engraver event)
+       (let*
+        ((now-props (hash-map->list (lambda (kee val)
+                                      (cons kee (ly:context-property context kee)))
+                      props))
 
-           (set-context-props!
-            (lambda (context props vals)
-              (for-each
-               (lambda (prop val) (ly:context-set-property! context prop val))
-               props vals)
-              (ly:set-middle-C! context))))
+         (changed-props (filter (lambda (prop)
+                                  (let* ((kee (car prop))
+                                         (now-val (cdr prop))
+                                         (prev-val (hash-ref props kee '())))
+                                    (not (equal? prev-val now-val))))
+                                now-props)))
 
-          ;; set prev values to new values and then set context properties to prev values
+        (if (not (null? changed-props))
+            (let*
+             ((changed-clef (or (assoc 'clefGlyph changed-props)
+                                (assoc 'clefPosition changed-props)
+                                (assoc 'middleCClefPosition changed-props)
+                                (assoc 'clefTransposition changed-props)))
 
-          (if changed-staff (set! prev-staff-octaves now-staff-octaves))
+              (changed-cue (or (assoc 'cueClefGlyph changed-props)
+                               (assoc 'cueClefPosition changed-props)
+                               (assoc 'middleCCuePosition changed-props)
+                               (assoc 'cueClefTransposition changed-props)))
 
-          (if changed-clef (set! prev-clef-name
-                                 (trad-to-cn-clef
-                                  (list-ref now-clef 0) (list-ref now-clef 1))))
+              (new-staff-octaves (assoc 'cnStaffOctaves changed-props))
+              (new-clef-shift (assoc 'cnClefShift changed-props))
+              (new-mid-c-offset (assoc 'middleCOffset changed-props))
 
-          (if changed-clef-shift (set! prev-clef-shift now-clef-shift))
+              ;; clef-adjust shifts clefPosition and middleCClefPosition:
+              ;; up 6 note-positions for odd octave staves
+              ;; up 12 for even octave staves with 4 or more octaves
+              ;; up or down 12 * Staff.cnClefShift
+              (clef-adjust (cn-get-staff-clef-adjust
+                            (assoc-ref now-props 'cnStaffOctaves)
+                            (assoc-ref now-props 'cnClefShift)))
 
-          (if (or changed-clef changed-staff changed-clef-shift)
-              (begin
-               (set! prev-clef (cn-get-clef-props
-                                prev-clef-name
-                                (list-ref now-clef 3)
-                                (cn-get-staff-clef-adjust
-                                 prev-staff-octaves prev-clef-shift)))
+              (set-prop! (lambda (kee val)
+                           (hash-set! props kee val)
+                           (ly:context-set-property! context kee val)))
 
-               (set-context-props! context clef-prop-list prev-clef)))
+              (set-glyph! (lambda (glyph-symbol position-symbol)
+                            (set-prop! glyph-symbol
+                              (cn-convert-clef-glyph
+                               (assoc-ref now-props glyph-symbol)
+                               (assoc-ref now-props position-symbol)))))
 
-          ;; cue clefs
-          (if changed-cue
-              (if cue-unset
-                  (set! prev-cue-name '())
-                  (set! prev-cue-name
-                        (trad-to-cn-clef (list-ref now-cue 0) (list-ref now-cue 1)))))
+              (set-transposition! (lambda (trans-symbol)
+                                    (set-prop! trans-symbol
+                                      (cn-convert-clef-transposition
+                                       (assoc-ref now-props trans-symbol)))))
 
-          (if (or changed-cue changed-staff changed-clef-shift)
-              (if cue-unset
-                  ;; \cueClefUnset
-                  (set! prev-cue now-cue)
-                  ;; else \cueClef
-                  (begin
-                   (set! prev-cue (cn-get-clef-props
-                                   prev-cue-name
-                                   (list-ref now-cue 3)
-                                   (cn-get-staff-clef-adjust
-                                    prev-staff-octaves prev-clef-shift)))
+              (set-position! (lambda (position-symbol glyph-symbol clef-adjust)
+                               (set-prop! position-symbol
+                                 (cn-convert-clef-position
+                                  (hash-ref props glyph-symbol '()) clef-adjust))))
 
-                   (set-context-props! context cue-prop-list prev-cue))))
+              (set-middle-c! (lambda (mid-c-symbol glyph-symbol clef-adjust trans-symbol)
+                               (set-prop! mid-c-symbol
+                                 (cn-convert-middle-c-clef-position
+                                  (hash-ref props glyph-symbol '())
+                                  clef-adjust
+                                  (hash-ref props trans-symbol '()))))))
 
-          ;; new ottava? (8va 8vb etc.)
-          (if (not (equal? now-mid-c-off prev-mid-c-off))
-              (begin
-               (set! prev-mid-c-off (* now-mid-c-off 12/7))
-               (ly:context-set-property! context 'middleCOffset prev-mid-c-off)
-               (ly:set-middle-C! context)
-               )))))
+             ;; custom clairnote properties require no transformation just store them
+             (if new-staff-octaves (hash-set! props 'cnStaffOctaves (cdr new-staff-octaves)))
+             (if new-clef-shift (hash-set! props 'cnClefShift (cdr new-clef-shift)))
 
-       ;; copy clefTransposition context property to a custom Clef grob property
-       (acknowledgers
-        ((clef-interface engraver clef-grob source-engraver)
-         (ly:grob-set-property! clef-grob 'cn-clef-transposition
-           (ly:context-property context 'clefTransposition))))
-       ))))
+             (if changed-clef (set-glyph! 'clefGlyph 'clefPosition))
+             (if changed-cue (set-glyph! 'cueClefGlyph 'cueClefPosition))
+
+             (if (or changed-clef new-staff-octaves new-clef-shift)
+                 (begin
+                  (set-transposition! 'clefTransposition)
+                  (set-position! 'clefPosition 'clefGlyph clef-adjust)
+                  (set-middle-c! 'middleCClefPosition
+                    'clefGlyph clef-adjust 'clefTransposition)))
+
+             (if (or changed-cue new-staff-octaves new-clef-shift)
+                 (begin
+                  (set-transposition! 'cueClefTransposition)
+                  (set-position! 'cueClefPosition 'cueClefGlyph clef-adjust)
+                  (set-middle-c! 'middleCCuePosition
+                    'cueClefGlyph clef-adjust 'cueClefTransposition)))
+
+             ;; new ottava? (8va 8vb etc.)
+             (if new-mid-c-offset
+                 (set-prop! 'middleCOffset
+                   (cn-convert-middle-c-offset (cdr new-mid-c-offset))))
+
+             (ly:set-middle-C! context)
+             )))))
+
+     ;; copy clefTransposition context property to a custom Clef grob property
+     (acknowledgers
+      ((clef-interface engraver clef-grob source-engraver)
+       (ly:grob-set-property! clef-grob 'cn-clef-transposition
+         (ly:context-property context 'clefTransposition))))
+     )))
 
 
 %--- CLEF GLYPHS
