@@ -1,4 +1,4 @@
-%    This file "clairnote-code.ly" is a LilyPond include file for producing
+%    This file "clairnote.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
 %    Version: 20161214
 %
@@ -35,7 +35,7 @@
    (if (ly:stream-event? event)
        (ly:event-property event 'pitch)
        (begin
-        (ly:warning "clairnote-code.ly cannot access the pitch of a note head grob.  (Are you trying to use the Ambitus_engraver?  It is incompatible with clairnote-code.ly.)")
+        (ly:warning "clairnote.ly cannot access the pitch of a note head grob.  (Are you trying to use the Ambitus_engraver?  It is incompatible with clairnote.ly.)")
         (ly:make-pitch 0 0 0))))
 
 #(define (cn-notehead-semitone grob)
@@ -639,7 +639,7 @@
          (else #f))
 
         (begin
-         (ly:warning "clef unsupported by clairnote-code.ly, using another clef instead.")
+         (ly:warning "clef unsupported by clairnote.ly, using another clef instead.")
          (cond
           ((string= "clefs.F" glyph) "clefs.F")
           ((string= "clefs.C" glyph) "clefs.C")
