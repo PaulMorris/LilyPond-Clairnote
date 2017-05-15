@@ -2,9 +2,10 @@
 %    sheet music in Clairnote music notation (http://clairnote.org).
 %    Version: 20170515
 %
-%    Copyright © 2013, 2014, 2015 Paul Morris, except for functions copied
-%    and modified from LilyPond source code, the LilyPond Snippet
-%    Repository, and openLilyLib, as noted in comments below.
+%    Copyright © 2013, 2014, 2015, 2016, 2017 Paul Morris,
+%    except for functions copied and modified from LilyPond source code,
+%    the LilyPond Snippet Repository, and openLilyLib, as noted in
+%    comments below.
 %    Contact information: http://clairnote.org/about/
 %
 %    This file is free software: you can redistribute it and/or modify
