@@ -361,7 +361,7 @@
     ;; 0. sharp or flat, in the key sig. (note-alt pair in key-sig)
     ((equal? (cons note alt) (assoc note key-sig)) #t)
     ;; 1. sharp or flat, not in key sig. (alt is sharp or flat)
-    ((not (equal? 0 alt)) #f)
+    ((not (eqv? 0 alt)) #f)
     ;; 2. not sharp or flat, not in the key sig. (note is in key-sig, alt is not)
     ((assoc-ref key-sig note) #f)
     ;; 3. not sharp or flat, in the key sig.
@@ -386,7 +386,7 @@
         ;; refresh barnum and acc-list if we're in a new bar
         (let ((current-barnum (ly:context-property context 'currentBarNumber)))
           ;; another option: (ly:context-property context 'internalBarNumber)
-          (if (not (equal? barnum current-barnum))
+          (if (not (eqv? barnum current-barnum))
               (begin
                (set! alt-list '())
                (set! barnum current-barnum)))
@@ -407,7 +407,7 @@
 
                 (in-the-key (cn-pitch-in-key note alt key-alts))
                 (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
-                (semi-in-alt-list (equal? alt (assoc-ref alt-list semi)))
+                (semi-in-alt-list (eqv? alt (assoc-ref alt-list semi)))
 
                 ;; 1. new acc
                 ;; 2. cancel acc: in the key, cancels an alt in alt-list
@@ -415,7 +415,9 @@
                 ;; 3. forced acc: forced with !
                 (new-acc (and (not in-the-key) (not in-alt-list)))
                 (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
-                (forced-acc (equal? #t (ly:grob-property grob 'forced))))
+                ;; 'forced prop is typically '() or #t
+                (forced-acc (and (not (null? (ly:grob-property grob 'forced)))
+                                 (ly:grob-property grob 'forced))))
 
                (if (not (or new-acc cancel-acc forced-acc))
                    ;; 4. is an acc but not a new one in this measure
@@ -448,17 +450,21 @@
        (modulo (/ alt-count 2) 7)))
 
 #(define (cn-make-keysig-posns prev pattern result x-inc)
-   "Recursive function to calculate x/y positions for keysig dots."
-   (if (equal? '() pattern)
+   "Calculate x and y positions for keysig dots."
+   (if (null? pattern)
        result
        (let*
-        ((whole-step (equal? (car pattern) prev))
+        ((whole-step (eqv? (car pattern) prev))
          (y-step (if whole-step 2 1))
          (x-step (if whole-step 0 x-inc))
          (last-xy (last result))
          (new-xy (cons (+ x-step (car last-xy)) (+ y-step (cdr last-xy)))))
-        (cn-make-keysig-posns (car pattern) (cdr pattern)
-          (append result (list new-xy)) x-inc))))
+
+        (cn-make-keysig-posns
+         (car pattern)
+         (cdr pattern)
+         (append result (list new-xy))
+         x-inc))))
 
 #(define (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num)
    "Create the stack of circles (and tonic oval) for the key sig."
@@ -503,11 +509,11 @@
                  0.2 Y))
      (alt-stack-list (map (lambda (stil alt xy)
                             (cond
-                             ((equal? alt -1/2)
+                             ((eqv? -1/2 alt)
                               (ly:stencil-combine-at-edge stil X -1
                                 (ly:stencil-translate flat-line xy)
                                 -0.2))
-                             ((equal? alt 1/2)
+                             ((eqv? 1/2 alt)
                               (ly:stencil-combine-at-edge stil X -1
                                 (ly:stencil-translate sharp-line xy)
                                 -0.2))
@@ -538,7 +544,7 @@
      (mode (modulo (- tonic-num major-tonic-num) 7))
      ;; the distance between two adjacent notes given vertical staff compression
      (note-space (* 0.5 base-staff-space))
-     (black-tonic (equal? 0 (modulo tonic-semi 2)))
+     (black-tonic (eqv? 0 (modulo tonic-semi 2)))
      (raw-stack (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num))
 
      ;; position the sig vertically, C-tonic keys stay in place, the rest are moved down.
@@ -748,27 +754,28 @@
                          (hash-ref props glyph '())
                          clef-adjust
                          (hash-ref props trans '())))))
-     (changed? (lambda (prop)
-                 (not (equal? (hash-ref props prop)
-                              (ly:context-property context prop))))))
+     (changed? (lambda (prop equality-predicate)
+                 (not (equality-predicate
+                       (hash-ref props prop)
+                       (ly:context-property context prop))))))
     (make-engraver
      (listeners
       ;; TODO: confirm that rhythmic-event is best event to listen to.
       ((rhythmic-event engraver event)
        (let*
-        ((new-staff-octaves (changed? 'cnStaffOctaves))
-         (new-clef-shift (changed? 'cnClefShift))
-         (new-mid-c-offset (changed? 'middleCOffset))
+        ((new-staff-octaves (changed? 'cnStaffOctaves eqv?))
+         (new-clef-shift (changed? 'cnClefShift eqv?))
+         (new-mid-c-offset (changed? 'middleCOffset eqv?))
 
-         (new-clef (or (changed? 'clefGlyph)
-                       (changed? 'clefPosition)
-                       (changed? 'middleCClefPosition)
-                       (changed? 'clefTransposition)))
+         (new-clef (or (changed? 'clefPosition eqv?)
+                       (changed? 'middleCClefPosition eqv?)
+                       (changed? 'clefTransposition eqv?)
+                       (changed? 'clefGlyph equal?)))
 
-         (new-cue (or (changed? 'cueClefGlyph)
-                      (changed? 'cueClefPosition)
-                      (changed? 'middleCCuePosition)
-                      (changed? 'cueClefTransposition))))
+         (new-cue (or (changed? 'cueClefPosition eqv?)
+                      (changed? 'middleCCuePosition eqv?)
+                      (changed? 'cueClefTransposition eqv?)
+                      (changed? 'cueClefGlyph equal?))))
 
         ;; The Clef engraver is called every measure (!),
         ;; so exit early if nothing changed.
@@ -1452,7 +1459,7 @@
     #{
       \context Staff \applyContext
       #(lambda (context)
-         (if (not (equal? 'TradStaff (ly:context-name context)))
+         (if (not (eqv? 'TradStaff (ly:context-name context)))
              (let*
               ((grob-def (ly:context-grob-definition context 'StaffSymbol))
                (current-lines (ly:assoc-get 'line-positions grob-def '(-8 -4 4 8)))
@@ -1539,7 +1546,7 @@
    (define-music-function (parser location style) (string?)
      (cond
 
-      ((equal? style "funksol")
+      ((string=? "funksol" style)
        #{
          % 1.4 width-scale results in approx. width of standard LilyPond noteheads.
          \override Staff.NoteHead.stencil =
@@ -1551,7 +1558,7 @@
          \override Staff.NoteHead.rotation = ##f
        #})
 
-      ((equal? style "lilypond")
+      ((string=? "lilypond" style)
        #{
          \override Staff.NoteHead.stencil =
          #(cn-make-note-head-stencil-callback cn-lilypond-note-head-stencil 1 1)
@@ -1566,7 +1573,7 @@
        #})
 
       (else
-       (if (not (equal? style "default"))
+       (if (not (string=? "default" style))
            (ly:warning
             "unrecognized style ~s used with \\cnNoteheadStyle, using default instead."
             style))
@@ -1660,9 +1667,9 @@
                         #f
                         (modulo (cn-notehead-semitone parent) 12))))
          (cond
-          ((equal? semi 0)
+          ((eqv? 0 semi)
            (ly:grob-set-property! grob 'staff-position
-             (if (equal? -1 (ly:grob-property grob 'direction))
+             (if (eqv? -1 (ly:grob-property grob 'direction))
                  -1 ;; down
                  1))) ;; up or neutral
           ((member semi '(2 6 10))
