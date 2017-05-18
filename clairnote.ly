@@ -548,7 +548,7 @@
      (raw-stack (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num))
 
      ;; position the sig vertically, C-tonic keys stay in place, the rest are moved down.
-     (base-vert-adj (if (= tonic-semi 0) tonic-semi (- tonic-semi 12)))
+     (base-vert-adj (if (= 0 tonic-semi) tonic-semi (- tonic-semi 12)))
 
      ;; adjust position for odd octave staves and clefs shifted up/down an octave, etc.
      (staff-clef-adjust (cn-staff-clef-adjust-from-grob grob))
@@ -638,8 +638,8 @@
          ((string=? "clefs.C" glyph)
           (cond
            ((member pos '(0 2 -2)) "clefs.C")
-           ((= pos -4) "clefs.G")
-           ((= pos 4) "clefs.F")
+           ((= -4 pos) "clefs.G")
+           ((= 4 pos) "clefs.F")
            (else #f)))
 
          ((string=? "clefs.percussion" glyph) "clefs.percussion")
@@ -942,12 +942,12 @@
            (default-octave (if (string=? "clefs.F" glyph) 3 4))
            (octave (+ default-octave (/ transpo 12)))
            (number-shift (cond
-                          ((string=? glyph "clefs.G") (case octave
+                          ((string=? "clefs.G" glyph) (case octave
                                                         ((4) '(1.5 . -0.63))
                                                         ((6) '(1.6 . -0.63))
                                                         (else '(1.7 . -0.63))))
-                          ((string=? glyph "clefs.F") '(1.0 . -1.33))
-                          ((string=? glyph "clefs.C") '(0.9 . 0.48))
+                          ((string=? "clefs.F" glyph) '(1.0 . -1.33))
+                          ((string=? "clefs.C" glyph) '(0.9 . 0.48))
                           (else '(0 . 0))))
            (scale 0.9)
            (number-stil
@@ -957,7 +957,7 @@
               (* mult (car number-shift))
               (* mult (cdr number-shift))))))
 
-          (if (string=? glyph "clefs.C")
+          (if (string=? "clefs.C" glyph)
               (ly:stencil-add scaled-curve number-stil
                 (ly:stencil-translate
                  (ly:stencil-scale
@@ -1057,7 +1057,7 @@
    (let*
     ((stem-stil (ly:stem::print grob))
      (dir (ly:grob-property grob 'direction))
-     (up-stem (= dir 1))
+     (up-stem (= 1 dir))
 
      ;; --- X / width / spacing ---
 
@@ -1713,12 +1713,12 @@
         ;; TODO: better coding if (<= log 0)
         (cond
          ;; original, doesn't work (whole notes)
-         ;; ((and (= q 0) (= stem-dir 1))
+         ;; ((and (= 0 q) (= 1 stem-dir))
          ;;      (* -1 (+ 2  (* -4 stem-x-width))))
          ;; new, quick fix, could be better?
-         ((= dur-log 0) 0.223)
+         ((= 0 dur-log) 0.223)
 
-         ((and (< dur-log 0) (= stem-dir 1))
+         ((and (< dur-log 0) (= 1 stem-dir))
           (* -1 (+ 2  (* -1 stem-x-width))))
          ((< dur-log 0)
           (* 2 stem-x-width))
@@ -1749,9 +1749,9 @@
                    (old-nh-dir
                     (if (> stem-dir 0)
                         ;; stem up (stem-dir is 1)
-                        (if (= pos 0) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
+                        (if (= 0 pos) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
                         ;; stem down (stem-dir is -1)
-                        (if (= pos 0) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
+                        (if (= 0 pos) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
 
                   (if (not (= nh-dir old-nh-dir))
                       (cn-shift-notehead nh nh-dir stem-dir))
