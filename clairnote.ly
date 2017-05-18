@@ -619,14 +619,14 @@
          ;; G clef glyph
          ;; -4 french => treble
          ;; -2 treble => treble
-         ((string= "clefs.G" glyph)
+         ((string=? "clefs.G" glyph)
           (if (member pos '(-2 -4)) "clefs.G" #f))
 
          ;; F clef glyph
          ;; 0 varbaritone => bass
          ;; 2 bass => bass
          ;; 4 subbass => bass
-         ((string= "clefs.F" glyph)
+         ((string=? "clefs.F" glyph)
           (if (member pos '(2 0 4)) "clefs.F" #f))
 
          ;; C clef glyph
@@ -635,21 +635,21 @@
          ;; 0 alto => alto (settings unchanged, but needed)
          ;; 2 tenor => alto
          ;; 4 baritone => bass
-         ((string= "clefs.C" glyph)
+         ((string=? "clefs.C" glyph)
           (cond
            ((member pos '(0 2 -2)) "clefs.C")
            ((= pos -4) "clefs.G")
            ((= pos 4) "clefs.F")
            (else #f)))
 
-         ((string= "clefs.percussion" glyph) "clefs.percussion")
+         ((string=? "clefs.percussion" glyph) "clefs.percussion")
          (else #f))
 
         (begin
          (ly:warning "clef unsupported by clairnote.ly, using another clef instead.")
          (cond
-          ((string= "clefs.F" glyph) "clefs.F")
-          ((string= "clefs.C" glyph) "clefs.C")
+          ((string=? "clefs.F" glyph) "clefs.F")
+          ((string=? "clefs.C" glyph) "clefs.C")
           (else "clefs.G"))))))
 
 #(define (cn-convert-clef-transposition trans)
@@ -672,8 +672,8 @@
        '()
        (+ clef-adjust
          (cond
-          ((string= "clefs.G" glyph) -5)
-          ((string= "clefs.F" glyph) 5)
+          ((string=? "clefs.G" glyph) -5)
+          ((string=? "clefs.F" glyph) 5)
           ;; clefs.C and clefs.percussion
           (else 0)))))
 
@@ -690,8 +690,8 @@
        (+ clef-adjust
          (- trans)
          (cond
-          ((string= "clefs.G" glyph) -12)
-          ((string= "clefs.F" glyph) 12)
+          ((string=? "clefs.G" glyph) -12)
+          ((string=? "clefs.F" glyph) 12)
           ;; clefs.C and clefs.percussion
           (else 0)))))
 
