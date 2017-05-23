@@ -59,9 +59,8 @@
 
 #(define (cn-magnification grob)
    "Return the current magnification (from magnifyStaff, etc.)
-    as the ratio of actual staff-space over cn-base-staff-space."
-   (/ (ly:staff-symbol-staff-space grob)
-     (cn-get-base-staff-space grob)))
+    via a grob's font size."
+   (magstep (ly:grob-property grob 'font-size 0)))
 
 #(define (cn-get-staff-clef-adjust staff-octaves clef-octave-shift)
    "Calculate the amount to vertically adjust the position of the clef,
