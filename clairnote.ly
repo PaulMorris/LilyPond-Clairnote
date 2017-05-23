@@ -26,7 +26,7 @@
 
 %--- UTILITY FUNCTIONS ----------------
 
-#(define (non-zero? n) (or (positive? n) (negative? n)))
+#(define (non-zero? n) (not (zero? n)))
 
 #(define (positive-integer? n) (and (positive? n) (integer? n)))
 
@@ -328,8 +328,7 @@
        ((1/2) '(-0.27 . 0.27))
        ((-1) '(-0.34 . 0.67))
        ((1) '(-0.54 . 0.47))
-       ;; else covers natural sign (0)
-       (else '(-0.0 . 0.44)))))
+       ((0) '(-0.0 . 0.44)))))
 
 #(define (cn-redo-acc-sign grob)
    "Replaces the accidental sign stencil."
@@ -1252,9 +1251,7 @@
 %--- DOTS ON DOTTED NOTES ----------------
 
 #(define (cn-highest-semitone note-heads)
-   (reduce (lambda (a b) (if (> a b) a b))
-     0
-     (map cn-notehead-semitone note-heads)))
+   (reduce max -inf.0 (map cn-notehead-semitone note-heads)))
 
 #(define (cn-dots-callback dots-grob)
    "Avoid collision between double-stem and dots by shifting right the dots on
