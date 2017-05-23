@@ -320,7 +320,7 @@
 #(define (cn-set-acc-extents grob alt)
    ;; Only used for LilyPond 2.18
    ;; TODO: should natural signs have the same Y-extent as others?
-   ;; TODO: shouldn't X/Y-extent scale with mult / font-size?
+   ;; TODO: shouldn't X/Y-extent scale with magnification / font-size?
    (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
    (ly:grob-set-property! grob 'X-extent
      (case alt
@@ -345,6 +345,7 @@
                 0.63 0.63))))
     (ly:grob-set-property! grob 'stencil
       (if acc-lookup
+          ;; only custom stencils need scaling, not natural signs
           (ly:stencil-scale stil mag mag)
           stil))
     (if (ly:version? <= '(2 19 0))
@@ -534,7 +535,6 @@
      (tonic-num (ly:pitch-notename tonic-pitch))
      ;; semitone of tonic (0-11) (C-B)
      (tonic-semi (modulo (ly:pitch-semitones tonic-pitch) 12))
-     (mag (cn-magnification grob))
 
      (alt-list (ly:grob-property grob 'alteration-alist))
      (alt-count (cn-get-keysig-alt-count alt-list))
@@ -564,12 +564,10 @@
     stack))
 
 #(define (cn-customize-key-signature grob)
-   (let* ((stil (cn-draw-keysig grob))
-          (mult (magstep (ly:grob-property grob 'font-size 0.0)))
-          (stil-mult (ly:stencil-scale stil mult mult)))
-
-     (ly:grob-set-property! grob 'stencil stil-mult)
-     ))
+   (let ((stil (cn-draw-keysig grob))
+         (mag (cn-magnification grob)))
+     (ly:grob-set-property! grob 'stencil
+       (ly:stencil-scale stil mag mag))))
 
 #(define (cn-key-signature-grob-callback grob)
    "Clairnote's staff definition has printKeyCancellation = ##f, which
@@ -933,8 +931,8 @@
          (let*
           ((curve-stil (grob-interpret-markup clef-grob
                          (markup (#:override '(filled . #t) (#:path 0.0001 curve-path)))))
-           (mult (magstep (ly:grob-property clef-grob 'font-size 0.0)))
-           (scaled-curve (ly:stencil-scale curve-stil mult mult))
+           (mag (cn-magnification clef-grob))
+           (scaled-curve (ly:stencil-scale curve-stil mag mag))
 
            (transpo (ly:grob-property clef-grob 'cn-clef-transposition))
            ;; bass clef default octave is 3, treble and alto are 4
@@ -953,15 +951,15 @@
             (ly:stencil-translate
              (ly:stencil-scale (cn-number-stencil clef-grob octave) scale scale)
              (cons
-              (* mult (car number-shift))
-              (* mult (cdr number-shift))))))
+              (* mag (car number-shift))
+              (* mag (cdr number-shift))))))
 
           (if (string=? "clefs.C" glyph)
               (ly:stencil-add scaled-curve number-stil
                 (ly:stencil-translate
                  (ly:stencil-scale
                   (cn-number-stencil clef-grob (1- octave)) scale scale)
-                 (cons (* mult 0.9) (* mult -2.46))))
+                 (cons (* mag 0.9) (* mag -2.46))))
 
               (ly:stencil-add scaled-curve number-stil)))
 
