@@ -30,6 +30,11 @@
 
 #(define (positive-integer? n) (and (positive? n) (integer? n)))
 
+#(define (map-pairs proc . pairs)
+   (cons
+    (reduce proc '() (map car pairs))
+    (reduce proc '() (map cdr pairs))))
+
 #(define (cn-notehead-pitch grob)
    "Takes a note head grob and returns its pitch."
    (define event (ly:grob-property grob 'cause))
@@ -821,8 +826,8 @@
 
      ;; Copy clefTransposition context property to a custom Clef grob property.
      (acknowledgers
-      ((clef-interface engraver clef-grob source-engraver)
-       (ly:grob-set-property! clef-grob 'cn-clef-transposition
+      ((clef-interface engraver grob source-engraver)
+       (ly:grob-set-property! grob 'cn-clef-transposition
          (ly:context-property context 'clefTransposition))))
      )))
 
@@ -918,55 +923,67 @@
                    "five" "six" "seven" "eight" "nine") number))
     X 0))
 
-#(define (cn-clef-stencil-callback clef-grob)
+#(define (cn-clef-number-shift glyph octave)
+   "Takes a glyph (string) and an octave (integer) and
+    returns a pair of numbers for shifting the position
+    of the clef number stencil along x and y axes."
+   (cond
+    ((string=? "clefs.G" glyph) (case octave
+                                  ((4) '(1.5 . -0.63))
+                                  ((6) '(1.6 . -0.63))
+                                  (else '(1.7 . -0.63))))
+    ((string=? "clefs.F" glyph) '(1.0 . -1.33))
+    ((string=? "clefs.C" glyph) '(0.9 . 0.48))
+    (else '(0 . 0))))
+
+#(define (cn-clef-stencil-callback grob)
    "Returns a stencil for clef grobs."
-   (let* ((glyph (ly:grob-property clef-grob 'glyph))
+   (let* ((glyph (ly:grob-property grob 'glyph))
           (curve-path (assoc-ref cn-clef-curves glyph)))
      (if curve-path
          (let*
-          ((curve-stil (grob-interpret-markup clef-grob
-                         (markup (#:override '(filled . #t) (#:path 0.0001 curve-path)))))
-           (mag (cn-magnification clef-grob))
+          ((curve-stil (grob-interpret-markup grob
+                         (markup (#:override '(filled . #t)
+                                   (#:path 0.0001 curve-path)))))
+           (mag (cn-magnification grob))
            (scaled-curve (ly:stencil-scale curve-stil mag mag))
 
-           (transpo (ly:grob-property clef-grob 'cn-clef-transposition))
+           (transpo (ly:grob-property grob 'cn-clef-transposition))
            ;; bass clef default octave is 3, treble and alto are 4
            (default-octave (if (string=? "clefs.F" glyph) 3 4))
            (octave (+ default-octave (/ transpo 12)))
-           (number-shift (cond
-                          ((string=? "clefs.G" glyph) (case octave
-                                                        ((4) '(1.5 . -0.63))
-                                                        ((6) '(1.6 . -0.63))
-                                                        (else '(1.7 . -0.63))))
-                          ((string=? "clefs.F" glyph) '(1.0 . -1.33))
-                          ((string=? "clefs.C" glyph) '(0.9 . 0.48))
-                          (else '(0 . 0))))
+           (number-shift (map-pairs * (cons mag mag)
+                           (cn-clef-number-shift glyph octave)))
            (scale 0.9)
-           (number-stil
-            (ly:stencil-translate
-             (ly:stencil-scale (cn-number-stencil clef-grob octave) scale scale)
-             (cons
-              (* mag (car number-shift))
-              (* mag (cdr number-shift)))))
-           (combined-stil (if (string=? "clefs.C" glyph)
-                              (ly:stencil-add scaled-curve number-stil
-                                (ly:stencil-translate
-                                 (ly:stencil-scale
-                                  (cn-number-stencil clef-grob (1- octave)) scale scale)
-                                 (cons (* mag 0.9) (* mag -2.46))))
+           (number-stil (ly:stencil-translate
+                         (ly:stencil-scale
+                          (cn-number-stencil grob octave)
+                          scale scale)
+                         number-shift))
+           (2nd-number-stil
+            (if (string=? "clefs.C" glyph)
+                (ly:stencil-translate
+                 (ly:stencil-scale
+                  (cn-number-stencil grob (1- octave))
+                  scale scale)
+                 (cons (* mag 0.9) (* mag -2.46)))
+                empty-stencil))
 
-                              (ly:stencil-add scaled-curve number-stil)))
+           (combined-stil (ly:stencil-add scaled-curve
+                            number-stil 2nd-number-stil))
+           ;; 'glyph-name is e.g. "clefs.G_change"
+           ;; when 'glyph is just "clefs.G"
+           (glyph-name (ly:grob-property grob 'glyph-name)))
 
-           ;; 'glyph-name is e.g. "clefs.G_change" when 'glyph is just "clefs.G"
-           (glyph-name (ly:grob-property clef-grob 'glyph-name)))
-
-          ;; if clef change, scale stencil to 80 percent
-          (if (member glyph-name '("clefs.G_change" "clefs.F_change" "clefs.C_change"))
+          ;; for clef changes, scale stencil to 80 percent
+          (if (member glyph-name '("clefs.G_change" "clefs.F_change"
+                                    "clefs.C_change"))
               (ly:stencil-scale combined-stil 0.8 0.8)
               combined-stil))
 
-         ;; else other clef e.g. percussion clef
-         (ly:clef::print clef-grob))))
+         ;; clefs that aren't G, F, or C clefs use standard
+         ;; stencil callback e.g. percussion clef
+         (ly:clef::print grob))))
 
 
 %--- REPEAT SIGN DOTS (BAR LINES) ----------------
