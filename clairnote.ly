@@ -919,11 +919,7 @@
     X 0))
 
 #(define (cn-clef-stencil-callback clef-grob)
-
-   ;; (glyph-name (ly:grob-property clef-grob 'glyph-name))
-   ;; glyph-name is e.g. "clefs.G_change"
-   ;; for if we ever want to deal with clef changes vs initial clefs
-
+   "Returns a stencil for clef grobs."
    (let* ((glyph (ly:grob-property clef-grob 'glyph))
           (curve-path (assoc-ref cn-clef-curves glyph)))
      (if curve-path
@@ -951,16 +947,23 @@
              (ly:stencil-scale (cn-number-stencil clef-grob octave) scale scale)
              (cons
               (* mag (car number-shift))
-              (* mag (cdr number-shift))))))
+              (* mag (cdr number-shift)))))
+           (combined-stil (if (string=? "clefs.C" glyph)
+                              (ly:stencil-add scaled-curve number-stil
+                                (ly:stencil-translate
+                                 (ly:stencil-scale
+                                  (cn-number-stencil clef-grob (1- octave)) scale scale)
+                                 (cons (* mag 0.9) (* mag -2.46))))
 
-          (if (string=? "clefs.C" glyph)
-              (ly:stencil-add scaled-curve number-stil
-                (ly:stencil-translate
-                 (ly:stencil-scale
-                  (cn-number-stencil clef-grob (1- octave)) scale scale)
-                 (cons (* mag 0.9) (* mag -2.46))))
+                              (ly:stencil-add scaled-curve number-stil)))
 
-              (ly:stencil-add scaled-curve number-stil)))
+           ;; 'glyph-name is e.g. "clefs.G_change" when 'glyph is just "clefs.G"
+           (glyph-name (ly:grob-property clef-grob 'glyph-name)))
+
+          ;; if clef change, scale stencil to 80 percent
+          (if (member glyph-name '("clefs.G_change" "clefs.F_change" "clefs.C_change"))
+              (ly:stencil-scale combined-stil 0.8 0.8)
+              combined-stil))
 
          ;; else other clef e.g. percussion clef
          (ly:clef::print clef-grob))))
