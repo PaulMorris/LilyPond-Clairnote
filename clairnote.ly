@@ -322,7 +322,7 @@
      (cons 1 double-sharp)
      (cons -1 double-flat))))
 
-#(define (cn-redo-acc-sign grob)
+#(define (cn-accidental-grob-callback grob)
    "Replaces the accidental sign stencil."
    (let*
     ((mag (cn-magnification grob))
@@ -351,20 +351,13 @@
     ;; 3. not sharp or flat, in the key sig.
     (else #t)))
 
-#(define (cn-accidental-grob-callback grob)
-   (if (ly:grob-property grob 'cn-suicide-grob #f)
-       ;; TODO: does grob-suicide affect ledger line widths?
-       (begin
-        (ly:grob-suicide! grob)
-        '())
-       (cn-redo-acc-sign grob)))
-
 #(define (Cn_accidental_engraver context)
    "The context has to be accessed like this (and not with
     ly:translator-context) for accidentals to be tracked per staff,
     using a closure for storing barnum and alt-list (alteration list)."
    (let ((barnum 0)
-         (alt-list '()))
+         (alt-list '())
+         (grobs-to-drop '()))
      (make-engraver
       (acknowledgers
        ((accidental-interface engraver grob source-engraver)
@@ -403,14 +396,17 @@
            (if (not (or new-acc cancel-acc forced-acc))
                ;; 4. is an acc but not a new one in this measure
                ;; 5. is not an acc and is not cancelling previous acc
-               (ly:grob-set-property! grob 'cn-suicide-grob #t))
+               (set! grobs-to-drop (cons grob grobs-to-drop)))
 
            ;; add to or remove from alt-list
            ;; add replaces any existing alt for that semi
            (cond
             (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
-            (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))
-           )))))))
+            (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))))))
+
+      ((finalize translator)
+       ;; TODO: does grob-suicide affect ledger line widths?
+       (for-each ly:grob-suicide! grobs-to-drop)))))
 
 
 %--- KEY SIGNATURES ----------------
@@ -1638,10 +1634,7 @@
   (grob-prop 'cn-double-stem-width-scale non-zero?)
 
   ;; Used to produce ledger line pattern.
-  (grob-prop 'cn-ledger-recipe number-list?)
-
-  ;; For Accidental grobs, whether to destroy the grob.
-  (grob-prop 'cn-suicide-grob boolean?))
+  (grob-prop 'cn-ledger-recipe number-list?))
 
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
@@ -1948,10 +1941,9 @@
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
 
-    % This probably no longer applies now that grob suicide happens in a grob callback.
     % We put all engravers before Cn_accidental_engraver because we got segfault
     % crashes otherwise. Probably because it used to call ly:grob-suicide! on
-    % some accidental grobs.
+    % some accidental grobs when acknowledging rather than finalizing.
     \consists \Cn_accidental_engraver
   }
 }
