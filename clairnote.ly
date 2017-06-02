@@ -322,38 +322,18 @@
      (cons 1 double-sharp)
      (cons -1 double-flat))))
 
-#(define (cn-set-acc-extents grob alt)
-   ;; Only used for LilyPond 2.18
-   ;; TODO: should natural signs have the same Y-extent as others?
-   ;; TODO: shouldn't X/Y-extent scale with magnification / font-size?
-   (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
-   (ly:grob-set-property! grob 'X-extent
-     (case alt
-       ((-1/2) '(0 . 0.54))
-       ((1/2) '(-0.27 . 0.27))
-       ((-1) '(-0.34 . 0.67))
-       ((1) '(-0.54 . 0.47))
-       ((0) '(-0.0 . 0.44)))))
-
 #(define (cn-redo-acc-sign grob)
    "Replaces the accidental sign stencil."
    (let*
     ((mag (cn-magnification grob))
      (alt (accidental-interface::calc-alteration grob))
-     (acc-lookup (assoc-ref cn-acc-sign-stils alt))
-     (stil (if acc-lookup
-               acc-lookup
-               ;; natural sign (alt is 0)
-               (ly:stencil-scale
-                (ly:grob-property grob 'stencil)
-                0.63 0.63))))
-    (ly:grob-set-property! grob 'stencil
-      (if acc-lookup
-          ;; only custom stencils need scaling, not natural signs
-          (ly:stencil-scale stil mag mag)
-          stil))
-    (if (ly:version? <= '(2 19 0))
-        (cn-set-acc-extents grob alt))))
+     (stil (assoc-ref cn-acc-sign-stils alt)))
+    (if stil
+        (ly:stencil-scale stil mag mag)
+        ;; else natural sign (alt is 0)
+        ;; natural sign stencils don't need to
+        ;; be scaled by mag
+        (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
 
 #(define (cn-pitch-in-key note alt key-sig)
    "key-sig is an association list of sharps or flats in the key sig.
@@ -374,7 +354,9 @@
 #(define (cn-accidental-grob-callback grob)
    (if (ly:grob-property grob 'cn-suicide-grob #f)
        ;; TODO: does grob-suicide affect ledger line widths?
-       (ly:grob-suicide! grob)
+       (begin
+        (ly:grob-suicide! grob)
+        '())
        (cn-redo-acc-sign grob)))
 
 #(define (Cn_accidental_engraver context)
@@ -394,46 +376,41 @@
               (begin
                (set! alt-list '())
                (set! barnum current-barnum)))
+          (let*
+           ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
+            (semi (ly:pitch-semitones pitch))
+            (note (ly:pitch-notename pitch))
+            (alt (accidental-interface::calc-alteration grob))
+            (key-alts
+             (ly:context-property context
+               (if (ly:version? >= '(2 19 7))
+                   'keyAlterations 'keySignature) '()))
 
-          ;; 0. omit in effect, stencil is #f
-          (if (not (ly:grob-property-data grob 'stencil))
-              (ly:grob-set-property! grob 'cn-suicide-grob #t)
+            (in-the-key (cn-pitch-in-key note alt key-alts))
+            (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
+            (semi-in-alt-list (eqv? alt (assoc-ref alt-list semi)))
 
-              (let*
-               ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
-                (semi (ly:pitch-semitones pitch))
-                (note (ly:pitch-notename pitch))
-                (alt (accidental-interface::calc-alteration grob))
-                (key-alts
-                 (ly:context-property context
-                   (if (ly:version? >= '(2 19 7))
-                       'keyAlterations 'keySignature) '()))
+            ;; 1. new acc
+            ;; 2. cancel acc: in the key, cancels an alt in alt-list
+            ;;     (semi is in alt-list but the alt does not match)
+            ;; 3. forced acc: forced with !
+            (new-acc (and (not in-the-key) (not in-alt-list)))
+            (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
+            ;; 'forced prop is typically '() or #t
+            (forced-acc (and (not (null? (ly:grob-property grob 'forced)))
+                             (ly:grob-property grob 'forced))))
 
-                (in-the-key (cn-pitch-in-key note alt key-alts))
-                (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
-                (semi-in-alt-list (eqv? alt (assoc-ref alt-list semi)))
+           (if (not (or new-acc cancel-acc forced-acc))
+               ;; 4. is an acc but not a new one in this measure
+               ;; 5. is not an acc and is not cancelling previous acc
+               (ly:grob-set-property! grob 'cn-suicide-grob #t))
 
-                ;; 1. new acc
-                ;; 2. cancel acc: in the key, cancels an alt in alt-list
-                ;;     (semi is in alt-list but the alt does not match)
-                ;; 3. forced acc: forced with !
-                (new-acc (and (not in-the-key) (not in-alt-list)))
-                (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
-                ;; 'forced prop is typically '() or #t
-                (forced-acc (and (not (null? (ly:grob-property grob 'forced)))
-                                 (ly:grob-property grob 'forced))))
-
-               (if (not (or new-acc cancel-acc forced-acc))
-                   ;; 4. is an acc but not a new one in this measure
-                   ;; 5. is not an acc and is not cancelling previous acc
-                   (ly:grob-set-property! grob 'cn-suicide-grob #t))
-
-               ;; add to or remove from alt-list
-               ;; add replaces any existing alt for that semi
-               (cond
-                (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
-                (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))
-               ))))))))
+           ;; add to or remove from alt-list
+           ;; add replaces any existing alt for that semi
+           (cond
+            (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
+            (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))
+           )))))))
 
 
 %--- KEY SIGNATURES ----------------
@@ -1669,6 +1646,22 @@
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
 
+%--- LEGACY ACCIDENTAL EXTENTS
+
+#(if (ly:version? <= '(2 19 0))
+     (define (cn-set-acc-extents grob)
+       ;; TODO: should natural signs have the same Y-extent as others?
+       ;; TODO: shouldn't X/Y-extent scale with magnification / font-size?
+       (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
+       (ly:grob-set-property! grob 'X-extent
+         (case (accidental-interface::calc-alteration grob)
+           ((-1/2) '(0 . 0.54))
+           ((1/2) '(-0.27 . 0.27))
+           ((-1) '(-0.34 . 0.67))
+           ((1) '(-0.54 . 0.47))
+           ((0) '(-0.0 . 0.44))))))
+
+
 %--- LEGACY DOTS ON DOTTED NOTES ----------------
 
 #(if (ly:version? < '(2 19 18))
@@ -1885,11 +1878,11 @@
 
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
-    \override Accidental.before-line-breaking = #cn-accidental-grob-callback
-    \override AccidentalCautionary.before-line-breaking = #cn-accidental-grob-callback
-    \override AccidentalSuggestion.before-line-breaking = #cn-accidental-grob-callback
-    \override AmbitusAccidental.before-line-breaking = #cn-accidental-grob-callback
-    \override TrillPitchAccidental.before-line-breaking = #cn-accidental-grob-callback
+    \override Accidental.stencil = #cn-accidental-grob-callback
+    \override AccidentalCautionary.stencil = #cn-accidental-grob-callback
+    \override AccidentalSuggestion.stencil = #cn-accidental-grob-callback
+    \override AmbitusAccidental.stencil = #cn-accidental-grob-callback
+    \override TrillPitchAccidental.stencil = #cn-accidental-grob-callback
 
     \override KeySignature.horizontal-skylines = #'()
     \override KeySignature.before-line-breaking = #cn-key-signature-grob-callback
@@ -1909,6 +1902,17 @@
 
     % adjust x-axis dots position to not collide with double-stemmed half notes
     \override Dots.extra-offset = #cn-dots-callback
+
+    #(if (ly:version? <= '(2 19 0))
+         #{
+           \override Accidental.before-line-breaking = #cn-set-acc-extents
+           \override AccidentalCautionary.before-line-breaking = #cn-set-acc-extents
+           \override AccidentalSuggestion.before-line-breaking = #cn-set-acc-extents
+           \override AmbitusAccidental.before-line-breaking = #cn-set-acc-extents
+           \override TrillPitchAccidental.before-line-breaking = #cn-set-acc-extents
+
+         #}
+         #{ #})
 
     #(if (ly:version? >= '(2 19 34))
          #{
