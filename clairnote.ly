@@ -335,36 +335,38 @@
         ;; be scaled by mag
         (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
 
-#(define (cn-pitch-in-key note alt key-sig)
-   "key-sig is an association list of sharps or flats in the key sig.
+#(define (cn-pitch-in-key note alt key-alts)
+   "key-alts is an association list of sharps or flats in the key sig.
     Example: D major (C#, F#) = ((0 . 1/2) (3 . 1/2))"
    ;; TODO: handle custom key sigs that have octave values:
    ;;    "keySignature (list) ... an alist containing (step . alter)
    ;;    or ((octave . step) . alter)"    <---- not currently handled
    (cond
-    ;; 0. sharp or flat, in the key sig. (note-alt pair in key-sig)
-    ((equal? (cons note alt) (assoc note key-sig)) #t)
+    ;; 0. sharp or flat, in the key sig. (note-alt pair in key-alts)
+    ((equal? (cons note alt) (assoc note key-alts)) #t)
     ;; 1. sharp or flat, not in key sig. (alt is sharp or flat)
     ((not (eqv? 0 alt)) #f)
-    ;; 2. not sharp or flat, not in the key sig. (note is in key-sig, alt is not)
-    ((assoc-ref key-sig note) #f)
+    ;; 2. not sharp or flat, not in the key sig. (note is in key-alts, alt is not)
+    ((assoc-ref key-alts note) #f)
     ;; 3. not sharp or flat, in the key sig.
     (else #t)))
 
 #(define (Cn_accidental_engraver context)
    "The context has to be accessed like this (and not with
-    ly:translator-context) for accidentals to be tracked per staff,
-    using a closure for storing barnum and alt-list (alteration list)."
+    ly:translator-context) for accidentals to be tracked per staff.
+    We use a closure to store barnum (bar number) and alt-list
+    (alteration list), a list of '(semitone-number . alt) pairs,
+    e.g. '((17 . 1/2) (11 . -1/2)) (a sharp and a flat)."
    (let ((barnum 0)
          (alt-list '())
          (grobs-to-drop '()))
      (make-engraver
       (acknowledgers
        ((accidental-interface engraver grob source-engraver)
-
-        ;; refresh barnum and acc-list if we're in a new bar
         (let ((current-barnum (ly:context-property context 'currentBarNumber)))
           ;; another option: (ly:context-property context 'internalBarNumber)
+
+          ;; refresh barnum and acc-list if we're in a new bar
           (if (not (eqv? barnum current-barnum))
               (begin
                (set! alt-list '())
