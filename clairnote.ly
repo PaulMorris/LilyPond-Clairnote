@@ -380,15 +380,16 @@
                    'keyAlterations 'keySignature) '()))
 
             (in-the-key (cn-pitch-in-key note alt key-alts))
-            (in-alt-list (equal? (cons semi alt) (assoc semi alt-list)))
-            (semi-in-alt-list (eqv? alt (assoc-ref alt-list semi)))
+            (semi-in-alt-list (assoc semi alt-list))
+            (in-alt-list (and semi-in-alt-list
+                              (eqv? alt (cdr semi-in-alt-list))))
 
             ;; 1. new acc
             ;; 2. cancel acc: in the key, cancels an alt in alt-list
             ;;     (semi is in alt-list but the alt does not match)
             ;; 3. forced acc: forced with !
             (new-acc (and (not in-the-key) (not in-alt-list)))
-            (cancel-acc (and in-the-key (not in-alt-list) semi-in-alt-list))
+            (cancel-acc (and in-the-key semi-in-alt-list (not in-alt-list)))
             ;; 'forced prop is typically '() or #t
             (forced-acc (and (not (null? (ly:grob-property grob 'forced)))
                              (ly:grob-property grob 'forced))))
@@ -1819,6 +1820,8 @@
   % customize Staff context to make it a Clairnote staff
   \context {
     \Staff
+
+    \accidentalStyle dodecaphonic-no-repeat
 
     % CONTEXT PROPERTIES
     % traditional clef settings are immediately converted to
