@@ -290,6 +290,138 @@
              white-attach))))
 
 
+%--- ACCIDENTAL STYLE ----------------
+
+%% Procedures copied from scm/music-functions.scm, renamed with cn- prefix.
+
+#(define (cn-recent-enough? bar-number alteration-def laziness)
+   (or (number? alteration-def)
+       (equal? laziness #t)
+       (<= bar-number (+ (cadr alteration-def) laziness))))
+
+#(define (cn-accidental-invalid? alteration-def)
+   "Checks an alteration entry for being invalid.
+
+    Non-key alterations are invalidated when tying into the next bar or
+    when there is a clef change, since neither repetition nor cancellation
+    can be omitted when the same note occurs again.
+
+    Returns @code{#f} or the reason for the invalidation, a symbol."
+   (let* ((def (if (pair? alteration-def)
+                   (car alteration-def)
+                   alteration-def)))
+     (and (symbol? def) def)))
+
+#(define (cn-extract-alteration alteration-def)
+   (cond ((number? alteration-def)
+          alteration-def)
+     ((pair? alteration-def)
+      (car alteration-def))
+     (else 0)))
+
+%% End of unmodified copied procedures.
+
+#(define (cn-make-semi-alt-pair alt-def)
+   "Converts accidental alteration data to allow lookup by semitone.
+    alt-def is ((octave . step) . (alter barnum . measure-position))
+    returns (semitone . (alter barnum . measure-position)"
+   (let* ((octave (caar alt-def))
+          (note (cdar alt-def))
+          (alt (cadr alt-def))
+          (pitch (ly:make-pitch octave note alt))
+          (semitone (ly:pitch-semitones pitch)))
+     (cons semitone (cdr alt-def))))
+
+#(define (cn-check-pitch-against-signature context pitch barnum laziness)
+   "A modified version of this function from scm/music-functions.scm.
+    Arguments octaveness and all-naturals have been removed. Currently
+    laziness is always 0. We check active accidentals by semitone,
+    which requires conversion to semitones first, but we check
+    key signature by diatonic notename/number (0-6).
+
+    Checks the need for an accidental and a @q{restore} accidental
+    against @code{localAlterations} and @code{keyAlterations}.
+    The @var{laziness} is the number of measures for which reminder
+    accidentals are used (i.e., if @var{laziness} is zero, only cancel
+    accidentals in the same measure; if @var{laziness} is three, we
+    cancel accidentals up to three measures after they first appear."
+   (let*
+    ((local-alts (ly:context-property context
+                   (if (ly:version? >= '(2 19 7))
+                       'localAlterations 'localKeySignature) '()))
+
+     ;; local-alts includes key signature entries like (notename . alter)
+     ;; and maybe ((octave . notename) . alter), so we filter out these
+     ;; entries, leaving only accidental entries:
+     ;; ((octave . notename) . (alter barnum . measure-position))
+     ;; then we convert these for lookup by semitone:
+     ;; (semitone . (alter barnum . measure-position))
+     (accidental-alts (filter (lambda (a) (pair? (cdr a))) local-alts))
+     (semi-alts (map cn-make-semi-alt-pair accidental-alts))
+     (semi (ly:pitch-semitones pitch))
+     (from-semi-alts (assoc-get semi semi-alts))
+
+     (notename (ly:pitch-notename pitch))
+     (from-key-sig
+      (or (assoc-get notename local-alts)
+          ;; If no notename match is found in localAlterations, we may have a custom
+          ;; type with octave-specific entries of the form ((octave . notename) alteration)
+          ;; instead of (notename . alteration).  Since this type cannot coexist with entries
+          ;; in localAlterations, try extracting from keyAlterations instead.
+          (let ((octave (ly:pitch-octave pitch))
+                (key-alts (ly:context-property context
+                            (if (ly:version? >= '(2 19 7))
+                                'keyAlterations 'keySignature) '())))
+            (assoc-get (cons octave notename) key-alts))))
+
+     ;; find previous alteration-def for comparison with pitch
+     (previous-alteration
+      (cond
+       ;; first try accidental alterations
+       ((and from-semi-alts
+             (cn-recent-enough? barnum from-semi-alts laziness))
+        from-semi-alts)
+       ;; then try key signature alterations
+       (from-key-sig from-key-sig)
+       (else #f))))
+
+    ;; Return a pair of booleans.
+    ;; The first is always false since we never print an extra natural sign.
+    ;; The second is whether an accidental sign should be printed.
+    (if (cn-accidental-invalid? previous-alteration)
+        '(#f . #t)
+        (let ((prev-alt (cn-extract-alteration previous-alteration))
+              (this-alt (ly:pitch-alteration pitch)))
+          (if (= this-alt prev-alt)
+              '(#f . #f)
+              '(#f . #t))))))
+
+#(define (cn-make-accidental-rule laziness)
+   "Slightly modified, octaveness argument has been removed.
+
+    Create an accidental rule that makes its decision based on a laziness value.
+    @var{laziness} states over how many bars an accidental should be remembered.
+    @code{0}@tie{}is the default -- accidental lasts over 0@tie{}bar lines, that
+    is, to the end of current measure.  A positive integer means that the
+    accidental lasts over that many bar lines.  @w{@code{-1}} is `forget
+    immediately', that is, only look at key signature.  @code{#t} is `forever'."
+
+   (lambda (context pitch barnum measurepos)
+     (cn-check-pitch-against-signature context pitch barnum laziness)))
+
+#(if (ly:version? <= '(2 18 2))
+     (define accidentalStyleClairnoteDefault
+       (set-accidentals-properties #t
+         `(Staff ,(cn-make-accidental-rule 0))
+         '() 'Staff)))
+
+% for LilyPond 2.19 and above
+accidental-styles.clairnote-default =
+#`(#t (Staff ,(cn-make-accidental-rule 0)) ())
+
+accidental-styles.none = #'(#t () ())
+
+
 %--- ACCIDENTAL SIGNS ----------------
 
 #(define cn-acc-sign-stils
@@ -334,82 +466,6 @@
         ;; natural sign stencils don't need to
         ;; be scaled by mag
         (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
-
-#(define (cn-pitch-in-key note alt key-alts)
-   "key-alts is an association list of sharps or flats in the key sig.
-    Example: D major (C#, F#) = ((0 . 1/2) (3 . 1/2))"
-   ;; TODO: handle custom key sigs that have octave values:
-   ;;    "keySignature (list) ... an alist containing (step . alter)
-   ;;    or ((octave . step) . alter)"    <---- not currently handled
-   (cond
-    ;; 0. sharp or flat, in the key sig. (note-alt pair in key-alts)
-    ((equal? (cons note alt) (assoc note key-alts)) #t)
-    ;; 1. sharp or flat, not in key sig. (alt is sharp or flat)
-    ((not (eqv? 0 alt)) #f)
-    ;; 2. not sharp or flat, not in the key sig. (note is in key-alts, alt is not)
-    ((assoc-ref key-alts note) #f)
-    ;; 3. not sharp or flat, in the key sig.
-    (else #t)))
-
-#(define (Cn_accidental_engraver context)
-   "The context has to be accessed like this (and not with
-    ly:translator-context) for accidentals to be tracked per staff.
-    We use a closure to store barnum (bar number) and alt-list
-    (alteration list), a list of '(semitone-number . alt) pairs,
-    e.g. '((17 . 1/2) (11 . -1/2)) (a sharp and a flat)."
-   (let ((barnum 0)
-         (alt-list '())
-         (grobs-to-drop '()))
-     (make-engraver
-      (acknowledgers
-       ((accidental-interface engraver grob source-engraver)
-        (let ((current-barnum (ly:context-property context 'currentBarNumber)))
-          ;; another option: (ly:context-property context 'internalBarNumber)
-
-          ;; refresh barnum and acc-list if we're in a new bar
-          (if (not (eqv? barnum current-barnum))
-              (begin
-               (set! alt-list '())
-               (set! barnum current-barnum)))
-          (let*
-           ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
-            (semi (ly:pitch-semitones pitch))
-            (note (ly:pitch-notename pitch))
-            (alt (accidental-interface::calc-alteration grob))
-            (key-alts
-             (ly:context-property context
-               (if (ly:version? >= '(2 19 7))
-                   'keyAlterations 'keySignature) '()))
-
-            (in-the-key (cn-pitch-in-key note alt key-alts))
-            (semi-in-alt-list (assoc semi alt-list))
-            (in-alt-list (and semi-in-alt-list
-                              (eqv? alt (cdr semi-in-alt-list))))
-
-            ;; 1. new acc
-            ;; 2. cancel acc: in the key, cancels an alt in alt-list
-            ;;     (semi is in alt-list but the alt does not match)
-            ;; 3. forced acc: forced with !
-            (new-acc (and (not in-the-key) (not in-alt-list)))
-            (cancel-acc (and in-the-key semi-in-alt-list (not in-alt-list)))
-            ;; 'forced prop is typically '() or #t
-            (forced-acc (and (not (null? (ly:grob-property grob 'forced)))
-                             (ly:grob-property grob 'forced))))
-
-           (if (not (or new-acc cancel-acc forced-acc))
-               ;; 4. is an acc but not a new one in this measure
-               ;; 5. is not an acc and is not cancelling previous acc
-               (set! grobs-to-drop (cons grob grobs-to-drop)))
-
-           ;; add to or remove from alt-list
-           ;; add replaces any existing alt for that semi
-           (cond
-            (new-acc (set! alt-list (assoc-set! alt-list semi alt)))
-            (cancel-acc (set! alt-list (assoc-remove! alt-list semi))))))))
-
-      ((finalize translator)
-       ;; TODO: does grob-suicide affect ledger line widths?
-       (for-each ly:grob-suicide! grobs-to-drop)))))
 
 
 %--- KEY SIGNATURES ----------------
@@ -1823,8 +1879,6 @@
   \context {
     \Staff
 
-    \accidentalStyle dodecaphonic-no-repeat
-
     % CONTEXT PROPERTIES
     % traditional clef settings are immediately converted to
     % clairnote settings by custom clef engraver
@@ -1841,6 +1895,12 @@
     cnBaseStaffLines = #'(-8 -4)
     cnStaffOctaves = #2
     cnClefShift = #0
+
+    % accidental styles set three context properties:
+    % extraNatural, autoAccidentals, and autoCautionaries
+    #(if (ly:version? > '(2 18 2))
+         #{ \accidentalStyle clairnote-default #}
+         #{ \accidentalStyleClairnoteDefault #})
 
     % GROB PROPERTIES
     \override StaffSymbol.cn-staff-octaves = #2
@@ -1945,11 +2005,6 @@
     % which does not need to be consisted here.
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
-
-    % We put all engravers before Cn_accidental_engraver because we got segfault
-    % crashes otherwise. Probably because it used to call ly:grob-suicide! on
-    % some accidental grobs when acknowledging rather than finalizing.
-    \consists \Cn_accidental_engraver
   }
 }
 
