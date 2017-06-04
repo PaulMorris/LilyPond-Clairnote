@@ -498,45 +498,55 @@ accidental-styles.none = #'(#t () ())
 #(define cn-acc-sign-stils
    ;; associative list of accidental sign stencils
    (let*
-    ((draw-acc-sign
-      (lambda (is-sharp)
-        "Return a sharp or flat sign stencil."
-        (let ((line (ly:stencil-translate
-                     (make-connected-path-stencil '((0  1.0)) 0.2 1 1 #f #f)
-                     (cons 0 -0.5)))
-              (circ (make-circle-stencil 0.24 0.01 #t)))
-          (ly:stencil-add line
-            (ly:stencil-translate circ (cons 0 (if is-sharp 0.5 -0.5)))))))
+    ((vertical-line (ly:stencil-translate
+                     (make-connected-path-stencil
+                      '((0  1.0)) 0.2 1 1 #f #f)
+                     '(0 . -0.5)))
 
-     (draw-double-acc-sign
-      (lambda (acc-sign)
-        "Return a double sharp or double flat sign stencil."
-        (ly:stencil-add
-         (ly:stencil-translate acc-sign (cons -0.25 0))
-         (ly:stencil-translate acc-sign (cons  0.25 0)))))
+     (circle (make-circle-stencil 0.24 0.01 #t))
 
-     (sharp (draw-acc-sign #t))
-     (flat (draw-acc-sign #f))
-     (double-sharp (draw-double-acc-sign sharp))
-     (double-flat (draw-double-acc-sign flat)))
-    (list
-     (cons 1/2 sharp)
-     (cons -1/2 flat)
-     (cons 1 double-sharp)
-     (cons -1 double-flat))))
+     (diagonal-line (ly:stencil-translate
+                     (make-connected-path-stencil
+                      '((0.26  0.14)) 0.33 1 1 #f #f)
+                     '(-0.13 . -0.07)))
+
+     (short-vertical-line (ly:stencil-translate
+                           (make-connected-path-stencil
+                            '((0  0.6)) 0.2 1 1 #f #f)
+                           '(0 . -0.3)))
+
+     (acc-sign (lambda (dot-position)
+                 "Return a sharp or flat sign stencil."
+                 (ly:stencil-add vertical-line
+                   (ly:stencil-translate circle `(0 . ,dot-position)))))
+
+     (double-acc-sign (lambda (stil)
+                        "Return a double sharp or double flat sign stencil."
+                        (ly:stencil-add
+                         (ly:stencil-translate stil '(-0.25 . 0))
+                         (ly:stencil-translate stil '(0.25 . 0)))))
+
+     (sharp (acc-sign 0.5))
+     (flat (acc-sign -0.5))
+     (natural (ly:stencil-add diagonal-line
+                (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
+                (ly:stencil-translate short-vertical-line '(-0.2 . 0.3)))))
+
+    `((1/2 . ,sharp)
+      (-1/2 . ,flat)
+      (0 . ,natural)
+      (1 . ,(double-acc-sign sharp))
+      (-1 . ,(double-acc-sign flat)))))
 
 #(define (cn-accidental-grob-callback grob)
-   "Replaces the accidental sign stencil."
-   (let*
-    ((mag (cn-magnification grob))
-     (alt (accidental-interface::calc-alteration grob))
-     (stil (assoc-ref cn-acc-sign-stils alt)))
-    (if stil
-        (ly:stencil-scale stil mag mag)
-        ;; else natural sign (alt is 0)
-        ;; natural sign stencils don't need to
-        ;; be scaled by mag
-        (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
+   "Returns an accidental sign stencil."
+   (let* ((mag (cn-magnification grob))
+          (alt (accidental-interface::calc-alteration grob))
+          (stil (assoc-ref cn-acc-sign-stils alt)))
+     (if stil
+         (ly:stencil-scale stil mag mag)
+         ;; else fall back to traditional accidental sign
+         (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
 
 
 %--- KEY SIGNATURES ----------------
