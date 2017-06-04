@@ -680,26 +680,16 @@ accidental-styles.none = #'(#t () ())
 
     stack))
 
-#(define (cn-customize-key-signature grob)
-   (let ((stil (cn-draw-keysig grob))
-         (mag (cn-magnification grob)))
-     (ly:grob-set-property! grob 'stencil
-       (ly:stencil-scale stil mag mag))))
-
 #(define (cn-key-signature-grob-callback grob)
-   "Clairnote's staff definition has printKeyCancellation = ##f, which
-    prevents key cancellations, except for changing to C major or
-    A minor. So here we prevent even those key cancellations."
-   (cond
-    ;; key cancellation?
-    ((grob::has-interface grob 'key-cancellation-interface)
-     (ly:grob-set-property! grob 'stencil #f))
-
-    ;; omitted?
-    ((not (ly:grob-property-data grob 'stencil)) #f)
-
-    (else (cn-customize-key-signature grob))
-    ))
+   "Returns a key signature stencil or #f. Clairnote's staff
+    definition has printKeyCancellation = ##f, which prevents
+    key cancellations, except when changing to C major or
+    A minor. So here we return #f for those key cancellations."
+   (if (grob::has-interface grob 'key-cancellation-interface)
+       #f
+       (let ((stil (cn-draw-keysig grob))
+             (mag (cn-magnification grob)))
+         (ly:stencil-scale stil mag mag))))
 
 #(define (Cn_key_signature_engraver context)
    "Sets the tonic for the key on key signature grobs."
@@ -708,8 +698,7 @@ accidental-styles.none = #'(#t () ())
     (acknowledgers
      ((key-signature-interface engraver grob source-engraver)
       (ly:grob-set-property! grob 'cn-tonic
-        (ly:context-property context 'tonic))
-      ))))
+        (ly:context-property context 'tonic))))))
 
 
 %--- CLEFS AND OTTAVA (8VA 8VB 15MA 15MB) ----------------
@@ -1137,7 +1126,7 @@ accidental-styles.none = #'(#t () ())
 %--- TIME SIGNATURES ----------------
 
 #(define (cn-time-signature-grob-callback grob)
-   ;; "Adjust vertical position of time sig based on vertical staff scaling."
+   "Adjust vertical position of time sig based on vertical staff scaling."
    (let*
     ((base-staff-space (cn-get-base-staff-space grob))
      (vscale-staff (* 12/7 base-staff-space))
@@ -2033,9 +2022,9 @@ accidental-styles.none = #'(#t () ())
     \override TrillPitchAccidental.stencil = #cn-accidental-grob-callback
 
     \override KeySignature.horizontal-skylines = #'()
-    \override KeySignature.before-line-breaking = #cn-key-signature-grob-callback
+    \override KeySignature.stencil = #cn-key-signature-grob-callback
     \override KeyCancellation.horizontal-skylines = #'()
-    \override KeyCancellation.before-line-breaking =#cn-key-signature-grob-callback
+    \override KeyCancellation.stencil =#cn-key-signature-grob-callback
 
     \override TimeSignature.before-line-breaking = #cn-time-signature-grob-callback
 
