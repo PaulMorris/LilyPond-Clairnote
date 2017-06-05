@@ -321,18 +321,91 @@
 
 %% End of unmodified copied procedures.
 
-#(define (cn-make-semi-alt-pair alt-def)
+#(define (cn-convert-to-semi-alts context local-alts)
    "Converts accidental alteration data to allow lookup by semitone.
-    alt-def is ((octave . step) . (alter barnum . measure-position))
-    returns (semitone . (alter barnum . measure-position)"
-   (let* ((octave (caar alt-def))
-          (note (cdar alt-def))
-          (alt (cadr alt-def))
-          (pitch (ly:make-pitch octave note alt))
-          (semitone (ly:pitch-semitones pitch)))
-     (cons semitone (cdr alt-def))))
+    From: ((octave . notename) . (alter barnum . measure-position))
+    To: (semitone alter barnum . measure-position)
 
-#(define (cn-check-pitch-against-signature context pitch barnum laziness)
+    notename is 0-6 diatonic note number.
+
+    With clef changes or notes tied across a bar line we get
+    e.g. ((0 . 6) clef 1 . #<Mom 7/8>) with 'clef or 'tied as the
+    alter value to invalidate the entry. Then we have to look up
+    the alter value in cnAlterations. This is the sole purpose of
+    cnAlterations. It would be much simpler if LilyPond did not
+    destructively overload the alter value like this."
+   (let*
+    ((cn-alts (ly:context-property context 'cnAlterations '()))
+     (converter
+      (lambda (entry)
+        (let* ((octave (caar entry))
+               (notename (cdar entry))
+               (alter-raw (cadr entry))
+               (alter (if (symbol? alter-raw)
+                          (let ((fallback (assoc-ref cn-alts
+                                            (cons octave notename))))
+                            (if fallback (car fallback) 0))
+                          alter-raw))
+               (pitch (ly:make-pitch octave notename alter))
+               (semitone (ly:pitch-semitones pitch)))
+          (cons semitone (cdr entry))))))
+
+    ;; (display (list "cn-alts:" cn-alts)) (newline)
+
+    (map converter local-alts)))
+
+#(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
+   "Update cn-semi-alts by merging local-semi-alts into it.
+    Their entries are: (semitone alter barnum . measure-position)"
+   (define (merge-entry! entry)
+     (let* ((semi (car entry))
+            (current (assv semi cn-semi-alts)))
+       (if (or (not current)
+               (and current (ly:moment<?
+                             (cdddr current)
+                             (cdddr entry))))
+           (set! cn-semi-alts
+                 (assv-set! cn-semi-alts semi (cdr entry))))))
+
+   (for-each merge-entry! local-semi-alts)
+   cn-semi-alts)
+
+#(define (cn-refresh-semi-alts! context)
+   "Converts localAlterations to a semitone-based version and
+    returns the result after storing it in the cnSemiAlterations
+    context property."
+   (let*
+    ;; localAlterations includes key signature entries like
+    ;; (notename . alter) and maybe ((octave . notename) . alter)
+    ;; so we filter these out, leaving only accidental entries:
+    ;; ((octave . notename) . (alter barnum . measure-position))
+    ((accidental-alt? (lambda (entry) (pair? (cdr entry))))
+     (local-alts
+      (filter accidental-alt?
+              (ly:context-property context
+                (if (ly:version? >= '(2 19 7))
+                    'localAlterations 'localKeySignature) '()))))
+    (if (null? local-alts)
+        (begin
+         (ly:context-set-property! context 'cnSemiAlterations '())
+         (ly:context-set-property! context 'cnAlterations '())
+         '())
+        (let*
+         ;; Convert local-alts for lookup by semitone:
+         ;; (semitone alter barnum . measure-position))
+         ((local-semi-alts (cn-convert-to-semi-alts context local-alts))
+
+          (cn-semi-alts (ly:context-property context 'cnSemiAlterations '()))
+
+          (new-semi-alts (cn-merge-semi-alts cn-semi-alts local-semi-alts)))
+
+         ;; (display (list "local-alts:" local-alts)) (newline)
+         ;; (display (list "semi-alts:" new-semi-alts)) (newline)
+
+         (ly:context-set-property! context 'cnSemiAlterations new-semi-alts)
+         new-semi-alts))))
+
+#(define (cn-check-pitch-against-signature context pitch barnum measurepos laziness)
    "A modified version of this function from scm/music-functions.scm.
     Arguments octaveness and all-naturals have been removed. Currently
     laziness is always 0. We check active accidentals by semitone,
@@ -346,53 +419,51 @@
     accidentals in the same measure; if @var{laziness} is three, we
     cancel accidentals up to three measures after they first appear."
    (let*
-    ((local-alts (ly:context-property context
-                   (if (ly:version? >= '(2 19 7))
-                       'localAlterations 'localKeySignature) '()))
-
-     ;; local-alts includes key signature entries like (notename . alter)
-     ;; and maybe ((octave . notename) . alter), so we filter out these
-     ;; entries, leaving only accidental entries:
-     ;; ((octave . notename) . (alter barnum . measure-position))
-     ;; then we convert these for lookup by semitone:
-     ;; (semitone . (alter barnum . measure-position))
-     (accidental-alts (filter (lambda (a) (pair? (cdr a))) local-alts))
-     (semi-alts (map cn-make-semi-alt-pair accidental-alts))
+    ((notename (ly:pitch-notename pitch))
+     (octave (ly:pitch-octave pitch))
+     (alter (ly:pitch-alteration pitch))
      (semi (ly:pitch-semitones pitch))
-     (from-semi-alts (assoc-get semi semi-alts))
 
-     (notename (ly:pitch-notename pitch))
-     (from-key-sig
-      (or (assoc-get notename local-alts)
-          ;; If no notename match is found in localAlterations, we may have a custom
-          ;; type with octave-specific entries of the form ((octave . notename) alteration)
-          ;; instead of (notename . alteration).  Since this type cannot coexist with entries
-          ;; in localAlterations, try extracting from keyAlterations instead.
-          (let ((octave (ly:pitch-octave pitch))
-                (key-alts (ly:context-property context
-                            (if (ly:version? >= '(2 19 7))
-                                'keyAlterations 'keySignature) '())))
-            (assoc-get (cons octave notename) key-alts))))
+     (cn-semi-alts (cn-refresh-semi-alts! context))
 
-     ;; find previous alteration-def for comparison with pitch
+     ;; from-cn-alts will be #f or (alter barnum . measure-position)
+     (from-cn-semi-alts (assoc-get semi cn-semi-alts))
+
+     (key-alts (ly:context-property context
+                 (if (ly:version? >= '(2 19 7))
+                     'keyAlterations 'keySignature) '()))
+     ;; from-key-alts will be #f or an alter number (e.g. 1/2, -1/2, 0)
+     (from-key-alts
+      (or (assoc-get notename key-alts)
+          ;; If no notename match is found in keyAlterations,
+          ;; we may have octave-specific entries like
+          ;; ((octave . notename) alteration) instead of
+          ;; (notename . alteration), so we try those as well.
+          (assoc-get (cons octave notename) key-alts)))
+
+     ;; Get previous alteration for comparison with pitch.
      (previous-alteration
-      (cond
-       ;; first try accidental alterations
-       ((and from-semi-alts
-             (cn-recent-enough? barnum from-semi-alts laziness))
-        from-semi-alts)
-       ;; then try key signature alterations
-       (from-key-sig from-key-sig)
-       (else #f))))
+      (or (and from-cn-semi-alts
+               (cn-recent-enough? barnum from-cn-semi-alts laziness)
+               from-cn-semi-alts)
+          from-key-alts)))
+
+    ;; (display (list "current:" semi alter barnum measurepos))(newline)(newline)
+
+    ;; Add the current note to cnAlterations.
+    (ly:context-set-property! context 'cnAlterations
+      (assoc-set! (ly:context-property context 'cnAlterations)
+        `(,octave . ,notename) `(,alter ,barnum . ,measurepos)))
 
     ;; Return a pair of booleans.
     ;; The first is always false since we never print an extra natural sign.
     ;; The second is whether an accidental sign should be printed.
+    ;; We print it if the previous alter is either invalidated or
+    ;; doesn't match the current one.
     (if (cn-accidental-invalid? previous-alteration)
         '(#f . #t)
-        (let ((prev-alt (cn-extract-alteration previous-alteration))
-              (this-alt (ly:pitch-alteration pitch)))
-          (if (= this-alt prev-alt)
+        (let ((prev-alt (cn-extract-alteration previous-alteration)))
+          (if (= alter prev-alt)
               '(#f . #f)
               '(#f . #t))))))
 
@@ -407,7 +478,7 @@
     immediately', that is, only look at key signature.  @code{#t} is `forever'."
 
    (lambda (context pitch barnum measurepos)
-     (cn-check-pitch-against-signature context pitch barnum laziness)))
+     (cn-check-pitch-against-signature context pitch barnum measurepos laziness)))
 
 #(if (ly:version? <= '(2 18 2))
      (define accidentalStyleClairnoteDefault
@@ -1659,6 +1730,15 @@ accidental-styles.none = #'(#t () ())
   ;; For Staff contexts or StaffSymbol grobs unless otherwise noted.
   ;; Some values need to be accessed by both custom engravers and grob
   ;; callbacks so they are kept in both grob and context properties.
+
+  ;; For accidental signs, stores a version of localAlterations
+  ;; keyed by semitone instead of by (octave . notename)
+  (context-prop 'cnSemiAlterations list?)
+
+  ;; For accidental signs, stores alterations keyed by
+  ;; (octave . notename).  Needed for looking up alterations to
+  ;; calculate semitones for invalidated entries in localAlterations.
+  (context-prop 'cnAlterations list?)
 
   ;; Stores the base staff line positions used for extending the staff
   ;; up or down. See cnExtendStaff function.
