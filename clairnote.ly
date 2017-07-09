@@ -335,7 +335,7 @@
     This is the sole purpose of cnAlterations. It would be much
     simpler if LilyPond did not destructively overload the alter
     value like this."
-   ;; (display (list "cn-alts:" cn-alts)) (newline)
+   ;; (format #t "cn-alts: ~a \n" cn-alts)
    (map (lambda (entry)
           (let*
            ((octave (caar entry))
@@ -357,8 +357,8 @@
      (let* ((semi (car local-entry))
             (cn-entry (assv semi cn-semi-alts)))
 
-       ;; (display (list "local-entry:" local-entry)) (newline)
-       ;; (display (list "cn-entry:" cn-entry)) (newline)(newline)
+       ;; (format #t "local-entry: ~a \n" local-entry)
+       ;; (format #t "cn-entry: ~a \n\n" cn-entry)
 
        ;; We merge when there is no entry for a given semitone,
        ;; or when there is one with a previous barnum,
@@ -371,8 +371,8 @@
            (set! cn-semi-alts
                  (assv-set! cn-semi-alts semi (cdr local-entry))))))
 
-   ;; (display (list "cn-semi-alts:" cn-semi-alts)) (newline)
-   ;; (display (list "local-semi-alts:" local-semi-alts)) (newline)(newline)
+   ;; (format #t "cn-semi-alts: ~a \n" cn-semi-alts)
+   ;; (format #t "local-semi-alts: ~a \n\n" local-semi-alts)
 
    (for-each merge-entry! local-semi-alts)
    cn-semi-alts)
@@ -406,8 +406,8 @@
           (cn-semi-alts (ly:context-property context 'cnSemiAlterations '()))
           (new-semi-alts (cn-merge-semi-alts cn-semi-alts local-semi-alts)))
 
-         ;; (display (list "local-alts:" local-alts)) (newline)
-         ;; (display (list "semi-alts:" new-semi-alts)) (newline)
+         ;; (format #t "local-alts: ~a \n" local-alts)
+         ;; (format #t "semi-alts: ~a \n" new-semi-alts)
 
          (ly:context-set-property! context 'cnSemiAlterations new-semi-alts)
          new-semi-alts))))
@@ -455,7 +455,7 @@
                from-cn-semi-alts)
           from-key-alts)))
 
-    ;; (display (list "current:" semi alter barnum measurepos))(newline)(newline)
+    ;; (format #t "current: ~a ~a ~a ~a \n\n" semi alter barnum measurepos)
 
     ;; Add the current note to cnAlterations.
     (ly:context-set-property! context 'cnAlterations
