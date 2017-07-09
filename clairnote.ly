@@ -321,7 +321,7 @@
 
 %% End of unmodified copied procedures.
 
-#(define (cn-convert-to-semi-alts context local-alts)
+#(define (cn-convert-to-semi-alts cn-alts local-alts)
    "Converts accidental alteration data to allow lookup by semitone.
     From: ((octave . notename) . (alter barnum . measure-position))
     To: (semitone alter barnum . measure-position)
@@ -331,28 +331,24 @@
     With clef changes or notes tied across a bar line we get
     e.g. ((0 . 6) clef 1 . #<Mom 7/8>) with 'clef or 'tied as the
     alter value to invalidate the entry. Then we have to look up
-    the alter value in cnAlterations. This is the sole purpose of
-    cnAlterations. It would be much simpler if LilyPond did not
-    destructively overload the alter value like this."
-   (let*
-    ((cn-alts (ly:context-property context 'cnAlterations '()))
-     (converter
-      (lambda (entry)
-        (let* ((octave (caar entry))
-               (notename (cdar entry))
-               (alter-raw (cadr entry))
-               (alter (if (symbol? alter-raw)
-                          (let ((fallback (assoc-ref cn-alts
-                                            (cons octave notename))))
-                            (if fallback (car fallback) 0))
-                          alter-raw))
-               (pitch (ly:make-pitch octave notename alter))
-               (semitone (ly:pitch-semitones pitch)))
-          (cons semitone (cdr entry))))))
-
-    ;; (display (list "cn-alts:" cn-alts)) (newline)
-
-    (map converter local-alts)))
+    the alter value in cn-alts, the cnAlterations context property.
+    This is the sole purpose of cnAlterations. It would be much
+    simpler if LilyPond did not destructively overload the alter
+    value like this."
+   ;; (display (list "cn-alts:" cn-alts)) (newline)
+   (map (lambda (entry)
+          (let*
+           ((octave (caar entry))
+            (notename (cdar entry))
+            (alteration-def (cdr entry))
+            (alter (if (cn-accidental-invalid? alteration-def)
+                       (cn-extract-alteration
+                        (assoc-ref cn-alts (cons octave notename)))
+                       (cn-extract-alteration alteration-def)))
+            (pitch (ly:make-pitch octave notename alter))
+            (semitone (ly:pitch-semitones pitch)))
+           (cons semitone alteration-def)))
+     local-alts))
 
 #(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
    "Update cn-semi-alts by merging local-semi-alts into it.
@@ -390,24 +386,24 @@
     ;; (notename . alter) and maybe ((octave . notename) . alter)
     ;; so we filter these out, leaving only accidental entries:
     ;; ((octave . notename) . (alter barnum . measure-position))
-    ((accidental-alt? (lambda (entry) (pair? (cdr entry))))
-     (local-alts
-      (filter accidental-alt?
-              (ly:context-property context
-                (if (ly:version? >= '(2 19 7))
-                    'localAlterations 'localKeySignature) '()))))
+    ((local-alts-raw (ly:context-property context
+                       (if (ly:version? >= '(2 19 7))
+                           'localAlterations 'localKeySignature) '()))
+     (accidental-alt? (lambda (entry) (pair? (cdr entry))))
+     (local-alts (filter accidental-alt? local-alts-raw)))
+
     (if (null? local-alts)
         (begin
          (ly:context-set-property! context 'cnSemiAlterations '())
          (ly:context-set-property! context 'cnAlterations '())
          '())
         (let*
-         ;; Convert local-alts for lookup by semitone:
-         ;; (semitone alter barnum . measure-position))
-         ((local-semi-alts (cn-convert-to-semi-alts context local-alts))
+         ((cn-alts (ly:context-property context 'cnAlterations '()))
+          ;; Convert local-alts for lookup by semitone:
+          ;; (semitone alter barnum . measure-position))
+          (local-semi-alts (cn-convert-to-semi-alts cn-alts local-alts))
 
           (cn-semi-alts (ly:context-property context 'cnSemiAlterations '()))
-
           (new-semi-alts (cn-merge-semi-alts cn-semi-alts local-semi-alts)))
 
          ;; (display (list "local-alts:" local-alts)) (newline)
