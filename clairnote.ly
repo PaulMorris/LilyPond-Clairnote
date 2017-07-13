@@ -1969,6 +1969,10 @@ accidental-styles.none = #'(#t () ())
   \context { \GrandStaff \accepts TradStaff \accepts TradRhythmicStaff }
   \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
   \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
+  #(if (ly:version? >= '(2 19 27))
+       #{
+         \context { \OneStaff \accepts TradStaff \accepts TradRhythmicStaff }
+       #})
   \context {
     \Score
     \accepts TradStaff
