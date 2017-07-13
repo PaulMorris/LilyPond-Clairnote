@@ -238,6 +238,16 @@
         (markup (#:override '(filled . #t) (#:path 0.0001 nh-path))))
       mag mag)))
 
+#(define (cn-rhythmic-staff-note-head-stencil grob)
+   "Returns default Clairnote note head stencils for RhythmicStaff,
+    i.e. always black noteheads."
+   (let ((mag (cn-magnification grob)))
+     (ly:stencil-scale
+      (grob-interpret-markup grob
+        (markup (#:override '(filled . #t)
+                  (#:path 0.0001 cn-note-black-path))))
+      mag mag)))
+
 #(define (cn-lilypond-note-head-stencil grob)
    "Returns 'lilypond' style note head stencils (Emmentaler font)."
    (if (cn-black-note? grob)
@@ -1940,8 +1950,8 @@ accidental-styles.none = #'(#t () ())
 %--- STAFF CONTEXT DEFINITION ----------------
 
 \layout {
-  % copy Staff context with its standard settings to
-  % a custom staff context called TradStaff
+  % Copy standard settings of Staff and RhythmicStaff contexts
+  % to custom contexts named TradStaff and TradRhythmicStaff.
   \context {
     \Staff
     \name TradStaff
@@ -1949,14 +1959,20 @@ accidental-styles.none = #'(#t () ())
     % custom grob property
     \override StaffSymbol.cn-is-clairnote-staff = ##f
   }
-  % allow parent contexts to accept \TradStaff
-  \context { \ChoirStaff \accepts TradStaff }
-  \context { \GrandStaff \accepts TradStaff }
-  \context { \PianoStaff \accepts TradStaff }
-  \context { \StaffGroup \accepts TradStaff }
+  \context {
+    \RhythmicStaff
+    \name TradRhythmicStaff
+    \alias RhythmicStaff
+  }
+  % Let parent contexts accept TradStaff and TradRhythmicStaff.
+  \context { \ChoirStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \GrandStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
   \context {
     \Score
     \accepts TradStaff
+    \accepts TradRhythmicStaff
     % prevents barlines at start of single (2-octave) system from being shown
     \override SystemStartBar.collapse-height = #9
   }
@@ -2092,9 +2108,26 @@ accidental-styles.none = #'(#t () ())
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
   }
+
+  \context {
+    \RhythmicStaff
+    \numericTimeSignature
+    \override StaffSymbol.cn-base-staff-space = #1
+
+    \override NoteHead.stencil =
+    #(cn-make-note-head-stencil-callback
+      cn-rhythmic-staff-note-head-stencil 1 1)
+
+    \override Stem.cn-double-stem-spacing = #3.5
+    \override Stem.cn-double-stem-width-scale = #1.5
+    \override Stem.before-line-breaking = #cn-stem-grob-callback
+
+    \override Dots.extra-offset = #cn-dots-callback
+  }
 }
 
-% allow parent contexts to accept \TradStaff in midi output too
+% Let parent contexts accept TradStaff and TradRhythmicStaff
+% in midi output.
 \midi {
   \context {
     \Staff
@@ -2105,9 +2138,14 @@ accidental-styles.none = #'(#t () ())
     \name TradStaff
     \alias Staff
   }
-  \context { \Score \accepts TradStaff }
-  \context { \ChoirStaff \accepts TradStaff }
-  \context { \GrandStaff \accepts TradStaff }
-  \context { \PianoStaff \accepts TradStaff }
-  \context { \StaffGroup \accepts TradStaff }
+  \context {
+    \RhythmicStaff
+    \name TradRhythmicStaff
+    \alias RhythmicStaff
+  }
+  \context { \Score \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \ChoirStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \GrandStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
 }
