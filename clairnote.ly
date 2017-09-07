@@ -1675,49 +1675,46 @@ accidental-styles.none = #'(#t () ())
 
 %--- USER: CUSTOMIZE NOTEADS ----------------
 
+
+#(define (cn-set-notehead-style! stencil stem-attachment rotation)
+   #{
+     \override Staff.NoteHead.stencil = #stencil
+     \override Staff.NoteHead.stem-attachment = #stem-attachment
+     \override Staff.NoteHead.rotation = #rotation
+   #})
+
 #(define cnNoteheadStyle
    (define-music-function (parser location style) (string?)
      (cond
 
       ((string=? "funksol" style)
-       #{
-         % 1.4 width-scale results in approx. width of standard LilyPond noteheads.
-         \override Staff.NoteHead.stencil =
-         #(cn-make-note-head-stencil-callback cn-funksol-note-head-stencil 1.35 1)
-
-         \override Staff.NoteHead.stem-attachment =
-         #(cn-make-stem-attachment-callback '(1 . 0.2) '(1 . 0.2))
-
-         \override Staff.NoteHead.rotation = ##f
-       #})
+       (cn-set-notehead-style!
+        ;; 1.4 width-scale results in approx. width of standard LilyPond noteheads.
+        (cn-make-note-head-stencil-callback
+         cn-funksol-note-head-stencil 1.35 1)
+        (cn-make-stem-attachment-callback '(1 . 0.2) '(1 . 0.2))
+        #f))
 
       ((string=? "lilypond" style)
-       #{
-         \override Staff.NoteHead.stencil =
-         #(cn-make-note-head-stencil-callback cn-lilypond-note-head-stencil 1 1)
-
-         \override Staff.NoteHead.stem-attachment =
-         #(cn-make-stem-attachment-callback '(1.04 . 0.3) '(1.06 . 0.3))
-
-         % black notes can be rotated as far as -27,
-         % but -18 also works for white notes, currently -9
-         \override Staff.NoteHead.rotation =
-         #(cn-make-note-head-rotation-callback '(-9 0 0))
-       #})
+       (cn-set-notehead-style!
+        (cn-make-note-head-stencil-callback
+         cn-lilypond-note-head-stencil 1 1)
+        ;; needed because of rotation and white note horizontal scaling
+        (cn-make-stem-attachment-callback '(1.04 . 0.3) '(1.06 . 0.3))
+        ;; black notes can be rotated as far as -27,
+        ;; but -18 also works for white notes, currently -9
+        (cn-make-note-head-rotation-callback '(-9 0 0))))
 
       (else
        (if (not (string=? "default" style))
            (ly:warning
             "unrecognized style ~s used with \\cnNoteheadStyle, using default instead."
             style))
-       #{
-         \override Staff.NoteHead.stencil =
-         #(cn-make-note-head-stencil-callback cn-default-note-head-stencil 1 1)
-
-         \override Staff.NoteHead.stem-attachment = #ly:note-head::calc-stem-attachment
-
-         \override Staff.NoteHead.rotation = ##f
-       #})
+       (cn-set-notehead-style!
+        (cn-make-note-head-stencil-callback
+         cn-default-note-head-stencil 1 1)
+        ly:note-head::calc-stem-attachment
+        #f))
       )))
 
 
