@@ -127,8 +127,8 @@
 
 %--- NOTE HEADS AND STEM ATTACHMENT ----------------
 
-#(define (cn-black-note? grob)
-   (even? (cn-notehead-semitone grob)))
+#(define (cn-white-note? grob)
+   (odd? (cn-notehead-semitone grob)))
 
 #(define (cn-whole-note? grob)
    "Note: longer durations than whole note also return #t.
@@ -174,12 +174,12 @@
       (curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768)
       (closepath))))
 
-#(define (cn-whole-note-stencil grob)
+#(define (cn-whole-note-stencil grob white-note)
    "Returns default Clairnote whole note stencils."
    (let ((mag (cn-magnification grob))
-         (wn-path (if (cn-black-note? grob)
-                      cn-whole-note-black-path
-                      cn-whole-note-white-path)))
+         (wn-path (if white-note
+                      cn-whole-note-white-path
+                      cn-whole-note-black-path)))
      ;; use make-path-stencil when we drop 2.18 support, see v.20150410
      (ly:stencil-scale
       (grob-interpret-markup grob
@@ -220,7 +220,7 @@
      (curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555)
      (closepath)))
 
-#(define (cn-default-note-head-stencil grob)
+#(define (cn-default-note-head-stencil grob white-note)
    "Returns default Clairnote note head stencils.
     The hollow half-note and solid quarter-note glyphs are modified versions
     (rotated -4 degrees then scaled vertically by 0.9299)
@@ -230,9 +230,9 @@
     http://www.smufl.org/fonts/
     http://blog.steinberg.net/2013/05/introducing-bravura-music-font/"
    (let ((mag (cn-magnification grob))
-         (nh-path (if (cn-black-note? grob)
-                      cn-note-black-path
-                      cn-note-white-path)))
+         (nh-path (if white-note
+                      cn-note-white-path
+                      cn-note-black-path)))
      (ly:stencil-scale
       (grob-interpret-markup grob
         (markup (#:override '(filled . #t) (#:path 0.0001 nh-path))))
@@ -248,34 +248,37 @@
                   (#:path 0.0001 cn-note-black-path))))
       mag mag)))
 
-#(define (cn-lilypond-note-head-stencil grob)
+#(define (cn-lilypond-note-head-stencil grob white-note)
    "Returns 'lilypond' style note head stencils (Emmentaler font)."
-   (if (cn-black-note? grob)
-       (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2")
+   (if white-note
        ;; white notes are scaled horizontally to match black ones
        (ly:stencil-scale
         (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s1")
-        0.945 1)))
+        0.945 1)
+       (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2")))
 
-#(define (cn-funksol-note-head-stencil grob)
+#(define (cn-funksol-note-head-stencil grob white-note)
    "Returns 'funksol' style note head stencils."
    (ly:font-get-glyph (ly:grob-default-font grob)
-     (if (cn-black-note? grob)
-         "noteheads.s2solFunk"
-         "noteheads.s1solFunk")))
+     (if white-note
+         "noteheads.s1solFunk"
+         "noteheads.s2solFunk")))
 
 #(define (cn-make-note-head-stencil-callback style-fn width-scale height-scale)
    "Returns a callback function for note head stencil.
-    style-fn is a function that takes a grob and returns a stencil.
+    style-fn is a function that takes a grob and a boolean and
+    returns a black or white note head stencil.
     width-scale and height-scale are numbers for scaling the stencil."
    (lambda (grob)
+     (define white-note (cn-white-note? grob))
      (cond
       ((cn-stylish-note? grob) (ly:note-head::print grob))
-      ((cn-whole-note? grob) (cn-whole-note-stencil grob))
-      (else (let ((stil (style-fn grob)))
-              (if (and (= 1 width-scale) (= 1 height-scale))
-                  stil
-                  (ly:stencil-scale stil width-scale height-scale)))))))
+      ((cn-whole-note? grob) (cn-whole-note-stencil grob white-note))
+      (else
+       (let ((stil (style-fn grob white-note)))
+         (if (and (= 1 width-scale) (= 1 height-scale))
+             stil
+             (ly:stencil-scale stil width-scale height-scale)))))))
 
 #(define (cn-make-note-head-rotation-callback rotn)
    "Returns a callback function for note head rotation,
@@ -295,9 +298,9 @@
      (if (or (cn-whole-note? grob)
              (cn-stylish-note? grob))
          (ly:note-head::calc-stem-attachment grob)
-         (if (cn-black-note? grob)
-             black-attach
-             white-attach))))
+         (if (cn-white-note? grob)
+             white-attach
+             black-attach))))
 
 
 %--- ACCIDENTAL STYLE ----------------
