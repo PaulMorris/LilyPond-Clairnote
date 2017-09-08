@@ -1477,6 +1477,12 @@ accidental-styles.none = #'(#t () ())
          (8 2 #f)
          (12 5 #f))))
 
+% Doesn't omit the C ledger line.
+#(define cn-ledgers-keep-c-ledgers
+   '(12 ((4 2 #f)
+         (8 2 #f)
+         (12 2 #f))))
+
 #(define (cn-ledger-pattern dist staff-symbol)
    "Produces the ledger line pattern for a given note.
     dist is distance of note from closest staff line."
