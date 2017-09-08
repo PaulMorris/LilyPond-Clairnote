@@ -1446,56 +1446,63 @@ accidental-styles.none = #'(#t () ())
      (ly:grob-set-property! grob 'beam-thickness (* thick bss-inverse))
      ))
 
+
 %--- LEDGER LINES ----------------
 
-%% default, gradual, conservative
-#(define cn-ledgers-gradual '(2 2 2 5))
+% Ledger line recipes:
+% Usually: cycle = octave = 12
+%
+% '(staff-positions-per-cycle
+%   ((ledger-position-in-a-cycle further-add nearer-drop)
+%    ...))
+%
+% further-add is like lilypond's ledger-extra, for adding
+% extra ledgers when they are this far (or less) beyond the note
+% (reasonable vals: 1, 2, 5, 6).
+%
+% nearer-drop can be #f or a number and is for optionally not
+% drawing ledgers further than this from the note, in the
+% direction of the nearest staff line (reasonable vals: 2, 5).
 
-%% jumps to two ledger lines immediately,
-%% omits c ledger line quickly
-#(define cn-ledgers-less-gradual '(2 2 5 2))
+% Default, gradual, conservative.
+#(define cn-ledgers-gradual
+   '(12 ((4 2 5)
+         (8 2 #f)
+         (12 2 #f))))
 
-%% no ledger-extra, solid notes in center of spaces don't get
-%% a ledger beyond them, but float in space.
+% Jumps to two ledger lines immediately,
+% and omits c ledger line quickly.
+#(define cn-ledgers-less-gradual
+   '(12 ((4 2 2)
+         (8 2 #f)
+         (12 5 #f))))
 
 #(define (cn-ledger-pattern dist staff-symbol)
-   "Produces the ledger line pattern for a given note."
-   ;; dist is distance of note from the closest staff line
-   ;; extra-4, extra-8, extra-12 work like LilyPond's ledger-extra property
-   ;; but tied to their specific ledger lines. They determine when ledgers
-   ;; start to appear beyond the note (default is 2, other good values are 1, 5, 6).
-   ;; hide-4 determines when 4-position lines (C) start to disappear
-   ;; (2 or 5 make sense, 0-7 are possible)
-   ;; TODO? provide a way to show all C ledgers?
+   "Produces the ledger line pattern for a given note.
+    dist is distance of note from closest staff line."
+   ;; cycle-size is generally 12 (staff positions per octave)
+   ;; cycle-count is generally the number of octaves
    (let*
     ((recipe (ly:grob-property staff-symbol 'cn-ledger-recipe cn-ledgers-gradual))
-     (extra-4 (list-ref recipe 0))
-     (extra-8 (list-ref recipe 1))
-     (extra-12 (list-ref recipe 2))
-     (hide-4 (list-ref recipe 3))
-     (rem (remainder dist 12))
-     (base (* 12 (quotient dist 12)))
+     (cycle-size (list-ref recipe 0))
+     (configs (list-ref recipe 1))
+     (cycle-count (+ 1 (quotient dist cycle-size)))
+     (config-to-ledgers
+      (lambda (config)
+        (let*
+         ((ledger-posn (list-ref config 0))
+          (further-add (list-ref config 1))
+          (nearer-drop (list-ref config 2))
+          (furthest (+ dist further-add))
+          (nearest (if nearer-drop (- dist nearer-drop) 0))
+          (ledgers (iota cycle-count ledger-posn cycle-size))
+          (in-range (lambda (l) (and (<= l furthest)
+                                     (>= l nearest)))))
+         (filter in-range ledgers))))
+     (ledger-lists (map config-to-ledgers configs)))
 
-     ;; list of positions from 0 to base, cycling at 8 and 12 (E and G#/Ab)
-     (lrs (reverse (merge
-                    (iota (quotient base 12) 12 12)
-                    (iota (quotient (+ 4 base) 12) 8 12)
-                    <)))
-
-     (get-ledger (lambda (pos extra rem base)
-                   (if (<= (- pos extra) rem)
-                       (list (+ pos base))
-                       '())))
-
-     (lr12 (get-ledger 12 extra-12 rem base))
-     (lr8 (get-ledger 8 extra-8 rem base))
-
-     (lr4 (if (<= rem (+ 4 hide-4))
-              (get-ledger 4 extra-4 rem base)
-              '()))
-
-     (result (append lr12 lr8 lr4 lrs)))
-    result))
+    (reverse (fold (lambda (lst result) (merge lst result <))
+               '() ledger-lists))))
 
 #(define cn-ledger-positions
    ;; A function that takes a StaffSymbol grob and a vertical
@@ -1783,7 +1790,7 @@ accidental-styles.none = #'(#t () ())
   (grob-prop 'cn-double-stem-width-scale non-zero?)
 
   ;; Used to produce ledger line pattern.
-  (grob-prop 'cn-ledger-recipe number-list?))
+  (grob-prop 'cn-ledger-recipe list?))
 
 
 %--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
