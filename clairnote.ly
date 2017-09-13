@@ -1486,8 +1486,9 @@ accidental-styles.none = #'(#t () ())
 #(define (cn-ledger-pattern dist staff-symbol)
    "Produces the ledger line pattern for a given note.
     dist is distance of note from closest staff line."
-   ;; cycle-size is generally 12 (staff positions per octave)
-   ;; cycle-count is generally the number of octaves
+   ;; A cycle is generally an octave, so cycle-size is
+   ;; 12 (staff positions per octave) and cycle-count
+   ;; is the number of octaves we are dealing with.
    (let*
     ((recipe (ly:grob-property staff-symbol 'cn-ledger-recipe cn-ledgers-gradual))
      (cycle-size (list-ref recipe 0))
@@ -1501,14 +1502,19 @@ accidental-styles.none = #'(#t () ())
           (nearer-drop (list-ref config 2))
           (furthest (+ dist further-add))
           (nearest (if nearer-drop (- dist nearer-drop) 0))
-          (ledgers (iota cycle-count ledger-posn cycle-size))
+          ;; Generate the list of ledgers in descending order.
+          (ledgers (reverse (iota cycle-count ledger-posn cycle-size)))
           (in-range (lambda (l) (and (<= l furthest)
                                      (>= l nearest)))))
          (filter in-range ledgers))))
-     (ledger-lists (map config-to-ledgers configs)))
+     (ledger-lists (map config-to-ledgers configs))
 
-    (reverse (fold (lambda (lst result) (merge lst result <))
-               '() ledger-lists))))
+     ;; When there is an accidental sign on a note, LilyPond may
+     ;; shorten the furthest ledger, the first in the list.
+     ;; So we merge into one list, keeping descending order
+     (ledger-list (fold (lambda (lst result) (merge lst result >))
+                    '() ledger-lists)))
+    ledger-list))
 
 #(define cn-ledger-positions
    ;; A function that takes a StaffSymbol grob and a vertical
