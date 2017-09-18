@@ -127,33 +127,6 @@
 
 %--- NOTE HEADS AND STEM ATTACHMENT ----------------
 
-#(define (cn-white-note? grob)
-   (odd? (cn-notehead-semitone grob)))
-
-#(define (cn-td-white-note? grob)
-   (>= 1 (ly:grob-property grob 'duration-log)))
-
-#(define (cn-whole-note? grob)
-   "Note: longer durations than whole note also return #t.
-    duration-log: 0 is whole, 1 is half, 2 is quarter and shorter."
-   (< (ly:grob-property grob 'duration-log) 1))
-
-#(define (cn-stylish-note? grob)
-   "Does a note head grob have one of these style properties."
-   (define style (ly:grob-property-data grob 'style))
-   ;; TODO: better handling of various notehead styles
-   ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
-   ;; output-lib.scm
-   (and (not (null? style))
-        (memq style '(harmonic
-                      harmonic-black
-                      harmonic-mixed
-                      diamond
-                      cross
-                      xcircle
-                      triangle
-                      slash))))
-
 #(define cn-whole-note-black-path
    '((moveto 0 0)
      (curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432)
@@ -256,6 +229,34 @@
      (if white-note
          "noteheads.s1solFunk"
          "noteheads.s2solFunk")))
+
+#(define (cn-stylish-note? grob)
+   "Does a note head grob have one of these style properties."
+   (define style (ly:grob-property-data grob 'style))
+   ;; TODO: better handling of various notehead styles
+   ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
+   ;; output-lib.scm
+   (and (not (null? style))
+        (memq style '(harmonic
+                      harmonic-black
+                      harmonic-mixed
+                      diamond
+                      cross
+                      xcircle
+                      triangle
+                      slash))))
+
+#(define (cn-whole-note? grob)
+   "Note: longer durations than whole note also return #t.
+    duration-log: 0 is whole, 1 is half, 2 is quarter and shorter."
+   (< (ly:grob-property grob 'duration-log) 1))
+
+#(define (cn-white-note? grob)
+   (odd? (cn-notehead-semitone grob)))
+
+#(define (cn-td-white-note? grob)
+   "Used with traditional duration version of Clairnote"
+   (<= (ly:grob-property grob 'duration-log) 1))
 
 #(define (cn-make-note-head-stencil-callback
           style-fn white-note? width-scale height-scale)
@@ -2061,7 +2062,7 @@ accidental-styles.none = #'(#t () ())
     % accidental styles set three context properties:
     % extraNatural, autoAccidentals, and autoCautionaries
     #(if (ly:version? > '(2 18 2))
-         #{ \accidentalStyle clairnote-default #}
+         #{ \accidentalStyle "clairnote-default" #}
          #{ \accidentalStyleClairnoteDefault #})
 
     % GROB PROPERTIES
