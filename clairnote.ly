@@ -1545,8 +1545,13 @@ accidental-styles.none = #'(#t () ())
      ;; shorten the furthest ledger, the first in the list.
      ;; So we merge into one list, keeping descending order
      (ledger-list (fold (lambda (lst result) (merge lst result >))
-                    '() ledger-lists)))
-    ledger-list))
+                    '() ledger-lists))
+     ;; But if the note is on a ledger, move that ledger to the
+     ;; front of the list, so that ledger will be shortened.
+     (ledger-list2 (if (memv dist ledger-list)
+                       (cons dist (delv dist ledger-list))
+                       ledger-list)))
+    ledger-list2))
 
 #(define cn-ledger-positions
    ;; A function that takes a StaffSymbol grob and a vertical
