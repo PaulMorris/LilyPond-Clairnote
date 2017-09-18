@@ -1251,7 +1251,7 @@ accidental-styles.none = #'(#t () ())
                        (map multiply-by vals)))))
     details))
 
-#(define (cn-customize-stem grob)
+#(define (cn-customize-stem grob double-stems)
    "Lengthen all stems to undo staff compression side effects,
     and give half notes double stems."
    (let* ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
@@ -1261,18 +1261,18 @@ accidental-styles.none = #'(#t () ())
      (ly:grob-set-property! grob 'details deets2)
 
      ;; double stems for half notes
-     (if (= 1 (ly:grob-property grob 'duration-log))
-         (cn-double-stem grob)
-         )))
+     (if (and double-stems
+              (= 1 (ly:grob-property grob 'duration-log)))
+         (cn-double-stem grob))))
 
-#(define (cn-stem-grob-callback grob)
+#(define (cn-make-stem-grob-callback double-stems)
    "Make sure omit is not in effect (i.e. stencil is not #f)
     and the stem has a notehead (i.e. is not for a rest,
     rest grobs have stem grobs that have no stencil)"
-   (if (and (ly:grob-property-data grob 'stencil)
-            (not (null? (ly:grob-object grob 'note-heads))))
-       (cn-customize-stem grob)
-       ))
+   (lambda (grob)
+     (if (and (ly:grob-property-data grob 'stencil)
+              (not (null? (ly:grob-object grob 'note-heads))))
+         (cn-customize-stem grob double-stems))))
 
 %--- CROSS-STAFF STEMS ----------------
 
@@ -2062,7 +2062,7 @@ accidental-styles.none = #'(#t () ())
     \override Stem.no-stem-extend = ##t
     \override Stem.cn-double-stem-spacing = #3.5
     \override Stem.cn-double-stem-width-scale = #1.5
-    \override Stem.before-line-breaking = #cn-stem-grob-callback
+    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
 
     \override Beam.before-line-breaking = #cn-beam-grob-callback
 
@@ -2153,7 +2153,7 @@ accidental-styles.none = #'(#t () ())
 
     \override Stem.cn-double-stem-spacing = #3.5
     \override Stem.cn-double-stem-width-scale = #1.5
-    \override Stem.before-line-breaking = #cn-stem-grob-callback
+    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
 
     \override Dots.extra-offset = #cn-dots-callback
   }
