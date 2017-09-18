@@ -2198,6 +2198,155 @@ accidental-styles.none = #'(#t () ())
   }
 }
 
+% Command to customize the Staff context to make it a
+% traditional duration version of Clairnote.
+clairnote-td =
+\layout {
+  \context {
+    \Staff
+
+    % CONTEXT PROPERTIES
+    % traditional clef settings are immediately converted to
+    % clairnote settings by custom clef engraver
+    clefGlyph = "clefs.G"
+    clefPosition = -2
+    middleCClefPosition = -6
+    clefTransposition = 0
+    middleCPosition = -12
+
+    staffLineLayoutFunction = #ly:pitch-semitones
+    printKeyCancellation = ##f
+    \numericTimeSignature
+
+    cnBaseStaffLines = #'(-8 -4)
+    cnStaffOctaves = #2
+    cnClefShift = #0
+
+    % accidental styles set three context properties:
+    % extraNatural, autoAccidentals, and autoCautionaries
+    #(if (ly:version? > '(2 18 2))
+         #{ \accidentalStyle "clairnote-default" #}
+         #{ \accidentalStyleClairnoteDefault #})
+
+    % GROB PROPERTIES
+    \override StaffSymbol.cn-staff-octaves = #2
+    \override StaffSymbol.cn-clef-shift = #0
+    \override StaffSymbol.line-positions = #'(-8 -4 4 8)
+    \override StaffSymbol.ledger-positions = #'(-8 -6 -4 -2 0 2 4 6 8)
+
+    % staff-space reflects vertical compression of Clairnote staff.
+    % Default of 0.75 makes the Clairnote octave 1.28571428571429
+    % times the size of the traditional octave (3/4 * 12/7 = 9/7).
+    % Adjacent note heads overlap by 0.625 (5/8).
+    \override StaffSymbol.staff-space = #0.75
+
+    % Custom grob property that stores the base staff-space, encoding
+    % the vertical compression of the Clairnote staff. It may differ from
+    % the actual staff-space which is scaled by \magnifyStaff etc.
+    % Stem and beam size, time sig and key sig position depend on it.
+    \override StaffSymbol.cn-base-staff-space = #0.75
+
+    \override NoteHead.stencil =
+    #(cn-make-note-head-stencil-callback
+      cn-default-note-head-stencil
+      cn-td-white-note?
+      1 1)
+    \override AmbitusNoteHead.stencil =
+    #(cn-make-note-head-stencil-callback
+      cn-default-note-head-stencil
+      cn-td-white-note?
+      1 1)
+    \override TrillPitchGroup.stencil =
+    #(cn-make-note-head-stencil-callback
+      cn-default-note-head-stencil
+      cn-td-white-note?
+      1 1)
+
+    \override Stem.no-stem-extend = ##t
+    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
+
+    \override Beam.before-line-breaking = #cn-beam-grob-callback
+
+    \override Accidental.horizontal-skylines = #'()
+    \override Accidental.vertical-skylines = #'()
+    \override Accidental.stencil = #cn-accidental-grob-callback
+    \override AccidentalCautionary.stencil = #cn-accidental-grob-callback
+    \override AccidentalSuggestion.stencil = #cn-accidental-grob-callback
+    \override AmbitusAccidental.stencil = #cn-accidental-grob-callback
+    \override TrillPitchAccidental.stencil = #cn-accidental-grob-callback
+
+    \override KeySignature.horizontal-skylines = #'()
+    \override KeySignature.stencil = #cn-key-signature-grob-callback
+    \override KeyCancellation.horizontal-skylines = #'()
+    \override KeyCancellation.stencil =#cn-key-signature-grob-callback
+
+    \override TimeSignature.before-line-breaking = #cn-time-signature-grob-callback
+
+    % TODO: whole note ledger lines are a bit too wide
+    \override LedgerLineSpanner.length-fraction = 0.45
+    \override LedgerLineSpanner.minimum-length-fraction = 0.35
+    \override StaffSymbol.ledger-extra = 0
+
+    \override Clef.stencil = #cn-clef-stencil-callback
+    \override CueClef.stencil = #cn-clef-stencil-callback
+    \override CueEndClef.stencil = #cn-clef-stencil-callback
+    \override ClefModifier.stencil = ##f
+
+    #(if (ly:version? <= '(2 19 0))
+         #{
+           \override Accidental.before-line-breaking = #cn-set-acc-extents
+           \override AccidentalCautionary.before-line-breaking = #cn-set-acc-extents
+           \override AccidentalSuggestion.before-line-breaking = #cn-set-acc-extents
+           \override AmbitusAccidental.before-line-breaking = #cn-set-acc-extents
+           \override TrillPitchAccidental.before-line-breaking = #cn-set-acc-extents
+
+         #}
+         #{ #})
+
+    #(if (ly:version? >= '(2 19 34))
+         #{
+           \override Stem.note-collision-threshold = 2
+           \override NoteCollision.note-collision-threshold = 2
+         #}
+         #{
+           % NoteColumn override doesn't work as an engraver for some reason,
+           % crashes with manual beams on chords.
+           \override NoteColumn.before-line-breaking = #cn-note-column-callback
+         #})
+
+    % empty else clauses are needed for 2.18 compatibility
+    #(if (ly:version? >= '(2 19 42))
+         #{
+           \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
+           \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
+         #}
+         #{ #})
+
+    #(if (ly:version? < '(2 19 18))
+         #{
+           \override Dots.before-line-breaking = #cn-dots-grob-callback
+         #}
+         #{ #})
+
+    % ENGRAVERS
+    % Are already consisted above and don't need to be re-consisted here.
+  }
+
+  \context {
+    \RhythmicStaff
+    \numericTimeSignature
+    \override StaffSymbol.cn-base-staff-space = #1
+
+    \override NoteHead.stencil =
+    #(cn-make-note-head-stencil-callback
+      cn-default-note-head-stencil
+      cn-td-white-note?
+      1 1)
+
+    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
+  }
+}
+
 % Let parent contexts accept TradStaff and TradRhythmicStaff
 % in midi output.
 \midi {
