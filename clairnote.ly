@@ -1484,6 +1484,37 @@ accidental-styles.none = #'(#t () ())
          (8 2 #f)
          (12 2 #f))))
 
+% Ledger recipes for version of Clairnote
+% with traditional duration note heads.
+
+% Default, gradual, conservative.
+#(define cn-td-ledgers-gradual
+   '(12 ((2 0 0)
+         (4 2 5)
+         (6 0 0)
+         (8 2 #f)
+         (10 0 0)
+         (12 2 #f))))
+
+% Jumps to two ledger lines immediately,
+% and omits c ledger line quickly.
+#(define cn-td-ledgers-less-gradual
+   '(12 ((2 0 0)
+         (4 2 2)
+         (6 0 0)
+         (8 2 #f)
+         (10 0 0)
+         (12 5 #f))))
+
+% Doesn't omit the C ledger line.
+#(define cn-td-ledgers-keep-c-ledgers
+   '(12 ((2 0 0)
+         (4 2 #f)
+         (6 0 0)
+         (8 2 #f)
+         (10 0 0)
+         (12 2 #f))))
+
 #(define (cn-ledger-pattern dist staff-symbol)
    "Produces the ledger line pattern for a given note.
     dist is distance of note from closest staff line."
