@@ -130,6 +130,9 @@
 #(define (cn-white-note? grob)
    (odd? (cn-notehead-semitone grob)))
 
+#(define (cn-td-white-note? grob)
+   (>= 1 (ly:grob-property grob 'duration-log)))
+
 #(define (cn-whole-note? grob)
    "Note: longer durations than whole note also return #t.
     duration-log: 0 is whole, 1 is half, 2 is quarter and shorter."
