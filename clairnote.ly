@@ -21,7 +21,7 @@
 %    You should have received a copy of the GNU General Public License
 %    along with this file.  If not, see <http://www.gnu.org/licenses/>.
 
-\version "2.18.2"
+\version "2.19.49"
 
 
 %--- UTILITY FUNCTIONS ----------------
@@ -397,7 +397,7 @@
     ;; ((octave . notename) . (alter barnum . measure-position))
     ((local-alts-raw (ly:context-property context
                        (if (ly:version? >= '(2 19 7))
-                           'localAlterations 'localKeySignature) '()))
+                           'localAlterations 'localAlterations) '()))
      (accidental-alt? (lambda (entry) (pair? (cdr entry))))
      (local-alts (filter accidental-alt? local-alts-raw)))
 
@@ -447,7 +447,7 @@
 
      (key-alts (ly:context-property context
                  (if (ly:version? >= '(2 19 7))
-                     'keyAlterations 'keySignature) '()))
+                     'keyAlterations 'keyAlterations) '()))
      ;; from-key-alts will be #f or an alter number (e.g. 1/2, -1/2, 0)
      (from-key-alts
       (or (assoc-get notename key-alts)
@@ -1641,7 +1641,7 @@ accidental-styles.none = #'(#t () ())
 
 #(define cnStaffExtender
    (define-music-function
-    (parser location reset going-up going-down)
+    (reset going-up going-down)
     (boolean? integer? integer?)
     #{
       \context Staff \applyContext
@@ -1665,7 +1665,7 @@ accidental-styles.none = #'(#t () ())
 #(define cnUnextendStaffDown #{ \cnStaffExtender ##f 0 -1 #})
 
 #(define cnStaffOctaveSpan
-   (define-music-function (parser location octaves) (positive-integer?)
+   (define-music-function (octaves) (positive-integer?)
      ;; odd octaves: extended the same amount up and down (from 1)
      ;; even octaves: extended up one more than they are down
      (let*
@@ -1683,7 +1683,7 @@ accidental-styles.none = #'(#t () ())
       #})))
 
 #(define cnClefPositionShift
-   (define-music-function (parser location octaves) (integer?)
+   (define-music-function (octaves) (integer?)
      #{
        \set Staff.cnClefShift = #octaves
        \override Staff.StaffSymbol.cn-clef-shift = #octaves
@@ -1711,7 +1711,7 @@ accidental-styles.none = #'(#t () ())
 
 %% must be used before \magnifyStaff for both to work
 #(define cnStaffCompression
-   (define-music-function (parser location ss) (number?)
+   (define-music-function (ss) (number?)
      "0.75 is the default Clairnote staff-space (ss). An ss arg of
       1 gives an uncompressed staff. 7/12 gives a staff with
       same size octave as traditional"
@@ -1738,7 +1738,7 @@ accidental-styles.none = #'(#t () ())
    #})
 
 #(define cnNoteheadStyle
-   (define-music-function (parser location style) (string?)
+   (define-music-function (style) (string?)
      (cond
 
       ((string=? "funksol" style)
