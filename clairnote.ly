@@ -90,40 +90,6 @@
                           default)))
      heads-list))
 
-#(if (not (defined? 'grob::name))
-     ;; TODO: Delete this after we stop supporting LilyPond 2.18
-     (define (grob::name grob)
-       "Return the name of the grob @var{grob} as a symbol."
-       (assq-ref (ly:grob-property grob 'meta) 'name)))
-
-
-%--- LILYPOND VERSION CHECKING ----------------
-
-% borrowed from scm/lily-library.scm (added in LilyPond 2.19.57)
-% TODO: not needed after we drop support for LilyPond 2.18
-
-#(if (not (defined? 'lexicographic-list-compare?))
-     (define (lexicographic-list-compare? op a b)
-       "Lexicographically compare two lists @var{a} and @var{b} using
-        the operator @var{op}. The types of the list elements have to
-        be comparable with @var{op}. If the lists are of different length
-        the trailing elements of the longer list are ignored."
-       (let* ((ca (car a))
-              (iseql (op ca ca)))
-         (let loop ((ca ca) (cb (car b)) (a (cdr a)) (b (cdr b)))
-           (let ((axb (op ca cb)))
-             (if (and (pair? a) (pair? b)
-                      (eq? axb iseql (op cb ca)))
-                 (loop (car a) (car b) (cdr a) (cdr b))
-                 axb))))))
-
-#(if (not (defined? 'ly:version?))
-     (define (ly:version? op ver)
-       "Using the operator @var{op} compare the currently executed LilyPond
-        version with a given version @var{ver} which is passed as a list of
-        numbers."
-       (lexicographic-list-compare? op (ly:version) ver)))
-
 
 %--- NOTE HEADS AND STEM ATTACHMENT ----------------
 
@@ -395,9 +361,7 @@
     ;; (notename . alter) and maybe ((octave . notename) . alter)
     ;; so we filter these out, leaving only accidental entries:
     ;; ((octave . notename) . (alter barnum . measure-position))
-    ((local-alts-raw (ly:context-property context
-                       (if (ly:version? >= '(2 19 7))
-                           'localAlterations 'localAlterations) '()))
+    ((local-alts-raw (ly:context-property context 'localAlterations '()))
      (accidental-alt? (lambda (entry) (pair? (cdr entry))))
      (local-alts (filter accidental-alt? local-alts-raw)))
 
@@ -445,9 +409,7 @@
      ;; from-cn-alts will be #f or (alter barnum . measure-position)
      (from-cn-semi-alts (assoc-get semi cn-semi-alts))
 
-     (key-alts (ly:context-property context
-                 (if (ly:version? >= '(2 19 7))
-                     'keyAlterations 'keyAlterations) '()))
+     (key-alts (ly:context-property context 'keyAlterations '()))
      ;; from-key-alts will be #f or an alter number (e.g. 1/2, -1/2, 0)
      (from-key-alts
       (or (assoc-get notename key-alts)
@@ -496,13 +458,6 @@
    (lambda (context pitch barnum measurepos)
      (cn-check-pitch-against-signature context pitch barnum measurepos laziness)))
 
-#(if (ly:version? <= '(2 18 2))
-     (define accidentalStyleClairnoteDefault
-       (set-accidentals-properties #t
-         `(Staff ,(cn-make-accidental-rule 0))
-         '() 'Staff)))
-
-% for LilyPond 2.19 and above
 accidental-styles.clairnote-default =
 #`(#t (Staff ,(cn-make-accidental-rule 0)) ())
 
@@ -1849,161 +1804,6 @@ accidental-styles.none = #'(#t () ())
   (grob-prop 'cn-ledger-recipe list?))
 
 
-%--- LEGACY SUPPORT FOR LILYPOND 2.18.2 ETC. ----------------
-
-%--- LEGACY ACCIDENTAL EXTENTS
-
-#(if (ly:version? <= '(2 19 0))
-     (define (cn-set-acc-extents grob)
-       ;; TODO: should natural signs have the same Y-extent as others?
-       ;; TODO: shouldn't X/Y-extent scale with magnification / font-size?
-       (ly:grob-set-property! grob 'Y-extent '(-0.5 . 1.2))
-       (ly:grob-set-property! grob 'X-extent
-         (case (accidental-interface::calc-alteration grob)
-           ((-1/2) '(0 . 0.54))
-           ((1/2) '(-0.27 . 0.27))
-           ((-1) '(-0.34 . 0.67))
-           ((1) '(-0.54 . 0.47))
-           ((0) '(-0.0 . 0.44))))))
-
-
-%--- LEGACY DOTS ON DOTTED NOTES ----------------
-
-#(if (ly:version? < '(2 19 18))
-     ;; TODO: remove when we stop supporting LilyPond 2.18
-     (define (cn-dots-grob-callback grob)
-       "Adjust vertical position of dots for certain notes."
-       (let* ((parent (ly:grob-parent grob Y))
-              ;; parent is a Rest grob or a NoteHead grob
-              (semi (if (grob::has-interface parent 'rest-interface)
-                        #f
-                        (modulo (cn-notehead-semitone parent) 12))))
-         (cond
-          ((eqv? 0 semi)
-           (ly:grob-set-property! grob 'staff-position
-             (if (eqv? -1 (ly:grob-property grob 'direction))
-                 -1 ;; down
-                 1))) ;; up or neutral
-          ((member semi '(2 6 10))
-           (ly:grob-set-property! grob 'Y-offset -0.36))
-          ))))
-
-
-%--- LEGACY CHORDS ----------------
-
-%% cn-shift-notehead, copied and modified from the LilyPond Snippet
-%% Repository, snippet 861, "Re-positioning note heads on the
-%% opposite side of the stem," http://lsr.di.unimi.it/LSR/Item?id=861
-%% Thanks to David Nalesnik and Thomas Morley for work on that snippet.
-%% Use that snippet for any manual adjustments of note head positions.
-
-#(if
-  (ly:version? < '(2 19 34))
-  (begin
-
-   (define (cn-shift-notehead nh nh-dir stem-dir)
-     "Shift a note head to the left or right."
-     (let*
-      ((dur-log (ly:grob-property nh 'duration-log))
-       (stil (ly:grob-property nh 'stencil))
-       (stil-x-length (interval-length (ly:stencil-extent stil X)))
-       (stem (ly:grob-object nh 'stem))
-       (stem-thick (ly:grob-property stem 'thickness 1.3))
-       (stem-x-width (/ stem-thick 10))
-       ;; (stem-dir (ly:grob-property stem 'direction))
-
-       ;; stencil width method, doesn't work with non-default beams
-       ;; so using thickness property above instead
-       ;; (stem-stil (ly:grob-property stem 'stencil))
-       ;; (stem-x-width (if (ly:stencil? stem-stil)
-       ;;                 (interval-length (ly:stencil-extent stem-stil X))
-       ;;                 ;; if no stem-stencil use 'thickness-property
-       ;;                 (/ stem-thick 10)))
-
-       ;; Calculate a value to compensate the stem-extension
-       (stem-x-corr
-        ;; TODO: better coding if (<= log 0)
-        (cond
-         ;; original, doesn't work (whole notes)
-         ;; ((and (= 0 q) (= 1 stem-dir))
-         ;;      (* -1 (+ 2  (* -4 stem-x-width))))
-         ;; new, quick fix, could be better?
-         ((= 0 dur-log) 0.223)
-
-         ((and (< dur-log 0) (= 1 stem-dir))
-          (* -1 (+ 2  (* -1 stem-x-width))))
-         ((< dur-log 0)
-          (* 2 stem-x-width))
-         (else (/ stem-x-width 2)))))
-      ;; final calculation for moving the note head
-      (ly:grob-translate-axis! nh (* nh-dir (- stil-x-length stem-x-corr)) X)))
-
-   (define (cn-chords-loop note-heads first-semi stem-dir note-col)
-     "Use recursion to iterate through the note heads, shifting them as needed.
-      Use internal procedure (loop) since we need stem-dir and note-col in scope,
-      and don't want to pass them as arguments."
-     (define (loop nhs last-semi parity)
-       (if (> (length nhs) 0)
-           (let* ((nh (car nhs))
-                  (semi (cn-notehead-semitone nh))
-                  (interval (abs (- semi last-semi))))
-
-             (if (> interval 2)
-                 ;; on to the next note head
-                 (loop (cdr nhs) semi #t)
-
-                 ;; else maybe shift this note head
-                 (let*
-                  ((nh-dir (if parity stem-dir (* -1 stem-dir)))
-                   ;; check the old/default position to see if the note head needs moving
-                   ;; use round to avoid floating point number errors
-                   (pos (round (ly:grob-relative-coordinate nh note-col X)))
-                   (old-nh-dir
-                    (if (> stem-dir 0)
-                        ;; stem up (stem-dir is 1)
-                        (if (= 0 pos) -1 1) ;; -1 is left (pos is 0), 1 is right (pos is positive)
-                        ;; stem down (stem-dir is -1)
-                        (if (= 0 pos) 1 -1)))) ;; 1 is right (pos is 0), -1 is left (pos is negative)
-
-                  (if (not (= nh-dir old-nh-dir))
-                      (cn-shift-notehead nh nh-dir stem-dir))
-                  (loop (cdr nhs) semi (not parity)))))))
-
-     ;; start the loop
-     (loop note-heads first-semi #t))
-
-   (define (cn-note-column-callback grob)
-     ; "For notes in chords or harmonic intervals that are 2 semitones
-     ; apart or less, automatically position them on opposite sides of the stem.
-     ; (See Stem::calc_positioning_done in LilyPond source code lily/stem.cc)"
-     (let* ((nhs-raw (cn-note-heads-from-grob
-                      grob
-                      ;; when rests, no note heads in NoteColumn grob
-                      '(0))))
-       ;; rests and single notes don't need shifting
-       (if (> (length nhs-raw) 1)
-           (let*
-            ((nhs-sorted
-              (sort-list nhs-raw
-                (lambda (a b)
-                  (< (cn-notehead-semitone a)
-                     (cn-notehead-semitone b)))))
-             ;; stem direction, 1 is up, -1 is down
-             (stem-dir (ly:grob-property (ly:grob-object grob 'stem) 'direction))
-             ;; if stem is down then reverse the order
-             (nhs-cooked
-              (if (< stem-dir 0)
-                  (reverse nhs-sorted)
-                  nhs-sorted))
-             (first-semi (cn-notehead-semitone (car nhs-cooked))))
-
-            ;; Start with (cdr nhs-cooked). The first nh never needs shifting.
-            (cn-chords-loop (cdr nhs-cooked) first-semi stem-dir grob)))))
-   ))
-
-%--- END LEGACY SUPPORT SECTION ----------------
-
-
 %--- STAFF CONTEXT DEFINITION ----------------
 
 \layout {
@@ -2026,10 +1826,8 @@ accidental-styles.none = #'(#t () ())
   \context { \GrandStaff \accepts TradStaff \accepts TradRhythmicStaff }
   \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
   \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
-  #(if (ly:version? >= '(2 19 27))
-       #{
-         \context { \OneStaff \accepts TradStaff \accepts TradRhythmicStaff }
-       #})
+  \context { \OneStaff \accepts TradStaff \accepts TradRhythmicStaff }
+
   \context {
     \Score
     \accepts TradStaff
@@ -2061,9 +1859,7 @@ accidental-styles.none = #'(#t () ())
 
     % accidental styles set three context properties:
     % extraNatural, autoAccidentals, and autoCautionaries
-    #(if (ly:version? > '(2 18 2))
-         #{ \accidentalStyle "clairnote-default" #}
-         #{ \accidentalStyleClairnoteDefault #})
+    \accidentalStyle "clairnote-default"
 
     % GROB PROPERTIES
     \override StaffSymbol.cn-staff-octaves = #2
@@ -2133,44 +1929,12 @@ accidental-styles.none = #'(#t () ())
     % adjust x-axis dots position to not collide with double-stemmed half notes
     \override Dots.extra-offset = #cn-dots-callback
 
-    #(if (ly:version? <= '(2 19 0))
-         #{
-           \override Accidental.before-line-breaking = #cn-set-acc-extents
-           \override AccidentalCautionary.before-line-breaking = #cn-set-acc-extents
-           \override AccidentalSuggestion.before-line-breaking = #cn-set-acc-extents
-           \override AmbitusAccidental.before-line-breaking = #cn-set-acc-extents
-           \override TrillPitchAccidental.before-line-breaking = #cn-set-acc-extents
+    \override Stem.note-collision-threshold = 2
+    \override NoteCollision.note-collision-threshold = 2
 
-         #}
-         #{ #})
-
-    #(if (ly:version? >= '(2 19 34))
-         #{
-           \override Stem.note-collision-threshold = 2
-           \override NoteCollision.note-collision-threshold = 2
-         #}
-         #{
-           % NoteColumn override doesn't work as an engraver for some reason,
-           % crashes with manual beams on chords.
-           \override NoteColumn.before-line-breaking = #cn-note-column-callback
-         #})
-
-    % LilyPond bug with "ledger-extra = 2" before 2.19.36
-    \override StaffSymbol.ledger-extra = #(if (ly:version? >= '(2 19 36)) 2 1)
-
-    % empty else clauses are needed for 2.18 compatibility
-    #(if (ly:version? >= '(2 19 42))
-         #{
-           \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
-           \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
-         #}
-         #{ #})
-
-    #(if (ly:version? < '(2 19 18))
-         #{
-           \override Dots.before-line-breaking = #cn-dots-grob-callback
-         #}
-         #{ #})
+    \override StaffSymbol.ledger-extra = 2
+    \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
+    \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
 
     % ENGRAVERS
     % There is also the customized Span_stem_engraver (added in LilyPond 2.19.??)
@@ -2225,9 +1989,7 @@ clairnote-td =
 
     % accidental styles set three context properties:
     % extraNatural, autoAccidentals, and autoCautionaries
-    #(if (ly:version? > '(2 18 2))
-         #{ \accidentalStyle "clairnote-default" #}
-         #{ \accidentalStyleClairnoteDefault #})
+    \accidentalStyle "clairnote-default"
 
     % GROB PROPERTIES
     \override StaffSymbol.cn-staff-octaves = #2
@@ -2293,41 +2055,11 @@ clairnote-td =
     \override CueEndClef.stencil = #cn-clef-stencil-callback
     \override ClefModifier.stencil = ##f
 
-    #(if (ly:version? <= '(2 19 0))
-         #{
-           \override Accidental.before-line-breaking = #cn-set-acc-extents
-           \override AccidentalCautionary.before-line-breaking = #cn-set-acc-extents
-           \override AccidentalSuggestion.before-line-breaking = #cn-set-acc-extents
-           \override AmbitusAccidental.before-line-breaking = #cn-set-acc-extents
-           \override TrillPitchAccidental.before-line-breaking = #cn-set-acc-extents
+    \override Stem.note-collision-threshold = 2
+    \override NoteCollision.note-collision-threshold = 2
 
-         #}
-         #{ #})
-
-    #(if (ly:version? >= '(2 19 34))
-         #{
-           \override Stem.note-collision-threshold = 2
-           \override NoteCollision.note-collision-threshold = 2
-         #}
-         #{
-           % NoteColumn override doesn't work as an engraver for some reason,
-           % crashes with manual beams on chords.
-           \override NoteColumn.before-line-breaking = #cn-note-column-callback
-         #})
-
-    % empty else clauses are needed for 2.18 compatibility
-    #(if (ly:version? >= '(2 19 42))
-         #{
-           \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
-           \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
-         #}
-         #{ #})
-
-    #(if (ly:version? < '(2 19 18))
-         #{
-           \override Dots.before-line-breaking = #cn-dots-grob-callback
-         #}
-         #{ #})
+    \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
+    \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
 
     % ENGRAVERS
     % Are already consisted above and don't need to be re-consisted here.
