@@ -464,21 +464,15 @@ accidental-styles.none = #'(#t () ())
    ;; associative list of accidental sign stencils
    (let*
     ((vertical-line
-      (ly:stencil-translate
-       (make-path-stencil '(lineto 0 1.0) 0.2 1 1 #f)
-       '(0 . -0.5)))
+      (make-path-stencil '(moveto 0 -0.5 lineto 0 0.5) 0.2 1 1 #f))
 
      (circle (make-circle-stencil 0.24 0.01 #t))
 
      (diagonal-line
-      (ly:stencil-translate
-       (make-path-stencil '(lineto 0.26 0.14) 0.33 1 1 #f)
-       '(-0.13 . -0.07)))
+      (make-path-stencil '(moveto -0.13 -0.07 lineto 0.13 0.07) 0.33 1 1 #f))
 
      (short-vertical-line
-      (ly:stencil-translate
-       (make-path-stencil '(lineto 0 0.6) 0.2 1 1 #f)
-       '(0 . -0.3)))
+      (make-path-stencil '(moveto 0 -0.3 lineto 0 0.3) 0.2 1 1 #f))
 
      (acc-sign (lambda (dot-position)
                  "Return a sharp or flat sign stencil."
@@ -583,12 +577,9 @@ accidental-styles.none = #'(#t () ())
      (full-alt-list (map (lambda (n)
                            (assoc-ref relative-alt-list n)) '(0 1 2 3 4 5 6)))
 
-     (sharp-line (ly:stencil-translate-axis
-                  (make-path-stencil '(lineto -0.7 -0.7) 0.22 1 1 #f)
-                  -0.2 Y))
-     (flat-line (ly:stencil-translate-axis
-                 (make-path-stencil '(lineto -0.7 0.7) 0.22 1 1 #f)
-                 0.2 Y))
+     (sharp-line (make-path-stencil '(moveto 0 -0.2 lineto -0.7 -0.9) 0.22 1 1 #f))
+     (flat-line (make-path-stencil '(moveto 0 0.2 lineto -0.7 0.9) 0.22 1 1 #f))
+
      (alt-stack-list (map (lambda (stil alt xy)
                             (cond
                              ((eqv? -1/2 alt)
