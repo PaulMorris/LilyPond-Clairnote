@@ -1232,9 +1232,9 @@ accidental-styles.none = #'(#t () ())
 
 %--- CROSS-STAFF STEMS ----------------
 
-% needed for cross-staff stems for double stemmed half notes
-% code modified from music-functions.scm -- used with \crossStaff function
-% procedures have been encapsulated inside cn-make-stem-spans!
+% Needed for cross-staff stems for double stemmed half notes.
+% Code modified from music-functions.scm. Used with \crossStaff function.
+% Procedures have been encapsulated inside cn-make-stem-spans!.
 
 #(define (cn-make-stem-spans! ctx stems trans)
    "Create stem spans for cross-staff stems"
@@ -1324,7 +1324,7 @@ accidental-styles.none = #'(#t () ())
          (for-each (make-stem-span! stems trans) roots))))
 
 % overwrites the default engraver in order to call custom cn-make-stem-spans!
-#(define (Span_stem_engraver ctx)
+#(define (Cn_span_stem_engraver ctx)
    "Connect cross-staff stems to the stems above in the system"
    (let ((stems '()))
      (make-engraver
@@ -1336,6 +1336,12 @@ accidental-styles.none = #'(#t () ())
       ((process-acknowledged trans)
        (cn-make-stem-spans! ctx stems trans)
        (set! stems '())))))
+
+% It's ugly, but we store the default LilyPond
+% Span_stem_engraver procedure so we can set a local
+% "Span_stem_engraver" depending on the version of Clairnote.
+#(define LilyPond_span_stem_engraver Span_stem_engraver)
+#(define Span_stem_engraver Span_stem_engraver)
 
 
 %--- DOTS ON DOTTED NOTES ----------------
@@ -1930,6 +1936,7 @@ clairnote-x =
           cn-default-note-head-stencil
           cn-white-note?
           1 1))
+   (set! Span_stem_engraver Cn_span_stem_engraver)
    #{
      \layout {
        \context {
@@ -1981,6 +1988,7 @@ clairnote-td =
           cn-default-note-head-stencil
           cn-white-note?
           1 1))
+   (set! Span_stem_engraver LilyPond_span_stem_engraver)
    #{
      \layout {
        \context {
