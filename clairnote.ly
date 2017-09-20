@@ -217,12 +217,9 @@
     duration-log: 0 is whole, 1 is half, 2 is quarter and shorter."
    (< (ly:grob-property grob 'duration-log) 1))
 
-#(define (cn-white-note? grob)
-   (odd? (cn-notehead-semitone grob)))
-
-#(define (cn-td-white-note? grob)
-   "Used with traditional duration version of Clairnote"
-   (<= (ly:grob-property grob 'duration-log) 1))
+% Set to functions depending on the version of Clairnote.
+#(define cn-white-note? '())
+#(define cn-default-note-head-stencil-callback '())
 
 #(define (cn-make-note-head-stencil-callback
           style-fn white-note? width-scale height-scale)
@@ -241,18 +238,6 @@
          (if (and (= 1 width-scale) (= 1 height-scale))
              stil
              (ly:stencil-scale stil width-scale height-scale)))))))
-
-#(define cn-default-note-head-stencil-callback
-   (cn-make-note-head-stencil-callback
-    cn-default-note-head-stencil
-    cn-white-note?
-    1 1))
-
-#(define cn-td-default-note-head-stencil-callback
-   (cn-make-note-head-stencil-callback
-    cn-default-note-head-stencil
-    cn-td-white-note?
-    1 1))
 
 #(define (cn-make-note-head-rotation-callback rotn)
    "Returns a callback function for note head rotation,
@@ -1736,10 +1721,7 @@ accidental-styles.none = #'(#t () ())
             "unrecognized style ~s used with \\cnNoteheadStyle, using default instead."
             style))
        (cn-set-notehead-style!
-        (cn-make-note-head-stencil-callback
-         cn-default-note-head-stencil
-         cn-white-note?
-         1 1)
+        cn-default-note-head-stencil-callback
         ly:note-head::calc-stem-attachment
         #f))
       )))
@@ -1937,65 +1919,90 @@ accidental-styles.none = #'(#t () ())
   }
 }
 
-\layout {
-  \context {
-    \Staff
-    \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
+clairnote-x =
+#(define-scheme-function () ()
+   (set! cn-white-note?
+         (lambda (grob)
+           (odd? (cn-notehead-semitone grob))))
 
-    \override NoteHead.stencil = \cn-default-note-head-stencil-callback
-    \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
-    \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
+   (set! cn-default-note-head-stencil-callback
+         (cn-make-note-head-stencil-callback
+          cn-default-note-head-stencil
+          cn-white-note?
+          1 1))
+   #{
+     \layout {
+       \context {
+         \Staff
+         \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
 
-    \override Stem.cn-double-stem-spacing = #3.5
-    \override Stem.cn-double-stem-width-scale = #1.5
-    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
+         \override NoteHead.stencil = \cn-default-note-head-stencil-callback
+         \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
+         \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
 
-    % adjust x-axis dots position to not collide with double-stemmed half notes
-    \override Dots.extra-offset = #cn-dots-callback
+         \override Stem.cn-double-stem-spacing = #3.5
+         \override Stem.cn-double-stem-width-scale = #1.5
+         \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
 
-    \override StaffSymbol.ledger-extra = 2
-    \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
+         % adjust x-axis dots position to not collide with double-stemmed half notes
+         \override Dots.extra-offset = #cn-dots-callback
 
-  }
-  \context {
-    \RhythmicStaff
+         \override StaffSymbol.ledger-extra = 2
+         \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
 
-    \override NoteHead.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      ;; never draw white notes on RhythmicStaff
-      (lambda (g) #f)
-      1 1)
+       }
+       \context {
+         \RhythmicStaff
 
-    \override Stem.cn-double-stem-spacing = #3.5
-    \override Stem.cn-double-stem-width-scale = #1.5
-    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
-  }
-}
+         \override NoteHead.stencil =
+         #(cn-make-note-head-stencil-callback
+           cn-default-note-head-stencil
+           ;; never draw white notes on RhythmicStaff
+           (lambda (g) #f)
+           1 1)
 
-% Command to customize the Staff context to make it a
+         \override Stem.cn-double-stem-spacing = #3.5
+         \override Stem.cn-double-stem-width-scale = #1.5
+         \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
+       }
+     }
+   #})
+
+% Function to customize the Staff context to make it a
 % traditional duration version of Clairnote.
 clairnote-td =
-\layout {
-  \context {
-    \Staff
-    \override StaffSymbol.ledger-positions = #'(-8 -6 -4 -2 0 2 4 6 8)
+#(define-scheme-function () ()
+   (set! cn-white-note?
+         (lambda (grob)
+           (<= (ly:grob-property grob 'duration-log) 1)))
 
-    \override NoteHead.stencil = \cn-td-default-note-head-stencil-callback
-    \override AmbitusNoteHead.stencil = \cn-td-default-note-head-stencil-callback
-    \override TrillPitchGroup.stencil = \cn-td-default-note-head-stencil-callback
+   (set! cn-default-note-head-stencil-callback
+         (cn-make-note-head-stencil-callback
+          cn-default-note-head-stencil
+          cn-white-note?
+          1 1))
+   #{
+     \layout {
+       \context {
+         \Staff
+         \override StaffSymbol.ledger-positions = #'(-8 -6 -4 -2 0 2 4 6 8)
 
-    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
+         \override NoteHead.stencil = \cn-default-note-head-stencil-callback
+         \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
+         \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
 
-    \override StaffSymbol.ledger-extra = 0
-    \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
-  }
-  \context {
-    \RhythmicStaff
-    \override NoteHead.stencil = \cn-td-default-note-head-stencil-callback
-    \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
-  }
-}
+         \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
+
+         \override StaffSymbol.ledger-extra = 0
+         \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
+       }
+       \context {
+         \RhythmicStaff
+         \override NoteHead.stencil = \cn-default-note-head-stencil-callback
+         \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
+       }
+     }
+   #})
 
 % Let parent contexts accept TradStaff and TradRhythmicStaff
 % in midi output.
@@ -2020,3 +2027,5 @@ clairnote-td =
   \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
   \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
 }
+
+\clairnote-x
