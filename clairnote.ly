@@ -242,6 +242,18 @@
              stil
              (ly:stencil-scale stil width-scale height-scale)))))))
 
+#(define cn-default-note-head-stencil-callback
+   (cn-make-note-head-stencil-callback
+    cn-default-note-head-stencil
+    cn-white-note?
+    1 1))
+
+#(define cn-td-default-note-head-stencil-callback
+   (cn-make-note-head-stencil-callback
+    cn-default-note-head-stencil
+    cn-td-white-note?
+    1 1))
+
 #(define (cn-make-note-head-rotation-callback rotn)
    "Returns a callback function for note head rotation,
     that excludes whole notes and stylish notes.
@@ -1930,21 +1942,9 @@ accidental-styles.none = #'(#t () ())
     \Staff
     \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
 
-    \override NoteHead.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-white-note?
-      1 1)
-    \override AmbitusNoteHead.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-white-note?
-      1 1)
-    \override TrillPitchGroup.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-white-note?
-      1 1)
+    \override NoteHead.stencil = \cn-default-note-head-stencil-callback
+    \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
+    \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
 
     \override Stem.cn-double-stem-spacing = #3.5
     \override Stem.cn-double-stem-width-scale = #1.5
@@ -1979,24 +1979,11 @@ clairnote-td =
 \layout {
   \context {
     \Staff
-
     \override StaffSymbol.ledger-positions = #'(-8 -6 -4 -2 0 2 4 6 8)
 
-    \override NoteHead.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-td-white-note?
-      1 1)
-    \override AmbitusNoteHead.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-td-white-note?
-      1 1)
-    \override TrillPitchGroup.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-td-white-note?
-      1 1)
+    \override NoteHead.stencil = \cn-td-default-note-head-stencil-callback
+    \override AmbitusNoteHead.stencil = \cn-td-default-note-head-stencil-callback
+    \override TrillPitchGroup.stencil = \cn-td-default-note-head-stencil-callback
 
     \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
 
@@ -2005,13 +1992,7 @@ clairnote-td =
   }
   \context {
     \RhythmicStaff
-
-    \override NoteHead.stencil =
-    #(cn-make-note-head-stencil-callback
-      cn-default-note-head-stencil
-      cn-td-white-note?
-      1 1)
-
+    \override NoteHead.stencil = \cn-td-default-note-head-stencil-callback
     \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
   }
 }
