@@ -1802,22 +1802,17 @@ accidental-styles.none = #'(#t () ())
     % custom grob property
     \override StaffSymbol.cn-is-clairnote-staff = ##f
   }
+  \inherit-acceptability "TradStaff" "Staff"
+
   \context {
     \RhythmicStaff
     \name TradRhythmicStaff
     \alias RhythmicStaff
   }
-  % Let parent contexts accept TradStaff and TradRhythmicStaff.
-  \context { \ChoirStaff \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \GrandStaff \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \OneStaff \accepts TradStaff \accepts TradRhythmicStaff }
+  \inherit-acceptability "TradRhythmicStaff" "RhythmicStaff"
 
   \context {
     \Score
-    \accepts TradStaff
-    \accepts TradRhythmicStaff
     % prevents barlines at start of single (2-octave) system from being shown
     \override SystemStartBar.collapse-height = #9
   }
@@ -1942,8 +1937,8 @@ clairnote-x =
 
          \override StaffSymbol.ledger-extra = 2
          \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
-
        }
+
        \context {
          \RhythmicStaff
 
@@ -1990,6 +1985,7 @@ clairnote-td =
          \override StaffSymbol.ledger-extra = 0
          \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
        }
+
        \context {
          \RhythmicStaff
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
@@ -2010,16 +2006,13 @@ clairnote-td =
     \name TradStaff
     \alias Staff
   }
+  \inherit-acceptability "TradStaff" "Staff"
   \context {
     \RhythmicStaff
     \name TradRhythmicStaff
     \alias RhythmicStaff
   }
-  \context { \Score \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \ChoirStaff \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \GrandStaff \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \PianoStaff \accepts TradStaff \accepts TradRhythmicStaff }
-  \context { \StaffGroup \accepts TradStaff \accepts TradRhythmicStaff }
+  \inherit-acceptability "TradRhythmicStaff" "RhythmicStaff"
 }
 
 \clairnote-x
