@@ -1922,8 +1922,6 @@ clairnote-x =
      \layout {
        \context {
          \Staff
-         \override StaffSymbol.ledger-positions = #'(-8 -4 0 4 8)
-
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
          \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
          \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
@@ -1935,7 +1933,6 @@ clairnote-x =
          % adjust x-axis dots position to not collide with double-stemmed half notes
          \override Dots.extra-offset = #cn-dots-callback
 
-         \override StaffSymbol.ledger-extra = 2
          \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
        }
 
@@ -1974,15 +1971,12 @@ clairnote-td =
      \layout {
        \context {
          \Staff
-         \override StaffSymbol.ledger-positions = #'(-8 -6 -4 -2 0 2 4 6 8)
-
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
          \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
          \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
 
          \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
 
-         \override StaffSymbol.ledger-extra = 0
          \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
        }
 
