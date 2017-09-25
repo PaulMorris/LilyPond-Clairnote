@@ -1335,47 +1335,49 @@ accidental-styles.none = #'(#t () ())
 #(define (cn-highest-semitone note-heads)
    (reduce max -inf.0 (map cn-notehead-semitone note-heads)))
 
-#(define (cn-dots-callback dots-grob)
-   "Avoid collision between double-stem and dots by shifting right the dots on
-    double-stemmed half notes but only when they are on a staff line, have an
-    up stem, and are the highest note in their column.
+#(define (cn-make-dots-callback is-rhythmic-staff)
+   "Avoid collision between double-stem and dots by shifting right the dots
+    on double-stemmed half notes but only when they are on a staff line,
+    have an up stem, and are the highest note in their column.
     We use a callback here so that the stem width is already set.
-    Returns a pair of numbers or #f for the Dots.extra-offset grob property."
-   (let*
-    ((parent (ly:grob-parent dots-grob Y))
-     ;; parent is a Rest grob or a NoteHead grob
-     (note-head (and (not (grob::has-interface parent 'rest-interface)) parent))
-     (semi '())
-     (stem '()))
-    (and note-head
+    Returns a procedure that returns pair of numbers or #f for the
+    Dots.extra-offset grob property."
+   (lambda (dots-grob)
+     (let*
+      ((parent (ly:grob-parent dots-grob Y))
+       ;; parent is a Rest grob or a NoteHead grob
+       (note-head (and (not (grob::has-interface parent 'rest-interface)) parent))
+       (semi '())
+       (stem '()))
+      (and note-head
 
-         ;; is half note?
-         (= 1 (ly:grob-property note-head 'duration-log))
+           ;; is half note?
+           (= 1 (ly:grob-property note-head 'duration-log))
 
-         ;; is line note?
-         (begin (set! semi (cn-notehead-semitone note-head))
-           (= 0 (modulo semi 4)))
+           ;; is line note?
+           (begin (set! semi (cn-notehead-semitone note-head))
+             (or (= 0 (modulo semi 4)) is-rhythmic-staff))
 
-         ;; is up-stem?
-         (begin (set! stem (ly:grob-object (ly:grob-parent note-head X) 'stem))
-           stem)
-         (not (null? stem))
-         (= 1 (ly:grob-property stem 'direction))
+           ;; is up-stem?
+           (begin (set! stem (ly:grob-object (ly:grob-parent note-head X) 'stem))
+             stem)
+           (not (null? stem))
+           (= 1 (ly:grob-property stem 'direction))
 
-         ;; is highest note?
-         (let* ((note-heads (cn-note-heads-from-grob stem '())))
-           (or (= 1 (length note-heads))
-               (= semi (cn-highest-semitone note-heads))))
+           ;; is highest note?
+           (let* ((note-heads (cn-note-heads-from-grob stem '())))
+             (or (= 1 (length note-heads))
+                 (= semi (cn-highest-semitone note-heads))))
 
-         ;; return a pair for Dots.extra-offset
-         ;; maybe a better calculation is possible based on custom
-         ;; double stem Staff context properties, but that would take
-         ;; an engraver to access it, and Dots engraver is in Voice context
-         (let* ((stem-extent (ly:grob-property stem 'X-extent))
-                (stem-width (- (cdr stem-extent) (car stem-extent)))
-                (x-offset (* 0.75 stem-width)))
-           (cons x-offset 0))
-         )))
+           ;; return a pair for Dots.extra-offset
+           ;; maybe a better calculation is possible based on custom
+           ;; double stem Staff context properties, but that would take
+           ;; an engraver to access it, and Dots engraver is in Voice context
+           (let* ((stem-extent (ly:grob-property stem 'X-extent))
+                  (stem-width (- (cdr stem-extent) (car stem-extent)))
+                  (x-offset (* 0.75 stem-width)))
+             (cons x-offset 0))
+           ))))
 
 
 %--- BEAMS ----------------
@@ -1930,7 +1932,7 @@ clairnote-dn =
          \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
 
          % adjust x-axis dots position to not collide with double-stemmed half notes
-         \override Dots.extra-offset = #cn-dots-callback
+         \override Dots.extra-offset = #(cn-make-dots-callback #f)
 
          \override StaffSymbol.cn-ledger-recipe = #cn-dn-ledgers-gradual
        }
@@ -1948,6 +1950,9 @@ clairnote-dn =
          \override Stem.cn-double-stem-spacing = #3.5
          \override Stem.cn-double-stem-width-scale = #1.5
          \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #t)
+
+         % adjust x-axis dots position to not collide with double-stemmed half notes
+         \override Dots.extra-offset = #(cn-make-dots-callback #t)
        }
      }
    #})
