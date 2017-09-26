@@ -1791,6 +1791,10 @@ accidental-styles.none = #'(#t () ())
 
 %--- STAFF CONTEXT DEFINITION ----------------
 
+% These variables are set below on initialization.
+clairnoteTypeName = ""
+clairnoteTypeURL = ""
+
 \layout {
   % Copy standard settings of Staff and RhythmicStaff contexts
   % to custom contexts named TradStaff and TradRhythmicStaff.
@@ -1919,6 +1923,8 @@ initClairnoteDN =
           cn-white-note?
           1 1))
    (set! Span_stem_engraver Cn_span_stem_engraver)
+   (set! clairnoteTypeName "Clairnote")
+   (set! clairnoteTypeURL "http://clairnote.org/")
    #{
      \layout {
        \context {
@@ -1972,6 +1978,8 @@ initClairnoteSN =
           cn-white-note?
           1 1))
    (set! Span_stem_engraver LilyPond_span_stem_engraver)
+   (set! clairnoteTypeName "Clairnote SN")
+   (set! clairnoteTypeURL "http://clairnote.org/sn/")
    #{
      \layout {
        \context {
