@@ -1,0 +1,45 @@
+TESTING PROCEDURES
+
+Tests are .ly files in /test/tests/
+Each test file includes:
+
+  \include "../test-includes.ly"
+
+"test-includes.ly" contains the version statement, the include statement for
+"clairnote.ly", and other global settings.
+
+
+1. Optionally edit test/tests/test-includes.ly to point to the "clairnote.ly"
+file to be tested and version of LilyPond to be used.
+
+2. Run the following command in a terminal, in the test directory. (This is on
+GNU/Linux.)
+
+  find ./tests/*.ly -exec lilypond -dno-point-and-click -o "pdfs-cn-dn"  {} \;
+
+3. Uncomment "\clairnote-sn" in test-includes.ly and run the following command
+in a terminal, in the test directory:
+
+  find ./tests/*.ly -exec lilypond -dno-point-and-click -o "pdfs-cn-sn"  {} \;
+
+4. The pdfs are in pdfs-cn-dn and pdfs-cn-sn folders.
+
+5. Open old and new pdfs in Firefox (drag files onto dock icon) in a mostly
+empty profile, use a tab sorting extension to sort the tabs, use ctrl+tab and
+ctrl+shift+tab to switch between tabs and look for visual differences
+between the old and new pdfs.
+
+6. Rename the pdf directories with the date and "clairnote.ly" version number.
+
+7. Create new empty directories pdfs-cn-dn and pdfs-cn-sn for next time.
+
+8. Optionally delete much older pdf directories.
+
+
+EXPECTED ERRORS AND WARNINGS
+
+z-expected-warnings-errors.ly has expected warnings:
+
+  warning: \unextendStaffUp failed, not enough staff to unextend
+  warning: \unextendStaffDown failed, not enough staff to unextend
+  warning: clef unsupported by clairnote.ly, using another clef instead.
