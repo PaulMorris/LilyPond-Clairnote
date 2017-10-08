@@ -1907,7 +1907,7 @@ accidental-styles.none = #'(#t () ())
 
 % Function to customize the Staff context to make it
 % a Clairnote DN (dual noteheads) staff.
-clairnote-dn =
+initClairnoteDN =
 #(define-scheme-function () ()
    (set! cn-white-note?
          (lambda (grob)
@@ -1960,7 +1960,7 @@ clairnote-dn =
 
 % Function to customize the Staff context to make it
 % a Clairnote SN (single/standard noteheads) staff.
-clairnote-sn =
+initClairnoteSN =
 #(define-scheme-function () ()
    (set! cn-white-note?
          (lambda (grob)
@@ -2032,4 +2032,23 @@ clairnote-sn =
   \inherit-acceptability "StaffClairnoteSN" "Staff"
 }
 
-\clairnote-dn
+initClairnoteType =
+#(define-scheme-function () ()
+   ;; Allows setting the Clairnote type via the commandline by
+   ;; including a file that contains e.g. clairnote-type = sn
+   (cond
+    ((or (not (defined? 'clairnote-type))
+         (string= clairnote-type "dn")
+         (string= clairnote-type "default"))
+     #{ \initClairnoteDN #})
+
+    ((string= clairnote-type "sn")
+     #{ \initClairnoteSN #})
+
+    (else
+     (ly:warning
+      "unrecognized clairnote-type ~s, using default instead."
+      clairnote-type)
+     #{ \initClairnoteDN #})))
+
+\initClairnoteType
