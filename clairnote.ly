@@ -1985,6 +1985,15 @@ clairnote-sn =
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
          \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
        }
+
+       % Create a special context to allow using both
+       % types of Clairnote at once.
+       \context {
+         \Staff
+         \name StaffClairnoteSN
+         \alias Staff
+       }
+       \inherit-acceptability "StaffClairnoteSN" "Staff"
      }
    #})
 
@@ -1995,18 +2004,27 @@ clairnote-sn =
     \Staff
     cnBaseStaffLines = #'(-8 -4)
   }
+
   \context {
     \Staff
     \name TradStaff
     \alias Staff
   }
   \inherit-acceptability "TradStaff" "Staff"
+
   \context {
     \RhythmicStaff
     \name TradRhythmicStaff
     \alias RhythmicStaff
   }
   \inherit-acceptability "TradRhythmicStaff" "RhythmicStaff"
+
+  \context {
+    \Staff
+    \name StaffClairnoteSN
+    \alias Staff
+  }
+  \inherit-acceptability "StaffClairnoteSN" "Staff"
 }
 
 \clairnote-dn
