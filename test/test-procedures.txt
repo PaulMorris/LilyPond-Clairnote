@@ -17,7 +17,7 @@ GNU/Linux.)
 
   find ./tests/*.ly -exec lilypond -dno-point-and-click -o "pdfs-cn-dn"  {} \;
 
-3. Uncomment "\clairnote-sn" in test-includes.ly and run the following command
+3. Uncomment "\clairnote-type = sn" in test-includes.ly and run the following command
 in a terminal, in the test directory:
 
   find ./tests/*.ly -exec lilypond -dno-point-and-click -o "pdfs-cn-sn"  {} \;

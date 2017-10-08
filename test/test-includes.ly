@@ -1,8 +1,8 @@
 \version "2.19.52"
 
-\include "../../clairnote.ly"
+% clairnote-type = sn
 
-% \clairnote-sn
+\include "../../clairnote.ly"
 
 #(set-default-paper-size "a4landscape")
  

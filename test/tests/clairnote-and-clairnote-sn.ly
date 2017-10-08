@@ -6,8 +6,9 @@
 
 % For making comparisons between the two variants.
 
-\clairnote-sn
-\clairnote-dn
+% Make sure the test works regardless of earlier settings.
+\initClairnoteSN
+\initClairnoteDN
 
 m = \relative {
   c' cs d ds
@@ -20,6 +21,11 @@ m = \relative {
   \m
 }
 
-\new StaffClairnoteSN {
-  \m
+% MIDI works with StaffClairnoteSN
+\score {
+  \new StaffClairnoteSN {
+    \m
+  }
+  \layout {}
+  \midi {}
 }
