@@ -1395,7 +1395,7 @@ accidental-styles.none = #'(#t () ())
 
 %--- LEDGER LINES ----------------
 
-% Ledger line recipes:
+% Ledger line recipes for Clairnote DN and SN
 % Usually: cycle = octave = 12
 %
 % '(staff-positions-per-cycle
@@ -1406,34 +1406,31 @@ accidental-styles.none = #'(#t () ())
 % extra ledgers when they are this far (or less) beyond the note
 % (reasonable vals: 1, 2, 5, 6).
 %
-% nearer-drop can be #f or a number and is for optionally not
+% nearer-drop can be #f or a number and is for (optionally) not
 % drawing ledgers further than this from the note, in the
 % direction of the nearest staff line (reasonable vals: 2, 5).
 
 % Default, gradual, conservative.
-#(define cn-ledgers-gradual
+#(define cn-dn-ledgers-gradual
    '(12 ((4 2 5)
          (8 2 #f)
          (12 2 #f))))
 
 % Jumps to two ledger lines immediately,
 % and omits c ledger line quickly.
-#(define cn-ledgers-less-gradual
+#(define cn-dn-ledgers-less-gradual
    '(12 ((4 2 2)
          (8 2 #f)
          (12 5 #f))))
 
 % Doesn't omit the C ledger line.
-#(define cn-ledgers-keep-c-ledgers
+#(define cn-dn-ledgers-keep-c-ledgers
    '(12 ((4 2 #f)
          (8 2 #f)
          (12 2 #f))))
 
-% Ledger recipes for version of Clairnote
-% with traditional duration note heads.
-
 % Default, gradual, conservative.
-#(define cn-td-ledgers-gradual
+#(define cn-sn-ledgers-gradual
    '(12 ((2 0 0)
          (4 2 5)
          (6 0 0)
@@ -1443,7 +1440,7 @@ accidental-styles.none = #'(#t () ())
 
 % Jumps to two ledger lines immediately,
 % and omits c ledger line quickly.
-#(define cn-td-ledgers-less-gradual
+#(define cn-sn-ledgers-less-gradual
    '(12 ((2 0 0)
          (4 2 2)
          (6 0 0)
@@ -1452,7 +1449,7 @@ accidental-styles.none = #'(#t () ())
          (12 5 #f))))
 
 % Doesn't omit the C ledger line.
-#(define cn-td-ledgers-keep-c-ledgers
+#(define cn-sn-ledgers-keep-c-ledgers
    '(12 ((2 0 0)
          (4 2 #f)
          (6 0 0)
@@ -1467,7 +1464,7 @@ accidental-styles.none = #'(#t () ())
    ;; 12 (staff positions per octave) and cycle-count
    ;; is the number of octaves we are dealing with.
    (let*
-    ((recipe (ly:grob-property staff-symbol 'cn-ledger-recipe cn-ledgers-gradual))
+    ((recipe (ly:grob-property staff-symbol 'cn-ledger-recipe cn-dn-ledgers-gradual))
      (cycle-size (list-ref recipe 0))
      (configs (list-ref recipe 1))
      (cycle-count (+ 1 (quotient dist cycle-size)))
@@ -1906,7 +1903,9 @@ accidental-styles.none = #'(#t () ())
   }
 }
 
-clairnote-x =
+% Function to customize the Staff context to make it
+% a Clairnote DN (dual noteheads) staff.
+clairnote-dn =
 #(define-scheme-function () ()
    (set! cn-white-note?
          (lambda (grob)
@@ -1933,7 +1932,7 @@ clairnote-x =
          % adjust x-axis dots position to not collide with double-stemmed half notes
          \override Dots.extra-offset = #cn-dots-callback
 
-         \override StaffSymbol.cn-ledger-recipe = #cn-ledgers-gradual
+         \override StaffSymbol.cn-ledger-recipe = #cn-dn-ledgers-gradual
        }
 
        \context {
@@ -1953,9 +1952,10 @@ clairnote-x =
      }
    #})
 
-% Function to customize the Staff context to make it a
-% traditional duration version of Clairnote.
-clairnote-td =
+
+% Function to customize the Staff context to make it
+% a Clairnote SN (single/standard noteheads) staff.
+clairnote-sn =
 #(define-scheme-function () ()
    (set! cn-white-note?
          (lambda (grob)
@@ -1977,7 +1977,7 @@ clairnote-td =
 
          \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
 
-         \override StaffSymbol.cn-ledger-recipe = #cn-td-ledgers-gradual
+         \override StaffSymbol.cn-ledger-recipe = #cn-sn-ledgers-gradual
        }
 
        \context {
@@ -2009,4 +2009,4 @@ clairnote-td =
   \inherit-acceptability "TradRhythmicStaff" "RhythmicStaff"
 }
 
-\clairnote-x
+\clairnote-dn
