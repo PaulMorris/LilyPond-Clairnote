@@ -8,32 +8,31 @@ Each test file includes:
 "test-includes.ly" contains the version statement, the include statement for
 "clairnote.ly", and other global settings.
 
+The /test/clairnote-sn.ly file is used in the commands below to produce
+Clairnote SN output.
 
-1. Optionally edit test/tests/test-includes.ly to point to the "clairnote.ly"
+
+STEPS
+
+1. Optionally edit test/test-includes.ly to point to the "clairnote.ly"
 file to be tested and version of LilyPond to be used.
 
-2. Run the following command in a terminal, in the test directory. (This is on
-GNU/Linux.)
+2. Update the DATE variable and run the following commands in a terminal,
+in the test directory (not the tests directory). (This is on GNU/Linux.)
+The pdfs will be in DATE-pdfs-cn-dn and DATE-pdfs-cn-sn directories.
 
-  find ./tests/*.ly -exec lilypond -dno-point-and-click -o "pdfs-cn-dn"  {} \;
+  DATE=2017-10-31; SN=$DATE-pdfs-cn-dn; DN=$DATE-pdfs-cn-sn;
+  mkdir ${DN};
+  find ./tests/*.ly -exec lilypond -dno-point-and-click -o ${DN} {} \;
+  mkdir ${SN};
+  find ./tests/*.ly -exec lilypond -dno-point-and-click -dinclude-settings="clairnote-sn.ly" -o ${SN} {} \;
 
-3. Uncomment "\clairnote-type = sn" in test-includes.ly and run the following command
-in a terminal, in the test directory:
-
-  find ./tests/*.ly -exec lilypond -dno-point-and-click -o "pdfs-cn-sn"  {} \;
-
-4. The pdfs are in pdfs-cn-dn and pdfs-cn-sn folders.
-
-5. Open old and new pdfs in Firefox (drag files onto dock icon) in a mostly
+3. Open old and new pdfs in Firefox (drag files onto dock icon) in a mostly
 empty profile, use a tab sorting extension to sort the tabs, use ctrl+tab and
 ctrl+shift+tab to switch between tabs and look for visual differences
 between the old and new pdfs.
 
-6. Rename the pdf directories with the date and "clairnote.ly" version number.
-
-7. Create new empty directories pdfs-cn-dn and pdfs-cn-sn for next time.
-
-8. Optionally delete much older pdf directories.
+4. Optionally delete older pdf directories.
 
 
 EXPECTED ERRORS AND WARNINGS

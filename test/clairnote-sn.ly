@@ -1,0 +1,2 @@
+
+clairnote-type = sn
