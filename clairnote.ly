@@ -23,6 +23,8 @@
 
 \version "2.19.49"
 
+% For docstrings we use ;; instead of the usual "" to allow automated
+% minification for LilyBin + Clairnote.
 
 %--- UTILITY FUNCTIONS ----------------
 
@@ -36,7 +38,7 @@
     (reduce proc '() (map cdr pairs))))
 
 #(define (cn-notehead-pitch grob)
-   "Takes a note head grob and returns its pitch."
+   ;; Takes a note head grob and returns its pitch.
    (define event (ly:grob-property grob 'cause))
    (if (ly:stream-event? event)
        (ly:event-property event 'pitch)
@@ -45,31 +47,31 @@
         (ly:make-pitch 0 0 0))))
 
 #(define (cn-notehead-semitone grob)
-   "Takes a note head grob and returns its semitone."
+   ;; Takes a note head grob and returns its semitone.
    (ly:pitch-semitones (cn-notehead-pitch grob)))
 
 #(define (cn-staff-symbol-property grob prop default)
-   "Takes a grob @var{grob}, a symbol @var{prop}, and
-    a @var{default} value. Returns that custom StaffSymbol
-    property or silently falls back to the default value."
+   ;; Takes a grob @var{grob}, a symbol @var{prop}, and
+   ;; a @var{default} value. Returns that custom StaffSymbol
+   ;; property or silently falls back to the default value.
    (define staff-sym (ly:grob-object grob 'staff-symbol))
    (if (ly:grob? staff-sym)
        (ly:grob-property staff-sym prop)
        default))
 
 #(define (cn-get-base-staff-space grob)
-   "Takes a grob and returns the custom StaffSymbol property
-    cn-base-staff-space.  Silently falls back to the default of 0.75."
+   ;; Takes a grob and returns the custom StaffSymbol property
+   ;; cn-base-staff-space.  Silently falls back to the default of 0.75.
    (cn-staff-symbol-property grob 'cn-base-staff-space 0.75))
 
 #(define (cn-magnification grob)
-   "Return the current magnification (from magnifyStaff, etc.)
-    via a grob's font size."
+   ;; Return the current magnification (from magnifyStaff, etc.)
+   ;; via a grob's font size.
    (magstep (ly:grob-property grob 'font-size 0)))
 
 #(define (cn-get-staff-clef-adjust staff-octaves clef-octave-shift)
-   "Calculate the amount to vertically adjust the position of the clef,
-    key signature, and time signature, in note-spaces / half-staff-spaces."
+   ;; Calculate the amount to vertically adjust the position of the clef,
+   ;; key signature, and time signature, in note-spaces / half-staff-spaces.
    (+
     (* 12 clef-octave-shift)
     (if (odd? staff-octaves)
@@ -82,7 +84,8 @@
     (cn-staff-symbol-property grob 'cn-clef-shift 0)))
 
 #(define (cn-note-heads-from-grob grob default)
-   "Takes a grob like a Stem and returns a list of NoteHead grobs or default."
+   ;; Takes a grob like a Stem and returns a list of
+   ;; NoteHead grobs or default.
    (let* ((heads-array (ly:grob-object grob 'note-heads))
           (heads-list (if (ly:grob-array? heads-array)
                           (ly:grob-array->list heads-array)
@@ -117,7 +120,7 @@
        closepath)))
 
 #(define (cn-whole-note-stencil grob white-note)
-   "Returns default Clairnote whole note stencils."
+   ;; Returns default Clairnote whole note stencils.
    (let ((mag (cn-magnification grob))
          (wn-path (if white-note
                       cn-whole-note-white-path
@@ -161,14 +164,14 @@
       closepath))
 
 #(define (cn-default-note-head-stencil grob white-note)
-   "Returns default Clairnote note head stencils.
-    The hollow half-note and solid quarter-note glyphs are modified versions
-    (rotated -4 degrees then scaled vertically by 0.9299)
-    of these glyphs from the Bravura font,
-    licensed under the SIL Open Font License (OFL), see:
-    http://scripts.sil.org/OFL
-    http://www.smufl.org/fonts/
-    http://blog.steinberg.net/2013/05/introducing-bravura-music-font/"
+   ;; Returns default Clairnote note head stencils.
+   ;; The hollow half-note and solid quarter-note glyphs are modified versions
+   ;; (rotated -4 degrees then scaled vertically by 0.9299)
+   ;; of these glyphs from the Bravura font,
+   ;; licensed under the SIL Open Font License (OFL), see:
+   ;; http://scripts.sil.org/OFL
+   ;; http://www.smufl.org/fonts/
+   ;; http://blog.steinberg.net/2013/05/introducing-bravura-music-font/
    (let ((mag (cn-magnification grob))
          (nh-path (if white-note
                       cn-note-white-path
@@ -178,7 +181,7 @@
       mag mag)))
 
 #(define (cn-lilypond-note-head-stencil grob white-note)
-   "Returns 'lilypond' style note head stencils (Emmentaler font)."
+   ;; Returns 'lilypond' style note head stencils (Emmentaler font).
    (if white-note
        ;; white notes are scaled horizontally to match black ones
        (ly:stencil-scale
@@ -187,14 +190,14 @@
        (ly:font-get-glyph (ly:grob-default-font grob) "noteheads.s2")))
 
 #(define (cn-funksol-note-head-stencil grob white-note)
-   "Returns 'funksol' style note head stencils."
+   ;; Returns 'funksol' style note head stencils.
    (ly:font-get-glyph (ly:grob-default-font grob)
      (if white-note
          "noteheads.s1solFunk"
          "noteheads.s2solFunk")))
 
 #(define (cn-stylish-note? grob)
-   "Does a note head grob have one of these style properties."
+   ;; Does a note head grob have one of these style properties.
    (define style (ly:grob-property-data grob 'style))
    ;; TODO: better handling of various notehead styles
    ;; http://lilypond.org/doc/v2.18/Documentation/notation/note-head-styles
@@ -210,8 +213,8 @@
                       slash))))
 
 #(define (cn-whole-note? grob)
-   "Note: longer durations than whole note also return #t.
-    duration-log: 0 is whole, 1 is half, 2 is quarter and shorter."
+   ;; Note: longer durations than whole note also return #t.
+   ;; duration-log: 0 is whole, 1 is half, 2 is quarter and shorter.
    (< (ly:grob-property grob 'duration-log) 1))
 
 % Set to functions depending on the version of Clairnote.
@@ -220,12 +223,12 @@
 
 #(define (cn-make-note-head-stencil-callback
           style-fn white-note? width-scale height-scale)
-   "Returns a callback function for the note head stencil.
-    style-fn (function) takes a grob and a boolean and
-    returns a black or white note head stencil.
-    white-note? (function) takes a grob and returns
-    whether the note should be white.
-    width-scale and height-scale (numbers) for scaling the stencil."
+   ;; Returns a callback function for the note head stencil.
+   ;; style-fn (function) takes a grob and a boolean and
+   ;; returns a black or white note head stencil.
+   ;; white-note? (function) takes a grob and returns
+   ;; whether the note should be white.
+   ;; width-scale and height-scale (numbers) for scaling the stencil.
    (lambda (grob)
      (cond
       ((cn-stylish-note? grob) (ly:note-head::print grob))
@@ -237,9 +240,9 @@
              (ly:stencil-scale stil width-scale height-scale)))))))
 
 #(define (cn-make-note-head-rotation-callback rotn)
-   "Returns a callback function for note head rotation,
-    that excludes whole notes and stylish notes.
-    Takes a list of three numbers like '(-9 0 0)"
+   ;; Returns a callback function for note head rotation,
+   ;; that excludes whole notes and stylish notes.
+   ;; Takes a list of three numbers like '(-9 0 0)
    (lambda (grob)
      (if (or (cn-whole-note? grob)
              (cn-stylish-note? grob))
@@ -247,9 +250,9 @@
          rotn)))
 
 #(define (cn-make-stem-attachment-callback black-attach white-attach)
-   "Returns a callback function for stem attachment,
-    that excludes whole notes and stylish notes.
-    The arguments are pairs of numbers for black and white notes."
+   ;; Returns a callback function for stem attachment,
+   ;; that excludes whole notes and stylish notes.
+   ;; The arguments are pairs of numbers for black and white notes.
    (lambda (grob)
      (if (or (cn-whole-note? grob)
              (cn-stylish-note? grob))
@@ -269,13 +272,13 @@
        (<= bar-number (+ (cadr alteration-def) laziness))))
 
 #(define (cn-accidental-invalid? alteration-def)
-   "Checks an alteration entry for being invalid.
+   ;; Checks an alteration entry for being invalid.
 
-    Non-key alterations are invalidated when tying into the next bar or
-    when there is a clef change, since neither repetition nor cancellation
-    can be omitted when the same note occurs again.
+   ;; Non-key alterations are invalidated when tying into the next bar or
+   ;; when there is a clef change, since neither repetition nor cancellation
+   ;; can be omitted when the same note occurs again.
 
-    Returns @code{#f} or the reason for the invalidation, a symbol."
+   ;; Returns @code{#f} or the reason for the invalidation, a symbol.
    (let* ((def (if (pair? alteration-def)
                    (car alteration-def)
                    alteration-def)))
@@ -291,19 +294,19 @@
 %% End of unmodified copied procedures.
 
 #(define (cn-convert-to-semi-alts cn-alts local-alts)
-   "Converts accidental alteration data to allow lookup by semitone.
-    From: ((octave . notename) . (alter barnum . measure-position))
-    To: (semitone alter barnum . measure-position)
+   ;; Converts accidental alteration data to allow lookup by semitone.
+   ;; From: ((octave . notename) . (alter barnum . measure-position))
+   ;; To: (semitone alter barnum . measure-position)
 
-    notename is 0-6 diatonic note number.
+   ;; notename is 0-6 diatonic note number.
 
-    With clef changes or notes tied across a bar line we get
-    e.g. ((0 . 6) clef 1 . #<Mom 7/8>) with 'clef or 'tied as the
-    alter value to invalidate the entry. Then we have to look up
-    the alter value in cn-alts, the cnAlterations context property.
-    This is the sole purpose of cnAlterations. It would be much
-    simpler if LilyPond did not destructively overload the alter
-    value like this."
+   ;; With clef changes or notes tied across a bar line we get
+   ;; e.g. ((0 . 6) clef 1 . #<Mom 7/8>) with 'clef or 'tied as the
+   ;; alter value to invalidate the entry. Then we have to look up
+   ;; the alter value in cn-alts, the cnAlterations context property.
+   ;; This is the sole purpose of cnAlterations. It would be much
+   ;; simpler if LilyPond did not destructively overload the alter
+   ;; value like this.
    ;; (format #t "cn-alts: ~a \n" cn-alts)
    (map (lambda (entry)
           (let*
@@ -320,8 +323,8 @@
      local-alts))
 
 #(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
-   "Update cn-semi-alts by merging local-semi-alts into it.
-    Their entries are: (semitone alter barnum . measure-position)"
+   ;; Update cn-semi-alts by merging local-semi-alts into it.
+   ;; Their entries are: (semitone alter barnum . measure-position)
    (define (merge-entry! local-entry)
      (let* ((semi (car local-entry))
             (cn-entry (assv semi cn-semi-alts)))
@@ -347,9 +350,9 @@
    cn-semi-alts)
 
 #(define (cn-refresh-semi-alts! context)
-   "Converts localAlterations to a semitone-based version and
-    returns the result after storing it in the cnSemiAlterations
-    context property."
+   ;; Converts localAlterations to a semitone-based version and
+   ;; returns the result after storing it in the cnSemiAlterations
+   ;; context property.
    (let*
     ;; localAlterations includes key signature entries like
     ;; (notename . alter) and maybe ((octave . notename) . alter)
@@ -380,18 +383,18 @@
          new-semi-alts))))
 
 #(define (cn-check-pitch-against-signature context pitch barnum measurepos laziness)
-   "A modified version of this function from scm/music-functions.scm.
-    Arguments octaveness and all-naturals have been removed. Currently
-    laziness is always 0. We check active accidentals by semitone,
-    which requires conversion to semitones first, but we check
-    key signature by diatonic notename/number (0-6).
+   ;; A modified version of this function from scm/music-functions.scm.
+   ;; Arguments octaveness and all-naturals have been removed. Currently
+   ;; laziness is always 0. We check active accidentals by semitone,
+   ;; which requires conversion to semitones first, but we check
+   ;; key signature by diatonic notename/number (0-6).
 
-    Checks the need for an accidental and a @q{restore} accidental
-    against @code{localAlterations} and @code{keyAlterations}.
-    The @var{laziness} is the number of measures for which reminder
-    accidentals are used (i.e., if @var{laziness} is zero, only cancel
-    accidentals in the same measure; if @var{laziness} is three, we
-    cancel accidentals up to three measures after they first appear."
+   ;; Checks the need for an accidental and a @q{restore} accidental
+   ;; against @code{localAlterations} and @code{keyAlterations}.
+   ;; The @var{laziness} is the number of measures for which reminder
+   ;; accidentals are used (i.e., if @var{laziness} is zero, only cancel
+   ;; accidentals in the same measure; if @var{laziness} is three, we
+   ;; cancel accidentals up to three measures after they first appear.
    (let*
     ((notename (ly:pitch-notename pitch))
      (octave (ly:pitch-octave pitch))
@@ -440,14 +443,14 @@
               '(#f . #t))))))
 
 #(define (cn-make-accidental-rule laziness)
-   "Slightly modified, octaveness argument has been removed.
+   ;; Slightly modified, octaveness argument has been removed.
 
-    Create an accidental rule that makes its decision based on a laziness value.
-    @var{laziness} states over how many bars an accidental should be remembered.
-    @code{0}@tie{}is the default -- accidental lasts over 0@tie{}bar lines, that
-    is, to the end of current measure.  A positive integer means that the
-    accidental lasts over that many bar lines.  @w{@code{-1}} is `forget
-    immediately', that is, only look at key signature.  @code{#t} is `forever'."
+   ;; Create an accidental rule that makes its decision based on a laziness value.
+   ;; @var{laziness} states over how many bars an accidental should be remembered.
+   ;; @code{0}@tie{}is the default -- accidental lasts over 0@tie{}bar lines, that
+   ;; is, to the end of current measure.  A positive integer means that the
+   ;; accidental lasts over that many bar lines.  @w{@code{-1}} is `forget
+   ;; immediately', that is, only look at key signature.  @code{#t} is `forever'.
 
    (lambda (context pitch barnum measurepos)
      (cn-check-pitch-against-signature context pitch barnum measurepos laziness)))
@@ -475,12 +478,12 @@ accidental-styles.none = #'(#t () ())
       (make-path-stencil '(moveto 0 -0.3 lineto 0 0.3) 0.2 1 1 #f))
 
      (acc-sign (lambda (dot-position)
-                 "Return a sharp or flat sign stencil."
+                 ;; Return a sharp or flat sign stencil.
                  (ly:stencil-add vertical-line
                    (ly:stencil-translate circle `(0 . ,dot-position)))))
 
      (double-acc-sign (lambda (stil)
-                        "Return a double sharp or double flat sign stencil."
+                        ;; Return a double sharp or double flat sign stencil.
                         (ly:stencil-add
                          (ly:stencil-translate stil '(-0.25 . 0))
                          (ly:stencil-translate stil '(0.25 . 0)))))
@@ -498,7 +501,7 @@ accidental-styles.none = #'(#t () ())
       (-1 . ,(double-acc-sign flat)))))
 
 #(define (cn-accidental-grob-callback grob)
-   "Returns an accidental sign stencil."
+   ;; Returns an accidental sign stencil.
    (let* ((mag (cn-magnification grob))
           (alt (accidental-interface::calc-alteration grob))
           (stil (assoc-ref cn-acc-sign-stils alt)))
@@ -511,13 +514,13 @@ accidental-styles.none = #'(#t () ())
 %--- KEY SIGNATURES ----------------
 
 #(define (cn-get-keysig-alt-count alt-alist)
-   "Return number of sharps/flats in key sig, (+) for sharps, (-) for flats."
+   ;; Return number of sharps/flats in key sig, (+) for sharps, (-) for flats.
    (if (null? alt-alist)
        0
        (* (length alt-alist) 2 (cdr (car alt-alist)))))
 
 #(define (cn-get-major-tonic alt-count)
-   "Return number of the tonic note 0-6, as if the key sig were major."
+   ;; Return number of the tonic note 0-6, as if the key sig were major.
    ;; (alt-count maj-num)
    ;; (-7 0) (-5 1) (-3 2) (-1 3) (1 4) (3 5) (5 6) (7 0)
    ;; (-6 4) (-4 5) (-2 6) (0 0) (2 1) (4 2) (6 3)
@@ -526,7 +529,7 @@ accidental-styles.none = #'(#t () ())
        (modulo (/ alt-count 2) 7)))
 
 #(define (cn-make-keysig-posns prev pattern result x-inc)
-   "Calculate x and y positions for keysig dots."
+   ;; Calculate x and y positions for keysig dots.
    (if (null? pattern)
        result
        (let*
@@ -543,7 +546,7 @@ accidental-styles.none = #'(#t () ())
          x-inc))))
 
 #(define (cn-make-keysig-stack mode alt-list note-space black-tonic tonic-num)
-   "Create the stack of circles (and tonic oval) for the key sig."
+   ;; Create the stack of circles (and tonic oval) for the key sig.
    (let*
     ((raw-pattern (take (drop '(#t #t #t #f #f #f #f #t #t #t #f #f #f #f) mode) 7))
      (raw-first-item (list-ref raw-pattern 0))
@@ -600,7 +603,7 @@ accidental-styles.none = #'(#t () ())
     positioned-stack))
 
 #(define (cn-draw-keysig grob)
-   "Draws Clairnote key signature stencils."
+   ;; Draws Clairnote key signature stencils.
    (let*
     ((base-staff-space (cn-get-base-staff-space grob))
      (tonic-pitch (ly:grob-property grob 'cn-tonic))
@@ -637,10 +640,10 @@ accidental-styles.none = #'(#t () ())
     stack))
 
 #(define (cn-key-signature-grob-callback grob)
-   "Returns a key signature stencil or #f. Clairnote's staff
-    definition has printKeyCancellation = ##f, which prevents
-    key cancellations, except when changing to C major or
-    A minor. So here we return #f for those key cancellations."
+   ;; Returns a key signature stencil or #f. Clairnote's staff
+   ;; definition has printKeyCancellation = ##f, which prevents
+   ;; key cancellations, except when changing to C major or
+   ;; A minor. So here we return #f for those key cancellations.
    (if (grob::has-interface grob 'key-cancellation-interface)
        #f
        (let ((stil (cn-draw-keysig grob))
@@ -648,7 +651,7 @@ accidental-styles.none = #'(#t () ())
          (ly:stencil-scale stil mag mag))))
 
 #(define (Cn_key_signature_engraver context)
-   "Sets the tonic for the key on key signature grobs."
+   ;; Sets the tonic for the key on key signature grobs.
    ;; Spare parts: (ly:context-property context 'printKeyCancellation)
    (make-engraver
     (acknowledgers
@@ -667,9 +670,9 @@ accidental-styles.none = #'(#t () ())
 %% fully for any clef.
 
 #(define (cn-convert-clef-glyph glyph pos)
-   "Takes a standard clefGlyph or cueClefGlyph string and
-    a clefPosition or cueClefPosition integer.
-    Returns the corresponding Clairnote clef glyph string."
+   ;; Takes a standard clefGlyph or cueClefGlyph string and
+   ;; a clefPosition or cueClefPosition integer.
+   ;; Returns the corresponding Clairnote clef glyph string.
    ;; Return '() when \cueClefUnset.
    (if (null? glyph)
        '()
@@ -712,11 +715,11 @@ accidental-styles.none = #'(#t () ())
           (else "clefs.G"))))))
 
 #(define (cn-convert-clef-transposition trans)
-   "Takes standard clefTransposition or cueClefTransposition values and
-    converts them.
-    If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
-    else convert from 7 notes per octave to 12.  7-->12, 14-->24. Rounding
-    means only multiples of 12 are ever returned (... -24, -12, 0, 12, 24 ...)."
+   ;; Takes standard clefTransposition or cueClefTransposition values and
+   ;; converts them.
+   ;; If trans is already a Clairnote value (...-12, 12, 24...) just return trans,
+   ;; else convert from 7 notes per octave to 12.  7-->12, 14-->24. Rounding
+   ;; means only multiples of 12 are ever returned (... -24, -12, 0, 12, 24 ...).
    ;; Return '() when \cueClefUnset.
    (cond
     ((null? trans) '())
@@ -724,8 +727,8 @@ accidental-styles.none = #'(#t () ())
     (else (* 12 (round (/ trans 7))))))
 
 #(define (cn-convert-clef-position glyph clef-adjust)
-   "Takes standard clefPosition or cueClefPosition values and converts
-    them. Returns defaults for two-octave staves."
+   ;; Takes standard clefPosition or cueClefPosition values and converts
+   ;; them. Returns defaults for two-octave staves.
    ;; Return '() when \cueClefUnset.
    (if (null? glyph)
        '()
@@ -737,9 +740,10 @@ accidental-styles.none = #'(#t () ())
           (else 0)))))
 
 #(define (cn-convert-middle-c-clef-position glyph clef-adjust trans)
-   "Takes standard middleCClefPosition or middleCCuePosition values
-    and converts them. trans is clefTransposition or cueClefTransposition.
-    Returns defaults for two-octave staves."
+   ;; Takes standard middleCClefPosition or middleCCuePosition values
+   ;; and converts them. trans is clefTransposition or cueClefTransposition.
+   ;; Returns defaults for two-octave staves.
+
    ;; To calculate the clairnote middle c position subtract the clef position
    ;; from 12 for bass clef or from -12 for treble clef (to adjust the clef
    ;; position without affecting the position of middle c or other notes).
@@ -755,19 +759,19 @@ accidental-styles.none = #'(#t () ())
           (else 0)))))
 
 #(define (cn-convert-middle-c-offset offset)
-   "Takes standard middleCOffset values for Ottava/8va and converts them."
+   ;; Takes standard middleCOffset values for Ottava/8va and converts them.
    (if (null? offset)
        '()
        (* offset 12/7)))
 
 #(define (Cn_clef_ottava_engraver context)
-   "Overrides clef and ottava settings. A closure stores the previous
-    properties in order to detect changed settings. Uses listeners
-    to modify context properties before grobs are created.
+   ;; Overrides clef and ottava settings. A closure stores the previous
+   ;; properties in order to detect changed settings. Uses listeners
+   ;; to modify context properties before grobs are created.
 
-    In order to have stems change direction at the vertical center
-    of the staff we use different clef settings for staves with odd
-    or even numbers of octaves (with clef-adjust)."
+   ;; In order to have stems change direction at the vertical center
+   ;; of the staff we use different clef settings for staves with odd
+   ;; or even numbers of octaves (with clef-adjust).
    (let*
     ((props (alist->hash-table '((clefGlyph . ())
                                  (clefPosition . ())
@@ -974,7 +978,7 @@ accidental-styles.none = #'(#t () ())
      ))
 
 #(define (cn-number-stencil grob number)
-   "Returned stencils are centered horizontally, number must be 0-9."
+   ;; Returned stencils are centered horizontally, number must be 0-9.
    (ly:stencil-aligned-to
     (ly:font-get-glyph (ly:grob-default-font grob)
       (list-ref '("zero" "one" "two" "three" "four"
@@ -982,9 +986,9 @@ accidental-styles.none = #'(#t () ())
     X 0))
 
 #(define (cn-clef-number-shift glyph octave)
-   "Takes a glyph (string) and an octave (integer) and
-    returns a pair of numbers for shifting the position
-    of the clef number stencil along x and y axes."
+   ;; Takes a glyph (string) and an octave (integer) and
+   ;; returns a pair of numbers for shifting the position
+   ;; of the clef number stencil along x and y axes.
    (cond
     ((string=? "clefs.G" glyph) (case octave
                                   ((4) '(1.5 . -0.63))
@@ -995,7 +999,7 @@ accidental-styles.none = #'(#t () ())
     (else '(0 . 0))))
 
 #(define (cn-clef-stencil-callback grob)
-   "Returns a stencil for clef grobs."
+   ;; Returns a stencil for clef grobs.
    (let* ((glyph (ly:grob-property grob 'glyph))
           (curve-path (assoc-ref cn-clef-curves glyph)))
      (if curve-path
@@ -1049,10 +1053,10 @@ accidental-styles.none = #'(#t () ())
 
 #(add-bar-glyph-print-procedure ":"
    (lambda (grob extent)
-     "A procedure that draws repeat sign dots at
-      @code{dot-positions}. The coordinates are the same as
-      @code{StaffSymbol.line-positions}, a dot-position of X
-      is equivalent to a line-position of X."
+     ;; A procedure that draws repeat sign dots at
+     ;; @code{dot-positions}. The coordinates are the same as
+     ;; @code{StaffSymbol.line-positions}, a dot-position of X
+     ;; is equivalent to a line-position of X.
      (let*
       ((staff-sym (ly:grob-object grob 'staff-symbol))
        (is-clairnote-staff
@@ -1080,7 +1084,7 @@ accidental-styles.none = #'(#t () ())
 %--- TIME SIGNATURES ----------------
 
 #(define (cn-time-signature-grob-callback grob)
-   "Adjust vertical position of time sig based on vertical staff scaling."
+   ;; Adjust vertical position of time sig based on vertical staff scaling.
    (let*
     ((base-staff-space (cn-get-base-staff-space grob))
      (vscale-staff (* 12/7 base-staff-space))
@@ -1103,17 +1107,17 @@ accidental-styles.none = #'(#t () ())
 %--- STEM LENGTH AND DOUBLE STEMS ----------------
 
 #(define (cn-grob-edge grob positive)
-   "Takes a grob and returns the edge of the grob in positive
-    or negative direction (up or down), positive arg is boolean."
+   ;; Takes a grob and returns the edge of the grob in positive
+   ;; or negative direction (up or down), positive arg is boolean.
    (let* ((offset (ly:grob-property grob 'Y-offset))
           (extent (ly:grob-property grob 'Y-extent))
           (extent-dir (if positive (cdr extent) (car extent))))
      (+ offset extent-dir)))
 
 #(define (cn-grobs-edge grobs positive)
-   "Takes a list of grobs and positive, a boolean of whether the
-    direction we care about is positive/up or not/down, and returns
-    the furthest edge of the grobs in that direction."
+   ;; Takes a list of grobs and positive, a boolean of whether the
+   ;; direction we care about is positive/up or not/down, and returns
+   ;; the furthest edge of the grobs in that direction.
    (let* ((comparator (if positive > <))
           (final-edge
            (fold (lambda (g prev-edge)
@@ -1180,9 +1184,9 @@ accidental-styles.none = #'(#t () ())
     ))
 
 #(define (cn-multiply-details details multiplier skip-list)
-   "multiplies each of the values of a details property
-    (e.g. of the stem grob) by multiplier, except for
-    skip-list, a list of symbols, e.g. '(stem-shorten) "
+   ;; multiplies each of the values of a details property
+   ;; (e.g. of the stem grob) by multiplier, except for
+   ;; skip-list, a list of symbols, e.g. '(stem-shorten)
    (define multiply-by (lambda (x) (* x multiplier)))
    (map
     (lambda (dt)
@@ -1194,8 +1198,8 @@ accidental-styles.none = #'(#t () ())
     details))
 
 #(define (cn-customize-stem grob double-stems)
-   "Lengthen all stems to undo staff compression side effects,
-    and give half notes double stems."
+   ;; Lengthen all stems to undo staff compression side effects,
+   ;; and give half notes double stems.
    (let* ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
           (deets (ly:grob-property grob 'details))
           (deets2 (cn-multiply-details deets bss-inverse '(stem-shorten))))
@@ -1208,9 +1212,9 @@ accidental-styles.none = #'(#t () ())
          (cn-double-stem grob))))
 
 #(define (cn-make-stem-grob-callback double-stems)
-   "Make sure omit is not in effect (i.e. stencil is not #f)
-    and the stem has a notehead (i.e. is not for a rest,
-    rest grobs have stem grobs that have no stencil)"
+   ;; Make sure omit is not in effect (i.e. stencil is not #f)
+   ;; and the stem has a notehead (i.e. is not for a rest,
+   ;; rest grobs have stem grobs that have no stencil)
    (lambda (grob)
      (if (and (ly:grob-property-data grob 'stencil)
               (not (null? (ly:grob-object grob 'note-heads))))
@@ -1223,20 +1227,20 @@ accidental-styles.none = #'(#t () ())
 % Procedures have been encapsulated inside cn-make-stem-spans!.
 
 #(define (cn-make-stem-spans! ctx stems trans)
-   "Create stem spans for cross-staff stems"
+   ;; Create stem spans for cross-staff stems
 
    (define (close-enough? x y)
-     "Values are close enough to ignore the difference"
+     ;; Values are close enough to ignore the difference
      (< (abs (- x y)) 0.0001))
 
    (define (extent-combine extents)
-     "Combine a list of extents"
+     ;; Combine a list of extents
      (if (pair? (cdr extents))
          (interval-union (car extents) (extent-combine (cdr extents)))
          (car extents)))
 
    (define ((stem-connectable? ref root) stem)
-     "Check if the stem is connectable to the root"
+     ;; Check if the stem is connectable to the root
      ;; The root is always connectable to itself
      (or (eq? root stem)
          (and
@@ -1249,7 +1253,7 @@ accidental-styles.none = #'(#t () ())
                          (car (ly:grob-extent root ref Y))))))))
 
    (define (stem-span-stencil span)
-     "Connect stems if we have at least one stem connectable to the root"
+     ;; Connect stems if we have at least one stem connectable to the root
      (let* ((system (ly:grob-system span))
             (root (ly:grob-parent span X))
             (stems (filter (stem-connectable? system root)
@@ -1287,7 +1291,7 @@ accidental-styles.none = #'(#t () ())
            #f)))
 
    (define ((make-stem-span! stems trans) root)
-     "Create a stem span as a child of the cross-staff stem (the root)"
+     ;; Create a stem span as a child of the cross-staff stem (the root)
      (let ((span (ly:engraver-make-grob trans 'Stem '())))
        (ly:grob-set-parent! span X root)
        (set! (ly:grob-object span 'stems) stems)
@@ -1296,9 +1300,9 @@ accidental-styles.none = #'(#t () ())
        (set! (ly:grob-property span 'stencil) stem-span-stencil)))
 
    (define (stem-is-root? stem)
-     "Check if automatic connecting of the stem was requested.  Stems connected
-      to cross-staff beams are cross-staff, but they should not be connected to
-      other stems just because of that."
+     ;; Check if automatic connecting of the stem was requested.  Stems connected
+     ;; to cross-staff beams are cross-staff, but they should not be connected to
+     ;; other stems just because of that.
      (eq? cross-staff-connect (ly:grob-property-data stem 'cross-staff)))
 
    ;; make-stem-spans! continued..
@@ -1311,7 +1315,7 @@ accidental-styles.none = #'(#t () ())
 
 % overwrites the default engraver in order to call custom cn-make-stem-spans!
 #(define (Cn_span_stem_engraver ctx)
-   "Connect cross-staff stems to the stems above in the system"
+   ;; Connect cross-staff stems to the stems above in the system
    (let ((stems '()))
      (make-engraver
       ;; Record all stems for the given moment
@@ -1336,12 +1340,12 @@ accidental-styles.none = #'(#t () ())
    (reduce max -inf.0 (map cn-notehead-semitone note-heads)))
 
 #(define (cn-make-dots-callback is-rhythmic-staff)
-   "Avoid collision between double-stem and dots by shifting right the dots
-    on double-stemmed half notes but only when they are on a staff line,
-    have an up stem, and are the highest note in their column.
-    We use a callback here so that the stem width is already set.
-    Returns a procedure that returns pair of numbers or #f for the
-    Dots.extra-offset grob property."
+   ;; Avoid collision between double-stem and dots by shifting right the dots
+   ;; on double-stemmed half notes but only when they are on a staff line,
+   ;; have an up stem, and are the highest note in their column.
+   ;; We use a callback here so that the stem width is already set.
+   ;; Returns a procedure that returns pair of numbers or #f for the
+   ;; Dots.extra-offset grob property.
    (lambda (dots-grob)
      (let*
       ((parent (ly:grob-parent dots-grob Y))
@@ -1383,7 +1387,8 @@ accidental-styles.none = #'(#t () ())
 %--- BEAMS ----------------
 
 #(define (cn-beam-grob-callback grob)
-   "Adjust size and spacing of beams. Needed due to vertically compressed staff."
+   ;; Adjust size and spacing of beams.
+   ;; Needed due to vertically compressed staff.
    (let* ((bss-inverse (/ 1 (cn-get-base-staff-space grob)))
           (thick (ly:grob-property grob 'beam-thickness))
           (len-frac (ly:grob-property grob 'length-fraction))
@@ -1460,8 +1465,9 @@ accidental-styles.none = #'(#t () ())
          (12 2 #f))))
 
 #(define (cn-ledger-pattern dist staff-symbol)
-   "Produces the ledger line pattern for a given note.
-    dist is distance of note from closest staff line."
+   ;; Produces the ledger line pattern for a given note.
+   ;; dist is distance of note from closest staff line.
+
    ;; A cycle is generally an octave, so cycle-size is
    ;; 12 (staff positions per octave) and cycle-count
    ;; is the number of octaves we are dealing with.
@@ -1655,9 +1661,9 @@ accidental-styles.none = #'(#t () ())
 %% must be used before \magnifyStaff for both to work
 #(define cnStaffCompression
    (define-music-function (ss) (number?)
-     "0.75 is the default Clairnote staff-space (ss). An ss arg of
-      1 gives an uncompressed staff. 7/12 gives a staff with
-      same size octave as traditional"
+     ;; 0.75 is the default Clairnote staff-space (ss). An ss arg of
+     ;; 1 gives an uncompressed staff. 7/12 gives a staff with
+     ;; same size octave as traditional
      (let*
       ((trad-octave (/ (round (* 10000 (exact->inexact (* 12/7 ss)))) 10000))
        (notehead-overlap (+ 0.5 (- 0.5 (/ ss 2)))))
