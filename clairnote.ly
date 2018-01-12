@@ -1535,6 +1535,34 @@ accidental-styles.none = #'(#t () ())
        ledgers2)))
 
 
+%--- ARTICULATIONS (SCRIPT GROBS) ----------------
+
+#(define (cn-script-y-offset-callback grob default-value)
+   ;; Script grobs (articulations) collide with ledgers that
+   ;; are further from the staff than the note head, so we
+   ;; have to adjust their vertical position.
+   (let*
+    ((direction (ly:grob-property grob 'direction))
+     (note-head (ly:grob-parent grob X))
+     (nh-pos (ly:grob-staff-position note-head))
+
+     (staff-symbol (ly:grob-object grob 'staff-symbol))
+     (ledger-function (eval cn-ledger-positions
+                        (interaction-environment)))
+     (ledger-posns (ledger-function staff-symbol nh-pos))
+
+     (max-or-min (if (> direction 0) max min))
+     (ledger-pos (reduce max-or-min 0 ledger-posns))
+     (diff (- (abs ledger-pos) (abs nh-pos)))
+     (adjust (if (> diff 0)
+                 (* direction (- diff 1))
+                 0))
+     (staff-space (ly:grob-property staff-symbol 'staff-space))
+     (note-space (* 0.5 staff-space))
+     (final-adjust (* adjust note-space)))
+    (+ default-value final-adjust)))
+
+
 %--- USER: EXTENDING STAVES & DIFFERENT OCTAVE SPANS ----------------
 
 #(define (cn-get-new-staff-positions posns base-positions going-up going-down)
@@ -1890,6 +1918,9 @@ clairnoteTypeURL = ""
     % TODO: whole note ledger lines are a bit too wide
     \override LedgerLineSpanner.length-fraction = 0.45
     \override LedgerLineSpanner.minimum-length-fraction = 0.35
+
+    \override Script.Y-offset =
+    #(grob-transformer 'Y-offset cn-script-y-offset-callback)
 
     \override Clef.stencil = #cn-clef-stencil-callback
     \override CueClef.stencil = #cn-clef-stencil-callback
