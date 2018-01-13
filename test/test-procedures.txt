@@ -9,7 +9,7 @@ Each test file includes:
 "clairnote.ly", and other global settings.
 
 The /test/clairnote-sn.ly file is used in the commands below to produce
-Clairnote SN output.
+Clairnote SN output.  (All this file does is set the clairnote-type setting.)
 
 
 STEPS
@@ -21,11 +21,11 @@ file to be tested and version of LilyPond to be used.
 in the test directory (not the tests directory). (This is on GNU/Linux.)
 The pdfs will be in DATE-pdfs-cn-dn and DATE-pdfs-cn-sn directories.
 
-  DATE=2017-10-31; SN=$DATE-pdfs-cn-dn; DN=$DATE-pdfs-cn-sn;
+  DATE=2018-01-13; SN=$DATE-pdfs-cn-sn; DN=$DATE-pdfs-cn-dn;
   mkdir ${DN};
-  find ./tests/*.ly -exec lilypond -dno-point-and-click -o ${DN} {} \;
+  find ./tests/*.ly -exec ~/bin/lilypond -dno-point-and-click -o ${DN} {} \;
   mkdir ${SN};
-  find ./tests/*.ly -exec lilypond -dno-point-and-click -dinclude-settings="clairnote-sn.ly" -o ${SN} {} \;
+  find ./tests/*.ly -exec ~/bin/lilypond -dno-point-and-click -dinclude-settings="clairnote-sn.ly" -o ${SN} {} \;
 
 3. Open old and new pdfs in Firefox (drag files onto dock icon) in a mostly
 empty profile, use a tab sorting extension to sort the tabs, use ctrl+tab and
