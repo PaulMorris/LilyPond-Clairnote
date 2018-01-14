@@ -1960,8 +1960,8 @@ initClairnoteDN =
           cn-white-note?
           1 1))
    (set! Span_stem_engraver Cn_span_stem_engraver)
-   (set! clairnoteTypeName "Clairnote")
-   (set! clairnoteTypeURL "http://clairnote.org/")
+   (set! clairnoteTypeName "Clairnote DN")
+   (set! clairnoteTypeURL "http://clairnote.org/dn/")
    #{
      \layout {
        \context {
