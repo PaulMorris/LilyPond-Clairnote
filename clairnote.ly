@@ -1827,7 +1827,7 @@ accidental-styles.none = #'(#t () ())
 
 % These variables are set below on initialization.
 clairnoteTypeName = ""
-clairnoteTypeURL = ""
+clairnoteTypeUrl = ""
 
 \layout {
   % Copy standard settings of Staff and RhythmicStaff contexts
@@ -1961,7 +1961,7 @@ initClairnoteDN =
           1 1))
    (set! Span_stem_engraver Cn_span_stem_engraver)
    (set! clairnoteTypeName "Clairnote DN")
-   (set! clairnoteTypeURL "http://clairnote.org/dn/")
+   (set! clairnoteTypeUrl "http://clairnote.org/dn/")
    #{
      \layout {
        \context {
@@ -2016,7 +2016,7 @@ initClairnoteSN =
           1 1))
    (set! Span_stem_engraver LilyPond_span_stem_engraver)
    (set! clairnoteTypeName "Clairnote SN")
-   (set! clairnoteTypeURL "http://clairnote.org/sn/")
+   (set! clairnoteTypeUrl "http://clairnote.org/sn/")
    #{
      \layout {
        \context {
