@@ -1997,6 +1997,19 @@ initClairnoteDN =
          % adjust x-axis dots position to not collide with double-stemmed half notes
          \override Dots.extra-offset = #(cn-make-dots-callback #t)
        }
+
+       % Special context for both SN and DN at once, like so:
+       %
+       % clairnote-type = dn
+       % \include "clairnote.ly"  % creates StaffClairnoteDN context
+       % \initClairnoteSN         % makes default Staff context SN
+       %
+       \context {
+         \Staff
+         \name StaffClairnoteDN
+         \alias Staff
+       }
+       \inherit-acceptability "StaffClairnoteDN" "Staff"
      }
    #})
 
@@ -2035,15 +2048,6 @@ initClairnoteSN =
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
          \override Stem.before-line-breaking = #(cn-make-stem-grob-callback #f)
        }
-
-       % Create a special context to allow using both
-       % types of Clairnote at once.
-       \context {
-         \Staff
-         \name StaffClairnoteSN
-         \alias Staff
-       }
-       \inherit-acceptability "StaffClairnoteSN" "Staff"
      }
    #})
 
@@ -2071,10 +2075,10 @@ initClairnoteSN =
 
   \context {
     \Staff
-    \name StaffClairnoteSN
+    \name StaffClairnoteDN
     \alias Staff
   }
-  \inherit-acceptability "StaffClairnoteSN" "Staff"
+  \inherit-acceptability "StaffClairnoteDN" "Staff"
 }
 
 initClairnoteType =
@@ -2083,17 +2087,17 @@ initClairnoteType =
    ;; including a file that contains e.g. clairnote-type = sn
    (cond
     ((or (not (defined? 'clairnote-type))
-         (string= clairnote-type "dn")
+         (string= clairnote-type "sn")
          (string= clairnote-type "default"))
-     #{ \initClairnoteDN #})
-
-    ((string= clairnote-type "sn")
      #{ \initClairnoteSN #})
+
+    ((string= clairnote-type "dn")
+     #{ \initClairnoteDN #})
 
     (else
      (ly:warning
       "unrecognized clairnote-type ~s, using default instead."
       clairnote-type)
-     #{ \initClairnoteDN #})))
+     #{ \initClairnoteSN #})))
 
 \initClairnoteType
