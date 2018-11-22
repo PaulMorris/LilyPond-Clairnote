@@ -1,6 +1,6 @@
 \version "2.19.63"
 
-% clairnote-type = sn
+% clairnote-type = dn
 
 \include "../../clairnote.ly"
 

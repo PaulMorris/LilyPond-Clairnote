@@ -1,14 +1,14 @@
 \include "../test-includes.ly"
 \language "english"
 
-\markup "Clairnote (DN) and Clairnote SN in the same file"
+\markup "Clairnote SN and Clairnote DN in the same file"
 \markup \vspace #0.5
 
 % For making comparisons between the two variants.
 
 % Make sure the test works regardless of earlier settings.
-\initClairnoteSN
 \initClairnoteDN
+\initClairnoteSN
 
 m = \relative {
   c' cs d ds
@@ -21,9 +21,9 @@ m = \relative {
   \m
 }
 
-% MIDI works with StaffClairnoteSN
+% MIDI works with StaffClairnoteDN
 \score {
-  \new StaffClairnoteSN {
+  \new StaffClairnoteDN {
     \m
   }
   \layout {}

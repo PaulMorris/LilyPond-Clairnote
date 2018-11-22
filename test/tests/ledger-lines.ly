@@ -5,7 +5,7 @@
 
 \paper {
   ragged-last-bottom = ##f
-  }
+}
 
 m = \relative {
   e'4 ef d df
@@ -57,8 +57,11 @@ n = <<
   \m
 }
 
-\markup "#cn-dn-ledgers-gradual"
+\markup "ledgers-gradual"
 
 \new Staff \with {
-  \override StaffSymbol.cn-ledger-recipe = #cn-dn-ledgers-gradual
+  \override StaffSymbol.cn-ledger-recipe =
+  #(if (string= clairnoteTypeName "Clairnote SN")
+       cn-sn-ledgers-gradual
+       cn-dn-ledgers-gradual)
 } { \n }

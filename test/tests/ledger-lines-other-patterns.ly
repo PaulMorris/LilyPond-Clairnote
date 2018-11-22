@@ -30,14 +30,20 @@ m = <<
   }
 >>
 
-\markup "#cn-dn-ledgers-less-gradual"
+\markup "ledgers-less-gradual"
 
 \new Staff \with {
-  \override StaffSymbol.cn-ledger-recipe = #cn-dn-ledgers-less-gradual
+  \override StaffSymbol.cn-ledger-recipe =
+  #(if (string= clairnoteTypeName "Clairnote SN")
+       cn-sn-ledgers-less-gradual
+       cn-dn-ledgers-less-gradual)
 } { \m }
 
-\markup "#cn-dn-ledgers-keep-c-ledgers"
+\markup "ledgers-keep-c-ledgers"
 
 \new Staff \with {
-  \override StaffSymbol.cn-ledger-recipe = #cn-dn-ledgers-keep-c-ledgers
+  \override StaffSymbol.cn-ledger-recipe =
+  #(if (string= clairnoteTypeName "Clairnote SN")
+       cn-sn-ledgers-keep-c-ledgers
+       cn-dn-ledgers-keep-c-ledgers)
 } { \m }
