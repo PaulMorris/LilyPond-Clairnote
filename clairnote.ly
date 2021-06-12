@@ -264,6 +264,10 @@
 
 %--- ACCIDENTAL STYLE ----------------
 
+%% A custom accidental style that determines when and where
+%% accidental signs are rendered (i.e. grobs created),
+%% and when and where they aren't
+
 %% Procedures copied from scm/music-functions.scm, renamed with cn- prefix.
 
 #(define (cn-recent-enough? bar-number alteration-def laziness)
@@ -466,6 +470,37 @@ accidental-styles.clairnote-default =
 accidental-styles.none = #'(#t () ())
 
 
+%--- ACCIDENTAL ENGRAVER ----------------
+
+#(define (Cn_accidental_engraver context)
+   ;; This accidental engraver is needed for directional natural signs.
+   ;; For natural accidental signs, if they are "cancelling" a sharp
+   ;; or flat from the current key signature, set a custom grob property
+   ;; on the accidental sign grob that indicates the direction of the
+   ;; natural sign, i.e. whether it is "cancelling" a sharp or a flat
+   ;; from the key signature. Then the grob stencil function takes it
+   ;; from there.
+
+   ;; The context has to be accessed like this (and not with
+   ;; ly:translator-context) for accidentals to be tracked per staff,
+   ;; (e.g. when we were tracking accidentals per staff).
+   (make-engraver
+    (acknowledgers
+     ((accidental-interface engraver grob source-engraver)
+      (let* ((pitch (cn-notehead-pitch (ly:grob-parent grob Y)))
+             (note (ly:pitch-notename pitch))
+             (key-alterations (ly:context-property context 'keyAlterations '()))
+             (key-sig-alt (assoc-ref key-alterations note))
+             (accidental-alt (accidental-interface::calc-alteration grob))
+             (is-natural (= accidental-alt 0)))
+        (if (and is-natural key-sig-alt)
+            (ly:grob-set-property! grob 'cn-natural-sign-direction
+              (cond
+               ((> key-sig-alt 0) "natural-down")
+               ((< key-sig-alt 0) "natural-up")
+               (else null)))))))))
+
+
 %--- ACCIDENTAL SIGNS ----------------
 
 #(define cn-acc-sign-stils
@@ -497,11 +532,20 @@ accidental-styles.none = #'(#t () ())
      (flat (acc-sign -0.5))
      (natural (ly:stencil-add diagonal-line
                 (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
-                (ly:stencil-translate short-vertical-line '(-0.2 . 0.3)))))
+                (ly:stencil-translate short-vertical-line '(-0.2 . 0.3))))
+
+     (natural-down (ly:stencil-add natural
+                     (ly:stencil-translate circle '(0.2 . -0.6))))
+
+     (natural-up (ly:stencil-add natural
+                   (ly:stencil-translate circle '(-0.2 . 0.6)))))
 
     `((1/2 . ,sharp)
       (-1/2 . ,flat)
       (0 . ,natural)
+      ;; Use natural-down and natural-up for experimental directional natural signs.
+      ("natural-down" . ,natural)
+      ("natural-up" . ,natural)
       (1 . ,(double-acc-sign sharp))
       (-1 . ,(double-acc-sign flat)))))
 
@@ -509,9 +553,12 @@ accidental-styles.none = #'(#t () ())
    ;; Returns an accidental sign stencil.
    (let* ((mag (cn-magnification grob))
           (alt (accidental-interface::calc-alteration grob))
-          (stil (assoc-ref cn-acc-sign-stils alt)))
-     (if stil
-         (ly:stencil-scale stil mag mag)
+          (direction (and (= 0 alt)
+                          (ly:grob-property grob 'cn-natural-sign-direction)))
+          (stencil-key (if (string? direction) direction alt))
+          (stencil (assoc-ref cn-acc-sign-stils stencil-key)))
+     (if stencil
+         (ly:stencil-scale stencil mag mag)
          ;; else fall back to traditional accidental sign
          (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
 
@@ -1825,7 +1872,11 @@ accidental-styles.none = #'(#t () ())
   (grob-prop 'cn-double-stem-width-scale non-zero?)
 
   ;; Used to produce ledger line pattern.
-  (grob-prop 'cn-ledger-recipe list?))
+  (grob-prop 'cn-ledger-recipe list?)
+
+  ;; Used for directional natural accidental signs.
+  ;; The value is "natural-down" or "natural-up".
+  (grob-prop 'cn-natural-sign-direction string?))
 
 
 %--- STAFF CONTEXT DEFINITION ----------------
@@ -1942,6 +1993,11 @@ clairnoteTypeUrl = ""
     % which does not need to be consisted here.
     \consists \Cn_clef_ottava_engraver
     \consists \Cn_key_signature_engraver
+
+    % We put all engravers before Cn_accidental_engraver because we got segfault
+    % crashes otherwise. Probably because it used to call ly:grob-suicide! on
+    % some accidental grobs when acknowledging rather than finalizing.
+    \consists \Cn_accidental_engraver
   }
 
   \context {
