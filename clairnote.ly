@@ -325,6 +325,9 @@
 #(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
    ;; Update cn-semi-alts by merging local-semi-alts into it.
    ;; Their entries are: (semitone alter barnum . measure-position)
+   (define (get-barnum entry) (caddr entry))
+   (define (get-measure-position entry) (cdddr entry))
+
    (define (merge-entry! local-entry)
      (let* ((semi (car local-entry))
             (cn-entry (assv semi cn-semi-alts)))
@@ -334,14 +337,16 @@
 
        ;; We merge when there is no entry for a given semitone,
        ;; or when there is one with a previous barnum,
-       ;; or when there is one with the same barnum and a
-       ;; previous measure-position.
+       ;; or when there is one with the same barnum
+       ;;    and a previous measure-position.
        (if (or (not cn-entry)
-               (< (caddr cn-entry) (caddr local-entry))
-               (and (= (caddr cn-entry) (caddr local-entry))
-                    (ly:moment<? (cdddr cn-entry) (cdddr local-entry))))
-           (set! cn-semi-alts
-                 (assv-set! cn-semi-alts semi (cdr local-entry))))))
+               (< (get-barnum cn-entry)
+                  (get-barnum local-entry))
+               (and (= (get-barnum cn-entry)
+                       (get-barnum local-entry))
+                    (ly:moment<? (get-measure-position cn-entry)
+                      (get-measure-position local-entry))))
+           (set! cn-semi-alts (assv-set! cn-semi-alts semi (cdr local-entry))))))
 
    ;; (format #t "cn-semi-alts: ~a \n" cn-semi-alts)
    ;; (format #t "local-semi-alts: ~a \n\n" local-semi-alts)
