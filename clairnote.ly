@@ -98,26 +98,26 @@
 
 #(define cn-whole-note-black-path
    '(moveto 0 0
-      curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432
-      curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784
-      curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432
-      curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0
-      curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448
-      curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768
-      curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448
-      curveto 0.12694192 -0.2800192 0 -0.16054432 0 0
-      closepath))
+            curveto 0 0.16054432 0.12694192 0.28001904 0.272552 0.35842432
+            curveto 0.47416576 0.4666984 0.70564816 0.50776784 0.93339712 0.50776784
+            curveto 1.16114576 0.50776784 1.39636192 0.4666984 1.59797568 0.35842432
+            curveto 1.74358576 0.28001904 1.87052768 0.16054432 1.87052768 0
+            curveto 1.87052768 -0.16054432 1.74358576 -0.2800192 1.59797568 -0.35842448
+            curveto 1.39636192 -0.46669856 1.16114592 -0.507768 0.93339712 -0.507768
+            curveto 0.70564816 -0.507768 0.47416576 -0.46669856 0.272552 -0.35842448
+            curveto 0.12694192 -0.2800192 0 -0.16054432 0 0
+            closepath))
 
 #(define cn-whole-note-white-path
    ;; white-path is the black path with the center hole added
    (append
     cn-whole-note-black-path
     '(moveto 1.06033904 -0.36566768
-       curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328
-       curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752
-       curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312
-       curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768
-       closepath)))
+             curveto 1.24701856 -0.36566768 1.32542384 -0.2688184 1.32542384 -0.09707328
+             curveto 1.32542384 0.19788 1.10140848 0.36566752 0.80645504 0.36566752
+             curveto 0.61977552 0.36566752 0.545104 0.26881824 0.545104 0.09707312
+             curveto 0.545104 -0.19788016 0.7653856 -0.36566768 1.06033904 -0.36566768
+             closepath)))
 
 #(define (cn-whole-note-stencil grob white-note)
    ;; Returns default Clairnote whole note stencils.
@@ -131,37 +131,37 @@
 
 #(define cn-note-black-path
    '(moveto 1.0161518991984164 0.5004939160736768
-      curveto 1.1900858991984165 0.45804726744838686 1.3000056991984164 0.36006297281891986 1.3267185991984165 0.22365338254444356
-      curveto 1.3472530991984164 0.11878494731492373 1.3090816991984164 -0.03242382812749062 1.2346937991984164 -0.14100554722801906
-      curveto 1.1037044991984164 -0.3321698541497182 0.8786728091984164 -0.46440803197455877 0.6176073691984164 -0.5036333230878486
-      curveto 0.5243774691984164 -0.517643902935715 0.36590771919841636 -0.5120649140876494 0.28844503919841635 -0.49205136745873423
-      curveto -0.029717590801583628 -0.40984214143367353 -0.09642331080158363 -0.0917693764989545 0.14752670919841637 0.17990713903061328
-      curveto 0.2984087391984164 0.347937968940766 0.5439097091984164 0.4755783490866303 0.7757855691984165 0.5065506656056886
-      curveto 0.8399878691984165 0.5151219432426919 0.9695811491984164 0.5118635199715458 1.0161502991984164 0.5005020382431211
-      closepath))
+            curveto 1.1900858991984165 0.45804726744838686 1.3000056991984164 0.36006297281891986 1.3267185991984165 0.22365338254444356
+            curveto 1.3472530991984164 0.11878494731492373 1.3090816991984164 -0.03242382812749062 1.2346937991984164 -0.14100554722801906
+            curveto 1.1037044991984164 -0.3321698541497182 0.8786728091984164 -0.46440803197455877 0.6176073691984164 -0.5036333230878486
+            curveto 0.5243774691984164 -0.517643902935715 0.36590771919841636 -0.5120649140876494 0.28844503919841635 -0.49205136745873423
+            curveto -0.029717590801583628 -0.40984214143367353 -0.09642331080158363 -0.0917693764989545 0.14752670919841637 0.17990713903061328
+            curveto 0.2984087391984164 0.347937968940766 0.5439097091984164 0.4755783490866303 0.7757855691984165 0.5065506656056886
+            curveto 0.8399878691984165 0.5151219432426919 0.9695811491984164 0.5118635199715458 1.0161502991984164 0.5005020382431211
+            closepath))
 
 #(define cn-note-white-path
    '(moveto 1.026468864255086 0.4998680875655276
-      curveto 1.215249864255086 0.4618436649454002 1.337174464255086 0.35147108531050375 1.354920364255086 0.20252749405141746
-      curveto 1.369178964255086 0.08282868839604651 1.312372764255086 -0.07672001395465605 1.209350364255086 -0.20633856802981299
-      curveto 1.077365164255086 -0.37239062345611024 0.889153024255086 -0.47211463127579484 0.6458905642550861 -0.5048878796193299
-      curveto 0.585101844255086 -0.5130801213612108 0.548868934255086 -0.5134163330622651 0.443309034255086 -0.5067845101638356
-      curveto 0.32885581425508603 -0.49958868733223255 0.30882433425508604 -0.4965974421400958 0.260617494255086 -0.47979947287536673
-      curveto 0.118058624255086 -0.4300386473948317 0.024819864255086005 -0.335419029253747 0.0042339542550860025 -0.21961971038330325
-      curveto -0.015404825744913999 -0.1091556900709823 0.035236334255086 0.05025573233647185 0.132092634255086 0.18283290751856218
-      curveto 0.268217284255086 0.3691712451565947 0.47658985425508604 0.48176186299022195 0.730680684255086 0.5062696961187646
-      curveto 0.823563584255086 0.5152225290660725 0.965453244255086 0.5121589666760266 1.026469764255086 0.4998666604401908
-      closepath
-      moveto 0.8920403042550861 0.32723653716982337
-      curveto 0.801899114255086 0.305937547790631 0.674353834255086 0.25092305532124815 0.517242874255086 0.16559336664623436
-      curveto 0.199745884255086 -0.006853856240945699 0.109727534255086 -0.09774589911519554 0.151265174255086 -0.2039339094078499
-      curveto 0.168776074255086 -0.24869436361851288 0.191705974255086 -0.27755407274963595 0.226470474255086 -0.2985602160096806
-      curveto 0.309656374255086 -0.34884402584120455 0.42197617425508605 -0.33748020734960626 0.634757234255086 -0.25724484236248213
-      curveto 0.9774722042550861 -0.1280260070658748 1.216026564255086 0.03390026706789495 1.2240259642550861 0.14273918170232358
-      curveto 1.2287459642550862 0.20700273076812625 1.184881964255086 0.28132959706261473 1.121983764255086 0.3156476039275703
-      curveto 1.083730764255086 0.33652340307350437 1.077348764255086 0.3379303583723863 1.015085564255086 0.3392592023444909
-      curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555
-      closepath))
+            curveto 1.215249864255086 0.4618436649454002 1.337174464255086 0.35147108531050375 1.354920364255086 0.20252749405141746
+            curveto 1.369178964255086 0.08282868839604651 1.312372764255086 -0.07672001395465605 1.209350364255086 -0.20633856802981299
+            curveto 1.077365164255086 -0.37239062345611024 0.889153024255086 -0.47211463127579484 0.6458905642550861 -0.5048878796193299
+            curveto 0.585101844255086 -0.5130801213612108 0.548868934255086 -0.5134163330622651 0.443309034255086 -0.5067845101638356
+            curveto 0.32885581425508603 -0.49958868733223255 0.30882433425508604 -0.4965974421400958 0.260617494255086 -0.47979947287536673
+            curveto 0.118058624255086 -0.4300386473948317 0.024819864255086005 -0.335419029253747 0.0042339542550860025 -0.21961971038330325
+            curveto -0.015404825744913999 -0.1091556900709823 0.035236334255086 0.05025573233647185 0.132092634255086 0.18283290751856218
+            curveto 0.268217284255086 0.3691712451565947 0.47658985425508604 0.48176186299022195 0.730680684255086 0.5062696961187646
+            curveto 0.823563584255086 0.5152225290660725 0.965453244255086 0.5121589666760266 1.026469764255086 0.4998666604401908
+            closepath
+            moveto 0.8920403042550861 0.32723653716982337
+            curveto 0.801899114255086 0.305937547790631 0.674353834255086 0.25092305532124815 0.517242874255086 0.16559336664623436
+            curveto 0.199745884255086 -0.006853856240945699 0.109727534255086 -0.09774589911519554 0.151265174255086 -0.2039339094078499
+            curveto 0.168776074255086 -0.24869436361851288 0.191705974255086 -0.27755407274963595 0.226470474255086 -0.2985602160096806
+            curveto 0.309656374255086 -0.34884402584120455 0.42197617425508605 -0.33748020734960626 0.634757234255086 -0.25724484236248213
+            curveto 0.9774722042550861 -0.1280260070658748 1.216026564255086 0.03390026706789495 1.2240259642550861 0.14273918170232358
+            curveto 1.2287459642550862 0.20700273076812625 1.184881964255086 0.28132959706261473 1.121983764255086 0.3156476039275703
+            curveto 1.083730764255086 0.33652340307350437 1.077348764255086 0.3379303583723863 1.015085564255086 0.3392592023444909
+            curveto 0.969948864255086 0.34025914149726677 0.9307790642550859 0.33638021483136094 0.892038904255086 0.32724518554936555
+            closepath))
 
 #(define (cn-default-note-head-stencil grob white-note)
    ;; Returns default Clairnote note head stencils.
@@ -192,9 +192,9 @@
 #(define (cn-funksol-note-head-stencil grob white-note)
    ;; Returns 'funksol' style note head stencils.
    (ly:font-get-glyph (ly:grob-default-font grob)
-     (if white-note
-         "noteheads.s1solFunk"
-         "noteheads.s2solFunk")))
+                      (if white-note
+                          "noteheads.s1solFunk"
+                          "noteheads.s2solFunk")))
 
 #(define (cn-stylish-note? grob)
    ;; Does a note head grob have one of these style properties.
@@ -291,9 +291,9 @@
 #(define (cn-extract-alteration alteration-def)
    (cond ((number? alteration-def)
           alteration-def)
-     ((pair? alteration-def)
-      (car alteration-def))
-     (else 0)))
+         ((pair? alteration-def)
+          (car alteration-def))
+         (else 0)))
 
 %% End of unmodified copied procedures.
 
@@ -324,7 +324,7 @@
             (pitch (ly:make-pitch octave notename alter))
             (semitone (ly:pitch-semitones pitch)))
            (cons semitone alteration-def)))
-     local-alts))
+        local-alts))
 
 #(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
    ;; Update cn-semi-alts by merging local-semi-alts into it.
@@ -349,7 +349,7 @@
                (and (= (get-barnum cn-entry)
                        (get-barnum local-entry))
                     (ly:moment<? (get-measure-position cn-entry)
-                      (get-measure-position local-entry))))
+                                 (get-measure-position local-entry))))
            (set! cn-semi-alts (assv-set! cn-semi-alts semi (cdr local-entry))))))
 
    ;; (format #t "cn-semi-alts: ~a \n" cn-semi-alts)
@@ -436,8 +436,8 @@
 
     ;; Add the current note to cnAlterations.
     (ly:context-set-property! context 'cnAlterations
-      (assoc-set! (ly:context-property context 'cnAlterations)
-        `(,octave . ,notename) `(,alter ,barnum . ,measurepos)))
+                              (assoc-set! (ly:context-property context 'cnAlterations)
+                                          `(,octave . ,notename) `(,alter ,barnum . ,measurepos)))
 
     ;; Return a pair of booleans.
     ;; The first is always false since we never print an extra natural sign.
@@ -495,10 +495,10 @@ accidental-styles.none = #'(#t () ())
              (is-natural (= accidental-alt 0)))
         (if (and is-natural key-sig-alt)
             (ly:grob-set-property! grob 'cn-natural-sign-direction
-              (cond
-               ((> key-sig-alt 0) "natural-down")
-               ((< key-sig-alt 0) "natural-up")
-               (else null)))))))))
+                                   (cond
+                                    ((> key-sig-alt 0) "natural-down")
+                                    ((< key-sig-alt 0) "natural-up")
+                                    (else null)))))))))
 
 
 %--- ACCIDENTAL SIGNS ----------------
@@ -520,7 +520,7 @@ accidental-styles.none = #'(#t () ())
      (acc-sign (lambda (dot-position)
                  ;; Return a sharp or flat sign stencil.
                  (ly:stencil-add vertical-line
-                   (ly:stencil-translate circle `(0 . ,dot-position)))))
+                                 (ly:stencil-translate circle `(0 . ,dot-position)))))
 
      (double-acc-sign (lambda (stil)
                         ;; Return a double sharp or double flat sign stencil.
@@ -531,14 +531,14 @@ accidental-styles.none = #'(#t () ())
      (sharp (acc-sign 0.5))
      (flat (acc-sign -0.5))
      (natural (ly:stencil-add diagonal-line
-                (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
-                (ly:stencil-translate short-vertical-line '(-0.2 . 0.3))))
+                              (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
+                              (ly:stencil-translate short-vertical-line '(-0.2 . 0.3))))
 
      (natural-down (ly:stencil-add natural
-                     (ly:stencil-translate circle '(0.2 . -0.6))))
+                                   (ly:stencil-translate circle '(0.2 . -0.6))))
 
      (natural-up (ly:stencil-add natural
-                   (ly:stencil-translate circle '(-0.2 . 0.6)))))
+                                 (ly:stencil-translate circle '(-0.2 . 0.6)))))
 
     `((1/2 . ,sharp)
       (-1/2 . ,flat)
@@ -624,7 +624,7 @@ accidental-styles.none = #'(#t () ())
 
      (stack-list (map (lambda (xy bw)
                         (ly:stencil-translate (if bw black-dot white-dot) xy))
-                   posns pattern))
+                      posns pattern))
 
      ;; add alterations - convert alt-list to a relative basis, tonic = 0, etc.
      (relative-alt-list (map (lambda (n)
@@ -639,14 +639,14 @@ accidental-styles.none = #'(#t () ())
                             (cond
                              ((eqv? -1/2 alt)
                               (ly:stencil-combine-at-edge stil X -1
-                                (ly:stencil-translate flat-line xy)
-                                -0.2))
+                                                          (ly:stencil-translate flat-line xy)
+                                                          -0.2))
                              ((eqv? 1/2 alt)
                               (ly:stencil-combine-at-edge stil X -1
-                                (ly:stencil-translate sharp-line xy)
-                                -0.2))
+                                                          (ly:stencil-translate sharp-line xy)
+                                                          -0.2))
                              (else stil)))
-                       stack-list full-alt-list posns))
+                          stack-list full-alt-list posns))
      (combined-stack (fold ly:stencil-add empty-stencil alt-stack-list))
      ;; horizontal position adjustment
      (extent (ly:stencil-extent combined-stack 0))
@@ -709,7 +709,7 @@ accidental-styles.none = #'(#t () ())
     (acknowledgers
      ((key-signature-interface engraver grob source-engraver)
       (ly:grob-set-property! grob 'cn-tonic
-        (ly:context-property context 'tonic))))))
+                             (ly:context-property context 'tonic))))))
 
 
 %--- CLEFS AND OTTAVA (8VA 8VB 15MA 15MB) ----------------
@@ -785,11 +785,11 @@ accidental-styles.none = #'(#t () ())
    (if (null? glyph)
        '()
        (+ clef-adjust
-         (cond
-          ((string=? "clefs.G" glyph) -5)
-          ((string=? "clefs.F" glyph) 5)
-          ;; clefs.C and clefs.percussion
-          (else 0)))))
+          (cond
+           ((string=? "clefs.G" glyph) -5)
+           ((string=? "clefs.F" glyph) 5)
+           ;; clefs.C and clefs.percussion
+           (else 0)))))
 
 #(define (cn-convert-middle-c-clef-position glyph clef-adjust trans)
    ;; Takes standard middleCClefPosition or middleCCuePosition values
@@ -803,12 +803,12 @@ accidental-styles.none = #'(#t () ())
    (if (null? glyph)
        '()
        (+ clef-adjust
-         (- trans)
-         (cond
-          ((string=? "clefs.G" glyph) -12)
-          ((string=? "clefs.F" glyph) 12)
-          ;; clefs.C and clefs.percussion
-          (else 0)))))
+          (- trans)
+          (cond
+           ((string=? "clefs.G" glyph) -12)
+           ((string=? "clefs.F" glyph) 12)
+           ;; clefs.C and clefs.percussion
+           (else 0)))))
 
 #(define (cn-convert-middle-c-offset offset)
    ;; Takes standard middleCOffset values for Ottava/8va and converts them.
@@ -849,26 +849,26 @@ accidental-styles.none = #'(#t () ())
      ;; But clef-adjust is a number.
      (set-glyph! (lambda (glyph pos)
                    (set-prop! glyph
-                     (cn-convert-clef-glyph
-                      (ly:context-property context glyph)
-                      (ly:context-property context pos)))))
+                              (cn-convert-clef-glyph
+                               (ly:context-property context glyph)
+                               (ly:context-property context pos)))))
 
      (set-transposition! (lambda (trans)
                            (set-prop! trans
-                             (cn-convert-clef-transposition
-                              (ly:context-property context trans)))))
+                                      (cn-convert-clef-transposition
+                                       (ly:context-property context trans)))))
 
      (set-position! (lambda (pos glyph clef-adjust)
                       (set-prop! pos
-                        (cn-convert-clef-position
-                         (hash-ref props glyph '()) clef-adjust))))
+                                 (cn-convert-clef-position
+                                  (hash-ref props glyph '()) clef-adjust))))
 
      (set-middle-c! (lambda (midc glyph clef-adjust trans)
                       (set-prop! midc
-                        (cn-convert-middle-c-clef-position
-                         (hash-ref props glyph '())
-                         clef-adjust
-                         (hash-ref props trans '())))))
+                                 (cn-convert-middle-c-clef-position
+                                  (hash-ref props glyph '())
+                                  clef-adjust
+                                  (hash-ref props trans '())))))
      (changed? (lambda (prop equality-predicate)
                  (not (equality-predicate
                        (hash-ref props prop)
@@ -907,9 +907,9 @@ accidental-styles.none = #'(#t () ())
 
              ;; Custom Clairnote props don't need conversion, just store them.
              (if new-staff-octaves (hash-set! props 'cnStaffOctaves
-                                     (ly:context-property context 'cnStaffOctaves)))
+                                              (ly:context-property context 'cnStaffOctaves)))
              (if new-clef-shift (hash-set! props 'cnClefShift
-                                  (ly:context-property context 'cnClefShift)))
+                                           (ly:context-property context 'cnClefShift)))
 
              ;; The order in which clef properties are set is important!
              (if new-clef (set-glyph! 'clefGlyph 'clefPosition))
@@ -920,20 +920,20 @@ accidental-styles.none = #'(#t () ())
                   (set-transposition! 'clefTransposition)
                   (set-position! 'clefPosition 'clefGlyph clef-adjust)
                   (set-middle-c! 'middleCClefPosition
-                    'clefGlyph clef-adjust 'clefTransposition)))
+                                 'clefGlyph clef-adjust 'clefTransposition)))
 
              (if (or new-cue new-staff-octaves new-clef-shift)
                  (begin
                   (set-transposition! 'cueClefTransposition)
                   (set-position! 'cueClefPosition 'cueClefGlyph clef-adjust)
                   (set-middle-c! 'middleCCuePosition
-                    'cueClefGlyph clef-adjust 'cueClefTransposition)))
+                                 'cueClefGlyph clef-adjust 'cueClefTransposition)))
 
              ;; Ottava, 8va, 8vb, etc.
              (if new-mid-c-offset
                  (set-prop! 'middleCOffset
-                   (cn-convert-middle-c-offset
-                    (ly:context-property context 'middleCOffset))))
+                            (cn-convert-middle-c-offset
+                             (ly:context-property context 'middleCOffset))))
 
              (ly:set-middle-C! context)
              )))))
@@ -942,7 +942,7 @@ accidental-styles.none = #'(#t () ())
      (acknowledgers
       ((clef-interface engraver grob source-engraver)
        (ly:grob-set-property! grob 'cn-clef-transposition
-         (ly:context-property context 'clefTransposition))))
+                              (ly:context-property context 'clefTransposition))))
      )))
 
 
@@ -952,89 +952,89 @@ accidental-styles.none = #'(#t () ())
    ;; treble
    '(("clefs.G" .
        (moveto 1.5506 4.76844
-         curveto 1.5376 4.76844 1.5066 4.75114 1.5136 4.73384
-         lineto 1.7544 4.17292
-         curveto 1.8234 3.97367 1.8444 3.88334 1.8444 3.66416
-         curveto 1.8444 3.16204 1.5635 2.76967 1.2174 2.38312
-         lineto 1.0789 2.2278
-         curveto 0.5727 1.68982 0 1.16441 0 0.45906
-         curveto 0 -0.36713 0.6414 -1.05 1.4549 -1.05
-         curveto 1.5319 -1.05 1.6984 -1.0492 1.8799 -1.0372
-         curveto 2.0139 -1.0282 2.1594 -0.9969 2.2732 -0.9744
-         curveto 2.3771 -0.9538 2.5752 -0.8757 2.5752 -0.8757
-         curveto 2.7512 -0.8152 2.6612 -0.62915 2.5442 -0.6835
-         curveto 2.5442 -0.6835 2.3481 -0.7626 2.2449 -0.7822
-         curveto 2.1355 -0.803 1.9939 -0.8319 1.8645 -0.8382
-         curveto 1.6935 -0.8462 1.5257 -0.8402 1.4569 -0.8352
-         curveto 1.1541 -0.8139 0.8667 -0.67432 0.6558 -0.48763
-         curveto 0.5148 -0.36284 0.3782 -0.17408 0.3582 0.12709
-         curveto 0.3582 0.76471 0.792 1.23147 1.255 1.71365
-         lineto 1.3978 1.86523
-         curveto 1.8046 2.29959 2.185 2.75829 2.185 3.32815
-         curveto 2.185 3.77846 1.9185 4.42204 1.6113 4.75678
-         curveto 1.5983 4.76858 1.5713 4.77188 1.5513 4.76828
-         closepath))
+               curveto 1.5376 4.76844 1.5066 4.75114 1.5136 4.73384
+               lineto 1.7544 4.17292
+               curveto 1.8234 3.97367 1.8444 3.88334 1.8444 3.66416
+               curveto 1.8444 3.16204 1.5635 2.76967 1.2174 2.38312
+               lineto 1.0789 2.2278
+               curveto 0.5727 1.68982 0 1.16441 0 0.45906
+               curveto 0 -0.36713 0.6414 -1.05 1.4549 -1.05
+               curveto 1.5319 -1.05 1.6984 -1.0492 1.8799 -1.0372
+               curveto 2.0139 -1.0282 2.1594 -0.9969 2.2732 -0.9744
+               curveto 2.3771 -0.9538 2.5752 -0.8757 2.5752 -0.8757
+               curveto 2.7512 -0.8152 2.6612 -0.62915 2.5442 -0.6835
+               curveto 2.5442 -0.6835 2.3481 -0.7626 2.2449 -0.7822
+               curveto 2.1355 -0.803 1.9939 -0.8319 1.8645 -0.8382
+               curveto 1.6935 -0.8462 1.5257 -0.8402 1.4569 -0.8352
+               curveto 1.1541 -0.8139 0.8667 -0.67432 0.6558 -0.48763
+               curveto 0.5148 -0.36284 0.3782 -0.17408 0.3582 0.12709
+               curveto 0.3582 0.76471 0.792 1.23147 1.255 1.71365
+               lineto 1.3978 1.86523
+               curveto 1.8046 2.29959 2.185 2.75829 2.185 3.32815
+               curveto 2.185 3.77846 1.9185 4.42204 1.6113 4.75678
+               curveto 1.5983 4.76858 1.5713 4.77188 1.5513 4.76828
+               closepath))
 
      ;; bass
      ("clefs.F" .
        (moveto 0.2656 0.78107
-         curveto 0.3775 0.79547 0.4351 0.84567 0.7003 0.85587
-         curveto 0.9459 0.86587 1.0531 0.85987 1.1805 0.83797
-         curveto 1.6967 0.74937 2.1173 0.13032 2.1173 -0.64059
-         curveto 2.1173 -2.10531 0.9987 -3.04975 0.019 -3.8078
-         curveto 0 -3.8345 0 -3.846 0 -3.8652
-         curveto 0 -3.9101 0.022 -3.94 0.056 -3.94
-         curveto 0.071 -3.94 0.079 -3.93904 0.107 -3.9231
-         curveto 1.3341 -3.23572 2.6095 -2.2656 2.6095 -0.57604
-         curveto 2.6095 0.4711 2.0006 1.05061 1.1664 1.05061
-         curveto 0.9058 1.05561 0.7658 1.05861 0.5568 1.02591
-         curveto 0.4588 1.01061 0.248 0.97281 0.219 0.92831
-         curveto 0.165 0.89151 0.162 0.77308 0.266 0.78129
-         closepath))
+               curveto 0.3775 0.79547 0.4351 0.84567 0.7003 0.85587
+               curveto 0.9459 0.86587 1.0531 0.85987 1.1805 0.83797
+               curveto 1.6967 0.74937 2.1173 0.13032 2.1173 -0.64059
+               curveto 2.1173 -2.10531 0.9987 -3.04975 0.019 -3.8078
+               curveto 0 -3.8345 0 -3.846 0 -3.8652
+               curveto 0 -3.9101 0.022 -3.94 0.056 -3.94
+               curveto 0.071 -3.94 0.079 -3.93904 0.107 -3.9231
+               curveto 1.3341 -3.23572 2.6095 -2.2656 2.6095 -0.57604
+               curveto 2.6095 0.4711 2.0006 1.05061 1.1664 1.05061
+               curveto 0.9058 1.05561 0.7658 1.05861 0.5568 1.02591
+               curveto 0.4588 1.01061 0.248 0.97281 0.219 0.92831
+               curveto 0.165 0.89151 0.162 0.77308 0.266 0.78129
+               closepath))
 
      ;; alto
      ("clefs.C" .
        (moveto 1.0406 2.93878
-         curveto 0.9606 2.93578 0.8881 2.93178 0.8237 2.92878
-         lineto 0.8237 2.92846
-         curveto 0.6586 2.92046 0.4659 2.89806 0.3697 2.87906
-         curveto 0.1409 2.83386 0.0236 2.78916 0 2.75937
-         curveto -0.018 2.73927 -0.015 2.71087 0 2.69037
-         curveto 0.023 2.64587 0.145 2.67017 0.4188 2.72887
-         curveto 0.5108 2.74867 0.6924 2.76597 0.8607 2.77257
-         curveto 1.0868 2.78157 1.2883 2.70417 1.3194 2.69167
-         curveto 1.7053 2.53668 2.0444 2.24033 2.0444 1.46855
-         curveto 2.0444 0.8488 1.8942 0.04261 1.4629 0.04261
-         curveto 1.4489 0.04061 1.4419 0.03861 1.4289 0.02891
-         curveto 1.4149 0.01311 1.4179 0.00091 1.4169 -0.01179
-         curveto 1.4169 -0.01193 1.4169 -0.01195 1.4169 -0.01211
-         curveto 1.4169 -0.01225 1.4169 -0.01227 1.4169 -0.01243
-         curveto 1.4169 -0.02513 1.4169 -0.03723 1.4289 -0.05313
-         curveto 1.4389 -0.06213 1.4479 -0.06493 1.4629 -0.06683
-         curveto 1.8942 -0.06683 2.0444 -0.87302 2.0444 -1.49278
-         curveto 2.0444 -2.26455 1.7053 -2.56059 1.3194 -2.71559
-         curveto 1.2884 -2.72799 1.0868 -2.80579 0.8607 -2.79679
-         curveto 0.6924 -2.78979 0.5113 -2.77259 0.4188 -2.75279
-         curveto 0.145 -2.69409 0.0231 -2.66979 0 -2.71429
-         curveto -0.011 -2.73479 -0.014 -2.76349 0 -2.78359
-         curveto 0.024 -2.81339 0.1409 -2.85799 0.3697 -2.90328
-         curveto 0.4657 -2.92228 0.6586 -2.94468 0.8237 -2.95268
-         lineto 0.8237 -2.953
-         curveto 0.9525 -2.958 1.1126 -2.9714 1.305 -2.96
-         curveto 1.9479 -2.916 2.5587 -2.47655 2.5587 -1.48844
-         curveto 2.5587 -0.89409 2.1807 -0.20184 1.7065 -0.01218
-         curveto 2.1807 0.17748 2.5587 0.86972 2.5587 1.46406
-         curveto 2.5587 2.45218 1.9479 2.89194 1.305 2.93594
-         curveto 1.209 2.94194 1.1207 2.94094 1.0406 2.93794
-         closepath))
+               curveto 0.9606 2.93578 0.8881 2.93178 0.8237 2.92878
+               lineto 0.8237 2.92846
+               curveto 0.6586 2.92046 0.4659 2.89806 0.3697 2.87906
+               curveto 0.1409 2.83386 0.0236 2.78916 0 2.75937
+               curveto -0.018 2.73927 -0.015 2.71087 0 2.69037
+               curveto 0.023 2.64587 0.145 2.67017 0.4188 2.72887
+               curveto 0.5108 2.74867 0.6924 2.76597 0.8607 2.77257
+               curveto 1.0868 2.78157 1.2883 2.70417 1.3194 2.69167
+               curveto 1.7053 2.53668 2.0444 2.24033 2.0444 1.46855
+               curveto 2.0444 0.8488 1.8942 0.04261 1.4629 0.04261
+               curveto 1.4489 0.04061 1.4419 0.03861 1.4289 0.02891
+               curveto 1.4149 0.01311 1.4179 0.00091 1.4169 -0.01179
+               curveto 1.4169 -0.01193 1.4169 -0.01195 1.4169 -0.01211
+               curveto 1.4169 -0.01225 1.4169 -0.01227 1.4169 -0.01243
+               curveto 1.4169 -0.02513 1.4169 -0.03723 1.4289 -0.05313
+               curveto 1.4389 -0.06213 1.4479 -0.06493 1.4629 -0.06683
+               curveto 1.8942 -0.06683 2.0444 -0.87302 2.0444 -1.49278
+               curveto 2.0444 -2.26455 1.7053 -2.56059 1.3194 -2.71559
+               curveto 1.2884 -2.72799 1.0868 -2.80579 0.8607 -2.79679
+               curveto 0.6924 -2.78979 0.5113 -2.77259 0.4188 -2.75279
+               curveto 0.145 -2.69409 0.0231 -2.66979 0 -2.71429
+               curveto -0.011 -2.73479 -0.014 -2.76349 0 -2.78359
+               curveto 0.024 -2.81339 0.1409 -2.85799 0.3697 -2.90328
+               curveto 0.4657 -2.92228 0.6586 -2.94468 0.8237 -2.95268
+               lineto 0.8237 -2.953
+               curveto 0.9525 -2.958 1.1126 -2.9714 1.305 -2.96
+               curveto 1.9479 -2.916 2.5587 -2.47655 2.5587 -1.48844
+               curveto 2.5587 -0.89409 2.1807 -0.20184 1.7065 -0.01218
+               curveto 2.1807 0.17748 2.5587 0.86972 2.5587 1.46406
+               curveto 2.5587 2.45218 1.9479 2.89194 1.305 2.93594
+               curveto 1.209 2.94194 1.1207 2.94094 1.0406 2.93794
+               closepath))
      ))
 
 #(define (cn-number-stencil grob number)
    ;; Returned stencils are centered horizontally, number must be 0-9.
    (ly:stencil-aligned-to
     (ly:font-get-glyph (ly:grob-default-font grob)
-      (list-ref '("zero" "one" "two" "three" "four"
-                   "five" "six" "seven" "eight" "nine") number))
+                       (list-ref '("zero" "one" "two" "three" "four"
+                                    "five" "six" "seven" "eight" "nine") number))
     X 0))
 
 #(define (cn-clef-number-shift glyph octave)
@@ -1065,7 +1065,7 @@ accidental-styles.none = #'(#t () ())
            (default-octave (if (string=? "clefs.F" glyph) 3 4))
            (octave (+ default-octave (/ transpo 12)))
            (number-shift (map-pairs * (cons mag mag)
-                           (cn-clef-number-shift glyph octave)))
+                                    (cn-clef-number-shift glyph octave)))
            (scale 0.9)
            (number-stil (ly:stencil-translate
                          (ly:stencil-scale
@@ -1082,7 +1082,7 @@ accidental-styles.none = #'(#t () ())
                 empty-stencil))
 
            (combined-stil (ly:stencil-add scaled-curve
-                            number-stil 2nd-number-stil))
+                                          number-stil 2nd-number-stil))
            ;; 'glyph-name is e.g. "clefs.G_change"
            ;; when 'glyph is just "clefs.G"
            (glyph-name (ly:grob-property grob 'glyph-name)))
@@ -1104,33 +1104,33 @@ accidental-styles.none = #'(#t () ())
 %% for Clairnote staff or traditional staff
 
 #(add-bar-glyph-print-procedure ":"
-   (lambda (grob extent)
-     ;; A procedure that draws repeat sign dots at
-     ;; @code{dot-positions}. The coordinates are the same as
-     ;; @code{StaffSymbol.line-positions}, a dot-position of X
-     ;; is equivalent to a line-position of X.
-     (let*
-      ((staff-sym (ly:grob-object grob 'staff-symbol))
-       (is-clairnote-staff
-        (if (ly:grob? staff-sym)
-            (ly:grob-property staff-sym 'cn-is-clairnote-staff)
-            #t))
-       (odd-octaves
-        (if (ly:grob? staff-sym)
-            (member -2 (ly:grob-property staff-sym 'line-positions))
-            #f))
-       (dot-positions
-        (if is-clairnote-staff
-            (if odd-octaves '(4 8) '(-2 2))
-            '(-1 1)))
-       (staff-space (ly:staff-symbol-staff-space grob))
-       (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
-      (fold
-       (lambda (dp prev)
-         (ly:stencil-add prev
-           (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
-       empty-stencil
-       dot-positions))))
+                                (lambda (grob extent)
+                                  ;; A procedure that draws repeat sign dots at
+                                  ;; @code{dot-positions}. The coordinates are the same as
+                                  ;; @code{StaffSymbol.line-positions}, a dot-position of X
+                                  ;; is equivalent to a line-position of X.
+                                  (let*
+                                   ((staff-sym (ly:grob-object grob 'staff-symbol))
+                                    (is-clairnote-staff
+                                     (if (ly:grob? staff-sym)
+                                         (ly:grob-property staff-sym 'cn-is-clairnote-staff)
+                                         #t))
+                                    (odd-octaves
+                                     (if (ly:grob? staff-sym)
+                                         (member -2 (ly:grob-property staff-sym 'line-positions))
+                                         #f))
+                                    (dot-positions
+                                     (if is-clairnote-staff
+                                         (if odd-octaves '(4 8) '(-2 2))
+                                         '(-1 1)))
+                                    (staff-space (ly:staff-symbol-staff-space grob))
+                                    (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
+                                   (fold
+                                    (lambda (dp prev)
+                                      (ly:stencil-add prev
+                                                      (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
+                                    empty-stencil
+                                    dot-positions))))
 
 
 %--- TIME SIGNATURES ----------------
@@ -1177,8 +1177,8 @@ accidental-styles.none = #'(#t () ())
                      (if (comparator this-edge prev-edge)
                          this-edge
                          prev-edge)))
-             (cn-grob-edge (car grobs) positive)
-             (cdr grobs))))
+                 (cn-grob-edge (car grobs) positive)
+                 (cdr grobs))))
      final-edge))
 
 #(define (cn-double-stem grob)
@@ -1228,11 +1228,11 @@ accidental-styles.none = #'(#t () ())
      (stem2-stil (ly:round-filled-box stem2-x-extent stem2-y-extent blot)))
 
     (ly:grob-set-property! grob 'stencil
-      (ly:stencil-add stem-stil stem2-stil))
+                           (ly:stencil-add stem-stil stem2-stil))
     ;; X-extent needs to be set here because its usual callback
     ;; ly:stem::width doesn't take the actual stencil width into account
     (ly:grob-set-property! grob 'X-extent
-      (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
+                           (ly:stencil-extent (ly:grob-property grob 'stencil) 0))
     ))
 
 #(define (cn-multiply-details details multiplier skip-list)
@@ -1298,11 +1298,11 @@ accidental-styles.none = #'(#t () ())
          (and
           ;; Horizontal positions of the stems must be almost the same
           (close-enough? (car (ly:grob-extent root ref X))
-            (car (ly:grob-extent stem ref X)))
+                         (car (ly:grob-extent stem ref X)))
           ;; The stem must be in the direction away from the root's notehead
           (positive? (* (ly:grob-property root 'direction)
-                       (- (car (ly:grob-extent stem ref Y))
-                         (car (ly:grob-extent root ref Y))))))))
+                        (- (car (ly:grob-extent stem ref Y))
+                           (car (ly:grob-extent root ref Y))))))))
 
    (define (stem-span-stencil span)
      ;; Connect stems if we have at least one stem connectable to the root
@@ -1333,7 +1333,7 @@ accidental-styles.none = #'(#t () ())
                   ;; Hide spanned stems
                   (for-each (lambda (st)
                               (set! (ly:grob-property st 'stencil) #f))
-                    stems)
+                            stems)
                   ;; Draw a nice looking stem with rounded corners
                   (ly:round-filled-box (ly:grob-extent root root X) yextent blot))))
 
@@ -1547,7 +1547,7 @@ accidental-styles.none = #'(#t () ())
      ;; shorten the furthest ledger, the first in the list.
      ;; So we merge into one list, keeping descending order
      (ledger-list (fold (lambda (lst result) (merge lst result >))
-                    '() ledger-lists))
+                        '() ledger-lists))
      ;; But if the note is on a ledger, move that ledger to the
      ;; front of the list, so that ledger will be shortened.
      (ledger-list2 (if (memv dist ledger-list)
@@ -1568,8 +1568,8 @@ accidental-styles.none = #'(#t () ())
                  (if (< (abs (- line pos)) (abs (- prev pos)))
                      line
                      prev))
-           (car lines)
-           (cdr lines)))
+               (car lines)
+               (cdr lines)))
 
         (diff (- pos nearest-line))
         (dist (abs diff))
@@ -1579,7 +1579,7 @@ accidental-styles.none = #'(#t () ())
         ;; they are relative to nearest-line and in the right direction
         (ledgers0 (cn-ledger-pattern dist staff-symbol))
         (ledgers1 (map (lambda (n) (+ nearest-line (* dir n)))
-                    ledgers0))
+                       ledgers0))
 
         ;; remove any ledgers that would fall on staff lines
         (ledgers2 (filter (lambda (n) (not (member n lines)))
@@ -1600,7 +1600,7 @@ accidental-styles.none = #'(#t () ())
 
      (staff-symbol (ly:grob-object grob 'staff-symbol))
      (ledger-function (eval cn-ledger-positions
-                        (interaction-environment)))
+                            (interaction-environment)))
      (ledger-posns (ledger-function staff-symbol nh-pos))
 
      (max-or-min (if (> direction 0) max min))
