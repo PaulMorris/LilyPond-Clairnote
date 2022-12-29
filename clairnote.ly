@@ -299,8 +299,8 @@
 
 #(define (cn-convert-to-semi-alts cn-alts local-alts)
    ;; Converts accidental alteration data to allow lookup by semitone.
-   ;; From: ((octave . notename) . (alter barnum . measure-position))
-   ;; To: (semitone alter barnum . measure-position)
+   ;; From: ((octave . notename) . (alter barnum . end-moment))
+   ;; To: (semitone alter barnum . end-moment)
 
    ;; notename is 0-6 diatonic note number.
 
@@ -318,6 +318,9 @@
             (notename (cdar entry))
             (alteration-def (cdr entry))
             (alter (if (cn-accidental-invalid? alteration-def)
+                       ;; The following works because cn-extract-alteration
+                       ;; handles entries like: ((octave . notename) . alter)
+                       ;; and handles failed lookups (#f) by defaulting to 0.
                        (cn-extract-alteration
                         (assoc-ref cn-alts (cons octave notename)))
                        (cn-extract-alteration alteration-def)))
@@ -328,9 +331,9 @@
 
 #(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
    ;; Update cn-semi-alts by merging local-semi-alts into it.
-   ;; Their entries are: (semitone alter barnum . measure-position)
+   ;; Their entries are: (semitone alter barnum . end-moment)
    (define (get-barnum entry) (caddr entry))
-   (define (get-measure-position entry) (cdddr entry))
+   (define (get-end-moment entry) (cdddr entry))
 
    (define (merge-entry! local-entry)
      (let* ((semi (car local-entry))
@@ -342,14 +345,14 @@
        ;; We merge when there is no entry for a given semitone,
        ;; or when there is one with a previous barnum,
        ;; or when there is one with the same barnum
-       ;;    and a previous measure-position.
+       ;;    and a previous end-moment.
        (if (or (not cn-entry)
                (< (get-barnum cn-entry)
                   (get-barnum local-entry))
                (and (= (get-barnum cn-entry)
                        (get-barnum local-entry))
-                    (ly:moment<? (get-measure-position cn-entry)
-                                 (get-measure-position local-entry))))
+                    (ly:moment<? (get-end-moment cn-entry)
+                                 (get-end-moment local-entry))))
            (set! cn-semi-alts (assv-set! cn-semi-alts semi (cdr local-entry))))))
 
    ;; (format #t "cn-semi-alts: ~a \n" cn-semi-alts)
@@ -362,11 +365,15 @@
    ;; Converts localAlterations to a semitone-based version and
    ;; returns the result after storing it in the cnSemiAlterations
    ;; context property.
+
+   ;; localAlterations includes key signature entries and accidental entries.
+   ;; We filter out the key signature entries to have just accidental entries.
+   ;; Key signature entries come in two forms:
+   ;;     (notename . alter)
+   ;;     ((octave . notename) . alter)
+   ;; Accidental entries have the form:
+   ;;     ((octave . notename) . (alter barnum . end-moment))
    (let*
-    ;; localAlterations includes key signature entries like
-    ;; (notename . alter) and maybe ((octave . notename) . alter)
-    ;; so we filter these out, leaving only accidental entries:
-    ;; ((octave . notename) . (alter barnum . measure-position))
     ((local-alts-raw (ly:context-property context 'localAlterations '()))
      (accidental-alt? (lambda (entry) (pair? (cdr entry))))
      (local-alts (filter accidental-alt? local-alts-raw)))
@@ -379,7 +386,7 @@
         (let*
          ((cn-alts (ly:context-property context 'cnAlterations '()))
           ;; Convert local-alts for lookup by semitone:
-          ;; (semitone alter barnum . measure-position))
+          ;; (semitone alter barnum . end-moment))
           (local-semi-alts (cn-convert-to-semi-alts cn-alts local-alts))
 
           (cn-semi-alts (ly:context-property context 'cnSemiAlterations '()))
@@ -391,7 +398,7 @@
          (ly:context-set-property! context 'cnSemiAlterations new-semi-alts)
          new-semi-alts))))
 
-#(define (cn-check-pitch-against-signature context pitch barnum measurepos laziness)
+#(define (cn-check-pitch-against-signature context pitch barnum laziness)
    ;; A modified version of this function from scm/music-functions.scm.
    ;; Arguments octaveness and all-naturals have been removed. Currently
    ;; laziness is always 0. We check active accidentals by semitone,
@@ -412,7 +419,7 @@
 
      (cn-semi-alts (cn-refresh-semi-alts! context))
 
-     ;; from-cn-alts will be #f or (alter barnum . measure-position)
+     ;; will be #f or (alter barnum . end-moment)
      (from-cn-semi-alts (assoc-get semi cn-semi-alts))
 
      (key-alts (ly:context-property context 'keyAlterations '()))
@@ -432,12 +439,14 @@
                from-cn-semi-alts)
           from-key-alts)))
 
-    ;; (format #t "current: ~a ~a ~a ~a \n\n" semi alter barnum measurepos)
+    ;; (format #t "semi: ~a alter: ~a barnum: ~a \n\n" semi alter barnum)
 
-    ;; Add the current note to cnAlterations.
+    ;; Write the current note's alter value into cnAlterations, overwriting any
+    ;; existing entries for that (octave . notename) key.
     (ly:context-set-property! context 'cnAlterations
                               (assoc-set! (ly:context-property context 'cnAlterations)
-                                          `(,octave . ,notename) `(,alter ,barnum . ,measurepos)))
+                                          (cons octave notename)
+                                          alter))
 
     ;; Return a pair of booleans.
     ;; The first is always false since we never print an extra natural sign.
@@ -453,6 +462,13 @@
 
 #(define (cn-make-accidental-rule laziness)
    ;; Slightly modified, octaveness argument has been removed.
+   ;; Starting with Lilypond 2.23.4 the returned function took 3 arguments
+   ;; (context, pitch, and barnum), but in earlier versions it took 4
+   ;; arguments. The 4th argument was measure position, which is not actually
+   ;; necessary for the Clairnote accidental style code. So return a
+   ;; function that takes an optional 4th argument and ignores it, for
+   ;; backwards compatibility. See commit 2151499a:
+   ;; https://gitlab.com/lilypond/lilypond/-/commit/2151499a7ca37a8138cea630be96da5daea88159
 
    ;; Create an accidental rule that makes its decision based on a laziness value.
    ;; @var{laziness} states over how many bars an accidental should be remembered.
@@ -461,8 +477,8 @@
    ;; accidental lasts over that many bar lines.  @w{@code{-1}} is `forget
    ;; immediately', that is, only look at key signature.  @code{#t} is `forever'.
 
-   (lambda (context pitch barnum measurepos)
-     (cn-check-pitch-against-signature context pitch barnum measurepos laziness)))
+   (lambda (context pitch barnum . rest)
+     (cn-check-pitch-against-signature context pitch barnum laziness)))
 
 accidental-styles.clairnote-default =
 #`(#t (Staff ,(cn-make-accidental-rule 0)) ())
@@ -1831,13 +1847,19 @@ accidental-styles.none = #'(#t () ())
   ;; Some values need to be accessed by both custom engravers and grob
   ;; callbacks so they are kept in both grob and context properties.
 
-  ;; For accidental signs, stores a version of localAlterations
-  ;; keyed by semitone instead of by (octave . notename)
+  ;; For accidental signs. Stores a modified version of LilyPond's
+  ;; `localAlterations` context property that differs in two ways:
+  ;;   1. key signature entries have been omitted
+  ;;   2. remaining accidental entries have this form (keyed by semitone):
+  ;;         (semitone alter barnum . end-moment))
+  ;;     instead of this form:
+  ;;         ((octave . notename) . (alter barnum . end-moment))
   (context-prop 'cnSemiAlterations list?)
 
-  ;; For accidental signs, stores alterations keyed by
-  ;; (octave . notename).  Needed for looking up alterations to
-  ;; calculate semitones for invalidated entries in localAlterations.
+  ;; For accidental signs. Stores entries that have the form:
+  ;;     ((octave . notename) . alter)
+  ;; Needed for storing and looking up alter values to calculate semitones for
+  ;; invalidated entries in LilyPond's context property `localAlterations`.
   (context-prop 'cnAlterations list?)
 
   ;; Stores the base staff line positions used for extending the staff
