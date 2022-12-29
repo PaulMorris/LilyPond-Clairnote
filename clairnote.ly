@@ -297,7 +297,7 @@
 
 %% End of unmodified copied procedures.
 
-#(define (cn-convert-to-semi-alts cn-alts local-alts)
+#(define (cn-to-semitone-alterations cn-alterations accidental-alterations)
    ;; Converts accidental alteration data to allow lookup by semitone.
    ;; From: ((octave . notename) . (alter barnum . end-moment))
    ;; To: (semitone alter barnum . end-moment)
@@ -307,11 +307,11 @@
    ;; With clef changes or notes tied across a bar line we get
    ;; e.g. ((0 . 6) clef 1 . #<Mom 7/8>) with 'clef or 'tied as the
    ;; alter value to invalidate the entry. Then we have to look up
-   ;; the alter value in cn-alts, the cnAlterations context property.
+   ;; the alter value in cn-alterations, the cnAlterations context property.
    ;; This is the sole purpose of cnAlterations. It would be much
    ;; simpler if LilyPond did not destructively overload the alter
    ;; value like this.
-   ;; (format #t "cn-alts: ~a \n" cn-alts)
+   ;; (format #t "cn-alterations: ~a \n" cn-alterations)
    (map (lambda (entry)
           (let*
            ((octave (caar entry))
@@ -322,22 +322,22 @@
                        ;; handles entries like: ((octave . notename) . alter)
                        ;; and handles failed lookups (#f) by defaulting to 0.
                        (cn-extract-alteration
-                        (assoc-ref cn-alts (cons octave notename)))
+                        (assoc-ref cn-alterations (cons octave notename)))
                        (cn-extract-alteration alteration-def)))
             (pitch (ly:make-pitch octave notename alter))
             (semitone (ly:pitch-semitones pitch)))
            (cons semitone alteration-def)))
-        local-alts))
+        accidental-alterations))
 
-#(define (cn-merge-semi-alts cn-semi-alts local-semi-alts)
-   ;; Update cn-semi-alts by merging local-semi-alts into it.
+#(define (cn-merge-semi-alts cn-semi-alterations semitone-accidental-alterations)
+   ;; Update cn-semi-alterations by merging semitone-accidental-alterations into it.
    ;; Their entries are: (semitone alter barnum . end-moment)
    (define (get-barnum entry) (caddr entry))
    (define (get-end-moment entry) (cdddr entry))
 
    (define (merge-entry! local-entry)
      (let* ((semi (car local-entry))
-            (cn-entry (assv semi cn-semi-alts)))
+            (cn-entry (assv semi cn-semi-alterations)))
 
        ;; (format #t "local-entry: ~a \n" local-entry)
        ;; (format #t "cn-entry: ~a \n\n" cn-entry)
@@ -353,13 +353,14 @@
                        (get-barnum local-entry))
                     (ly:moment<? (get-end-moment cn-entry)
                                  (get-end-moment local-entry))))
-           (set! cn-semi-alts (assv-set! cn-semi-alts semi (cdr local-entry))))))
+           (set! cn-semi-alterations
+                 (assv-set! cn-semi-alterations semi (cdr local-entry))))))
 
-   ;; (format #t "cn-semi-alts: ~a \n" cn-semi-alts)
-   ;; (format #t "local-semi-alts: ~a \n\n" local-semi-alts)
+   ;; (format #t "cn-semi-alterations: ~a \n" cn-semi-alterations)
+   ;; (format #t "semitone-accidental-alterations: ~a \n\n" semitone-accidental-alterations)
 
-   (for-each merge-entry! local-semi-alts)
-   cn-semi-alts)
+   (for-each merge-entry! semitone-accidental-alterations)
+   cn-semi-alterations)
 
 #(define (cn-refresh-semi-alts! context)
    ;; Converts localAlterations to a semitone-based version and
@@ -374,29 +375,33 @@
    ;; Accidental entries have the form:
    ;;     ((octave . notename) . (alter barnum . end-moment))
    (let*
-    ((local-alts-raw (ly:context-property context 'localAlterations '()))
-     (accidental-alt? (lambda (entry) (pair? (cdr entry))))
-     (local-alts (filter accidental-alt? local-alts-raw)))
+    ((local-alterations (ly:context-property context 'localAlterations '()))
+     (accidental? (lambda (entry) (pair? (cdr entry))))
+     (accidental-alterations (filter accidental? local-alterations)))
 
-    (if (null? local-alts)
+    (if (null? accidental-alterations)
         (begin
          (ly:context-set-property! context 'cnSemiAlterations '())
          (ly:context-set-property! context 'cnAlterations '())
          '())
         (let*
-         ((cn-alts (ly:context-property context 'cnAlterations '()))
-          ;; Convert local-alts for lookup by semitone:
-          ;; (semitone alter barnum . end-moment))
-          (local-semi-alts (cn-convert-to-semi-alts cn-alts local-alts))
+         ((cn-alterations (ly:context-property context 'cnAlterations '()))
+          ;; Convert accidental-alterations for lookup by semitone.
+          (semitone-accidental-alterations
+           (cn-to-semitone-alterations cn-alterations accidental-alterations))
 
-          (cn-semi-alts (ly:context-property context 'cnSemiAlterations '()))
-          (new-semi-alts (cn-merge-semi-alts cn-semi-alts local-semi-alts)))
+          (cn-semi-alterations
+           (ly:context-property context 'cnSemiAlterations '()))
 
-         ;; (format #t "local-alts: ~a \n" local-alts)
-         ;; (format #t "semi-alts: ~a \n" new-semi-alts)
+          (new-semi-alterations
+           (cn-merge-semi-alts cn-semi-alterations semitone-accidental-alterations)))
 
-         (ly:context-set-property! context 'cnSemiAlterations new-semi-alts)
-         new-semi-alts))))
+         ;; (format #t "accidental-alterations: ~a \n" accidental-alterations)
+         ;; (format #t "new-semi-alterations: ~a \n" new-semi-alterations)
+
+         (ly:context-set-property! context 'cnSemiAlterations new-semi-alterations)
+
+         new-semi-alterations))))
 
 #(define (cn-check-pitch-against-signature context pitch barnum laziness)
    ;; A modified version of this function from scm/music-functions.scm.
@@ -417,10 +422,10 @@
      (alter (ly:pitch-alteration pitch))
      (semi (ly:pitch-semitones pitch))
 
-     (cn-semi-alts (cn-refresh-semi-alts! context))
+     (cn-semi-alterations (cn-refresh-semi-alts! context))
 
      ;; will be #f or (alter barnum . end-moment)
-     (from-cn-semi-alts (assoc-get semi cn-semi-alts))
+     (from-cn-semi-alterations (assoc-get semi cn-semi-alterations))
 
      (key-alts (ly:context-property context 'keyAlterations '()))
      ;; from-key-alts will be #f or an alter number (e.g. 1/2, -1/2, 0)
@@ -434,9 +439,9 @@
 
      ;; Get previous alteration for comparison with pitch.
      (previous-alteration
-      (or (and from-cn-semi-alts
-               (cn-recent-enough? barnum from-cn-semi-alts laziness)
-               from-cn-semi-alts)
+      (or (and from-cn-semi-alterations
+               (cn-recent-enough? barnum from-cn-semi-alterations laziness)
+               from-cn-semi-alterations)
           from-key-alts)))
 
     ;; (format #t "semi: ~a alter: ~a barnum: ~a \n\n" semi alter barnum)
