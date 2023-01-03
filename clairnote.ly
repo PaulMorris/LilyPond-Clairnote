@@ -362,47 +362,6 @@
    (for-each merge-entry! semitone-accidental-alterations)
    cn-semi-alterations)
 
-#(define (cn-refresh-semi-alts! context)
-   ;; Converts localAlterations to a semitone-based version and
-   ;; returns the result after storing it in the cnSemiAlterations
-   ;; context property.
-
-   ;; localAlterations includes key signature entries and accidental entries.
-   ;; We filter out the key signature entries to have just accidental entries.
-   ;; Key signature entries come in two forms:
-   ;;     (notename . alter)
-   ;;     ((octave . notename) . alter)
-   ;; Accidental entries have the form:
-   ;;     ((octave . notename) . (alter barnum . end-moment))
-   (let*
-    ((local-alterations (ly:context-property context 'localAlterations '()))
-     (accidental? (lambda (entry) (pair? (cdr entry))))
-     (accidental-alterations (filter accidental? local-alterations)))
-
-    (if (null? accidental-alterations)
-        (begin
-         (ly:context-set-property! context 'cnSemiAlterations '())
-         (ly:context-set-property! context 'cnAlterations '())
-         '())
-        (let*
-         ((cn-alterations (ly:context-property context 'cnAlterations '()))
-          ;; Convert accidental-alterations for lookup by semitone.
-          (semitone-accidental-alterations
-           (cn-to-semitone-alterations cn-alterations accidental-alterations))
-
-          (cn-semi-alterations
-           (ly:context-property context 'cnSemiAlterations '()))
-
-          (new-semi-alterations
-           (cn-merge-semi-alts cn-semi-alterations semitone-accidental-alterations)))
-
-         ;; (format #t "accidental-alterations: ~a \n" accidental-alterations)
-         ;; (format #t "new-semi-alterations: ~a \n" new-semi-alterations)
-
-         (ly:context-set-property! context 'cnSemiAlterations new-semi-alterations)
-
-         new-semi-alterations))))
-
 #(define (cn-check-pitch-against-signature context pitch barnum laziness)
    ;; A modified version of this function from scm/music-functions.scm.
    ;; Arguments octaveness and all-naturals have been removed. Currently
@@ -417,32 +376,64 @@
    ;; accidentals in the same measure; if @var{laziness} is three, we
    ;; cancel accidentals up to three measures after they first appear.
    (let*
-    ((notename (ly:pitch-notename pitch))
+    ;; localAlterations includes key signature entries and accidental entries.
+    ;; Filter out the key signature entries to leave just accidental entries.
+    ;; Key signature entries come in two forms:
+    ;;     (notename . alter)
+    ;;     ((octave . notename) . alter)
+    ;; Accidental entries have the form:
+    ;;     ((octave . notename) . (alter barnum . end-moment))
+    ((local-alterations (ly:context-property context 'localAlterations '()))
+     (accidental? (lambda (entry) (pair? (cdr entry))))
+     (accidental-alterations (filter accidental? local-alterations))
+
+     ;; Convert the accidental alterations to a semitone-based version and
+     ;; store it in the cnSemiAlterations context property.
+     (cn-semi-alterations
+      (if (null? accidental-alterations)
+          (begin
+           (ly:context-set-property! context 'cnSemiAlterations '())
+           (ly:context-set-property! context 'cnAlterations '())
+           '())
+          (let*
+           ((semitone-accidental-alterations
+             (cn-to-semitone-alterations
+              (ly:context-property context 'cnAlterations '())
+              accidental-alterations))
+
+            (new-semi-alterations
+             (cn-merge-semi-alts
+              (ly:context-property context 'cnSemiAlterations '())
+              semitone-accidental-alterations)))
+
+           ;; (format #t "accidental-alterations: ~a \n" accidental-alterations)
+           ;; (format #t "new-semi-alterations: ~a \n" new-semi-alterations)
+
+           (ly:context-set-property! context 'cnSemiAlterations new-semi-alterations)
+
+           new-semi-alterations)))
+
+     (notename (ly:pitch-notename pitch))
      (octave (ly:pitch-octave pitch))
      (alter (ly:pitch-alteration pitch))
      (semi (ly:pitch-semitones pitch))
 
-     (cn-semi-alterations (cn-refresh-semi-alts! context))
-
      ;; will be #f or (alter barnum . end-moment)
      (from-cn-semi-alterations (assoc-get semi cn-semi-alterations))
 
-     (key-alts (ly:context-property context 'keyAlterations '()))
-     ;; from-key-alts will be #f or an alter number (e.g. 1/2, -1/2, 0)
-     (from-key-alts
-      (or (assoc-get notename key-alts)
-          ;; If no notename match is found in keyAlterations,
-          ;; we may have octave-specific entries like
-          ;; ((octave . notename) alteration) instead of
-          ;; (notename . alteration), so we try those as well.
-          (assoc-get (cons octave notename) key-alts)))
-
      ;; Get previous alteration for comparison with pitch.
      (previous-alteration
-      (or (and from-cn-semi-alterations
-               (cn-recent-enough? barnum from-cn-semi-alterations laziness)
-               from-cn-semi-alterations)
-          from-key-alts)))
+      (if (and from-cn-semi-alterations
+               (cn-recent-enough? barnum from-cn-semi-alterations laziness))
+          from-cn-semi-alterations
+          (let*
+           ((key-alterations (ly:context-property context 'keyAlterations '())))
+           ;; keyAlterations can contain regular and octave-specific entries.
+           ;;   (notename . alter)
+           ;;   ((octave . notename) . alter)
+           ;; The value will be #f or an alter number (e.g. 1/2, -1/2, 0).
+           (or (assoc-get notename key-alterations)
+               (assoc-get (cons octave notename) key-alterations))))))
 
     ;; (format #t "semi: ~a alter: ~a barnum: ~a \n\n" semi alter barnum)
 
