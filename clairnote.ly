@@ -1103,34 +1103,35 @@ accidental-styles.none = #'(#t () ())
 %% adjust the position of dots in repeat signs
 %% for Clairnote staff or traditional staff
 
-#(add-bar-glyph-print-procedure ":"
-                                (lambda (grob extent)
-                                  ;; A procedure that draws repeat sign dots at
-                                  ;; @code{dot-positions}. The coordinates are the same as
-                                  ;; @code{StaffSymbol.line-positions}, a dot-position of X
-                                  ;; is equivalent to a line-position of X.
-                                  (let*
-                                   ((staff-sym (ly:grob-object grob 'staff-symbol))
-                                    (is-clairnote-staff
-                                     (if (ly:grob? staff-sym)
-                                         (ly:grob-property staff-sym 'cn-is-clairnote-staff)
-                                         #t))
-                                    (odd-octaves
-                                     (if (ly:grob? staff-sym)
-                                         (member -2 (ly:grob-property staff-sym 'line-positions))
-                                         #f))
-                                    (dot-positions
-                                     (if is-clairnote-staff
-                                         (if odd-octaves '(4 8) '(-2 2))
-                                         '(-1 1)))
-                                    (staff-space (ly:staff-symbol-staff-space grob))
-                                    (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
-                                   (fold
-                                    (lambda (dp prev)
-                                      (ly:stencil-add prev
-                                                      (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
-                                    empty-stencil
-                                    dot-positions))))
+#(add-bar-glyph-print-procedure
+  ":"
+  (lambda (grob extent)
+    ;; A procedure that draws repeat sign dots at
+    ;; @code{dot-positions}. The coordinates are the same as
+    ;; @code{StaffSymbol.line-positions}, a dot-position of X
+    ;; is equivalent to a line-position of X.
+    (let*
+     ((staff-sym (ly:grob-object grob 'staff-symbol))
+      (is-clairnote-staff
+       (if (ly:grob? staff-sym)
+           (ly:grob-property staff-sym 'cn-is-clairnote-staff)
+           #t))
+      (odd-octaves
+       (if (ly:grob? staff-sym)
+           (member -2 (ly:grob-property staff-sym 'line-positions))
+           #f))
+      (dot-positions
+       (if is-clairnote-staff
+           (if odd-octaves '(4 8) '(-2 2))
+           '(-1 1)))
+      (staff-space (ly:staff-symbol-staff-space grob))
+      (dot (ly:font-get-glyph (ly:grob-default-font grob) "dots.dot")))
+     (fold
+      (lambda (dp prev)
+        (ly:stencil-add prev
+                        (ly:stencil-translate-axis dot (* dp (/ staff-space 2)) Y)))
+      empty-stencil
+      dot-positions))))
 
 
 %--- TIME SIGNATURES ----------------
