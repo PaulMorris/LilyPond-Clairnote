@@ -268,14 +268,14 @@
 %% accidental signs are rendered (i.e. grobs created),
 %% and when and where they aren't
 
-%% Procedures copied from scm/music-functions.scm, renamed with cn- prefix.
-
 #(define (cn-recent-enough? bar-number alteration-def laziness)
+   ;; Procedure copied from scm/music-functions.scm, renamed with cn- prefix.
    (or (number? alteration-def)
        (equal? laziness #t)
        (<= bar-number (+ (cadr alteration-def) laziness))))
 
 #(define (cn-accidental-invalid? alteration-def)
+   ;; Procedure copied from scm/music-functions.scm, renamed with cn- prefix.
    ;; Checks an alteration entry for being invalid.
 
    ;; Non-key alterations are invalidated when tying into the next bar or
@@ -289,13 +289,12 @@
      (and (symbol? def) def)))
 
 #(define (cn-extract-alteration alteration-def)
+   ;; Procedure copied from scm/music-functions.scm, renamed with cn- prefix.
    (cond ((number? alteration-def)
           alteration-def)
          ((pair? alteration-def)
           (car alteration-def))
          (else 0)))
-
-%% End of unmodified copied procedures.
 
 #(define (cn-to-semitone-alterations cn-alterations accidental-alterations)
    ;; Converts accidental alteration data to allow lookup by semitone.
