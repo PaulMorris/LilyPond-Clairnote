@@ -265,8 +265,7 @@
 %--- ACCIDENTAL STYLE ----------------
 
 %% A custom accidental style that determines when and where
-%% accidental signs are rendered (i.e. grobs created),
-%% and when and where they aren't
+%% accidental signs are rendered or not (i.e. grobs created).
 
 #(define (cn-recent-enough? bar-number alteration-def laziness)
    ;; Procedure copied from scm/music-functions.scm, renamed with cn- prefix.
