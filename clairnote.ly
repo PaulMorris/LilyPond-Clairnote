@@ -1,8 +1,9 @@
 %    This file "clairnote.ly" is a LilyPond include file for producing
 %    sheet music in Clairnote music notation (http://clairnote.org).
-%    Version: 20181125
+%    Version: 20230103
 %
-%    Copyright © 2013, 2014, 2015, 2016, 2017, 2018 Paul Morris,
+%    Copyright © 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021,
+%    2022, 2023 Paul Morris,
 %    except for functions copied and modified from LilyPond source code,
 %    the LilyPond Snippet Repository, and openLilyLib, as noted in
 %    comments below.
