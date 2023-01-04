@@ -32,10 +32,10 @@
 
 #(define (positive-integer? n) (and (positive? n) (integer? n)))
 
-#(define (map-pairs proc . pairs)
+#(define (map-pair proc pair)
    (cons
-    (reduce proc '() (map car pairs))
-    (reduce proc '() (map cdr pairs))))
+    (proc (car pair))
+    (proc (cdr pair))))
 
 #(define (cn-notehead-pitch grob)
    ;; Takes a note head grob and returns its pitch.
@@ -1075,8 +1075,8 @@ accidental-styles.none = #'(#t () ())
            ;; bass clef default octave is 3, treble and alto are 4
            (default-octave (if (string=? "clefs.F" glyph) 3 4))
            (octave (+ default-octave (/ transpo 12)))
-           (number-shift (map-pairs * (cons mag mag)
-                                    (cn-clef-number-shift glyph octave)))
+           (number-shift (map-pair (lambda (x) (* x mag))
+                                   (cn-clef-number-shift glyph octave)))
            (scale 0.9)
            (number-stil (ly:stencil-translate
                          (ly:stencil-scale
