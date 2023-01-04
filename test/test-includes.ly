@@ -2,7 +2,7 @@
 
 % clairnote-type = dn
 
-\include "../../clairnote.ly"
+\include "../clairnote.ly"
 
 #(set-default-paper-size "a4landscape")
  
