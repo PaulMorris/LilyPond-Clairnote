@@ -7,7 +7,7 @@
 %    except for functions copied and modified from LilyPond source code,
 %    the LilyPond Snippet Repository, and openLilyLib, as noted in
 %    comments below.
-%    Contact information: http://clairnote.org/about/
+%    Contact information: http://clairnote.org/contact/
 %
 %    This file is free software: you can redistribute it and/or modify
 %    it under the terms of the GNU General Public License as published by
