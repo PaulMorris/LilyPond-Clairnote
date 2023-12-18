@@ -38,6 +38,21 @@
     (proc (car pair))
     (proc (cdr pair))))
 
+#(define (cn-pitch-to-semitone pitch)
+   ;; Takes a pitch object and returns a semitone integer that corresponds to
+   ;; the pitch's position on the Clairnote staff. Used for
+   ;; staffLineLayoutFunction. The return value is almost always the semitone
+   ;; returned by (ly:pitch-semitones pitch) except for quarter tone
+   ;; alteration exceptions. 1/4 and 3/4 alterations are quarter tone sharps
+   ;; and their semitone needs to be adjusted down by one.
+   (let
+    ((alteration (ly:pitch-alteration pitch))
+     (semitone (ly:pitch-semitones pitch)))
+    (cond
+     ((= 1/4 alteration) (- semitone 1))
+     ((= 3/4 alteration) (- semitone 1))
+     (else semitone))))
+
 #(define (cn-notehead-pitch grob)
    ;; Takes a note head grob and returns its pitch.
    (define event (ly:grob-property grob 'cause))
@@ -49,7 +64,7 @@
 
 #(define (cn-notehead-semitone grob)
    ;; Takes a note head grob and returns its semitone.
-   (ly:pitch-semitones (cn-notehead-pitch grob)))
+   (cn-pitch-to-semitone (cn-notehead-pitch grob)))
 
 #(define (cn-staff-symbol-property grob prop default)
    ;; Takes a grob @var{grob}, a symbol @var{prop}, and
@@ -301,7 +316,8 @@
          (else 0)))
 
 #(define (cn-to-semitone-alterations cn-alterations accidental-alterations)
-   ;; Converts accidental alteration data to allow lookup by semitone.
+   ;; Converts accidental alteration data to allow lookup by semitone integer
+   ;; which represents a Clairnote staff position.
    ;; From: ((octave . notename) . (alter barnum . end-moment))
    ;; To: (semitone alter barnum . end-moment)
 
@@ -328,7 +344,7 @@
                         (assoc-ref cn-alterations (cons octave notename)))
                        (cn-extract-alteration alteration-def)))
             (pitch (ly:make-pitch octave notename alter))
-            (semitone (ly:pitch-semitones pitch)))
+            (semitone (cn-pitch-to-semitone pitch)))
            (cons semitone alteration-def)))
         accidental-alterations))
 
@@ -419,10 +435,10 @@
      (notename (ly:pitch-notename pitch))
      (octave (ly:pitch-octave pitch))
      (alter (ly:pitch-alteration pitch))
-     (semi (ly:pitch-semitones pitch))
+     (semitone (cn-pitch-to-semitone pitch))
 
      ;; will be #f or (alter barnum . end-moment)
-     (from-cn-semi-alterations (assoc-get semi cn-semi-alterations))
+     (from-cn-semi-alterations (assoc-get semitone cn-semi-alterations))
 
      ;; Get previous alteration for comparison with pitch.
      (previous-alteration
@@ -572,10 +588,19 @@ accidental-styles.none = #'(#t () ())
                           (ly:grob-property grob 'cn-natural-sign-direction)))
           (stencil-key (if (string? direction) direction alt))
           (stencil (assoc-ref cn-acc-sign-stils stencil-key)))
-     (if stencil
-         (ly:stencil-scale stencil mag mag)
-         ;; else fall back to traditional accidental sign
-         (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63))))
+     (cond
+      (stencil (ly:stencil-scale stencil mag mag))
+      ;; For quarter tone accidentals: 3/4 sharps and flats get the 1/4 sharp
+      ;; or flat symbol because the note is already raised or lowered 1/2
+      ;; (one staff position) due to the chromatic staff.
+      ((= alt 3/4) (ly:font-get-glyph (ly:grob-default-font grob)
+                                      "accidentals.sharp.slashslash.stem"))
+      ((= alt -3/4) (ly:font-get-glyph (ly:grob-default-font grob)
+                                       "accidentals.mirroredflat"))
+      ;; Else fall back to traditional accidental sign.
+      ;; Before supporting quarter tones we were scaling this as follows:
+      ;; (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63)
+      (else (ly:accidental-interface::print grob)))))
 
 
 %--- KEY SIGNATURES ----------------
@@ -679,7 +704,7 @@ accidental-styles.none = #'(#t () ())
      ;; number of the tonic (0-6) (C-B)
      (tonic-num (ly:pitch-notename tonic-pitch))
      ;; semitone of tonic (0-11) (C-B)
-     (tonic-semi (modulo (ly:pitch-semitones tonic-pitch) 12))
+     (tonic-semi (modulo (cn-pitch-to-semitone tonic-pitch) 12))
 
      (alt-list (ly:grob-property grob 'alteration-alist))
      (alt-count (cn-get-keysig-alt-count alt-list))
@@ -1956,7 +1981,8 @@ clairnoteTypeUrl = ""
     clefTransposition = 0
     middleCPosition = -12
 
-    staffLineLayoutFunction = #ly:pitch-semitones
+    staffLineLayoutFunction = #cn-pitch-to-semitone
+
     printKeyCancellation = ##f
     \numericTimeSignature
 
