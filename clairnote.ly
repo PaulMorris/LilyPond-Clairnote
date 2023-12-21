@@ -534,8 +534,9 @@ accidental-styles.none = #'(#t () ())
 
 %--- ACCIDENTAL SIGNS ----------------
 
-#(define cn-acc-sign-stils
-   ;; associative list of accidental sign stencils
+#(define cn-accidental-table
+   ;; A hash table from alteration keys (e.g. 1/2, -1/2) to accidental sign
+   ;; stencils.
    (let*
     ((vertical-line
       (make-path-stencil '(moveto 0 -0.5 lineto 0 0.5) 0.2 1 1 #f))
@@ -564,21 +565,26 @@ accidental-styles.none = #'(#t () ())
      (natural (ly:stencil-add diagonal-line
                               (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
                               (ly:stencil-translate short-vertical-line '(-0.2 . 0.3))))
+     (double-sharp (double-acc-sign sharp))
+     (double-flat (double-acc-sign flat))
 
      (natural-down (ly:stencil-add natural
                                    (ly:stencil-translate circle '(0.2 . -0.6))))
 
      (natural-up (ly:stencil-add natural
-                                 (ly:stencil-translate circle '(-0.2 . 0.6)))))
+                                 (ly:stencil-translate circle '(-0.2 . 0.6))))
+     (table (make-hash-table 8)))
 
-    `((1/2 . ,sharp)
-      (-1/2 . ,flat)
-      (0 . ,natural)
-      ;; Use natural-down and natural-up for experimental directional natural signs.
-      ("natural-down" . ,natural)
-      ("natural-up" . ,natural)
-      (1 . ,(double-acc-sign sharp))
-      (-1 . ,(double-acc-sign flat)))))
+    (hash-set! table 1/2 sharp)
+    (hash-set! table -1/2 flat)
+    (hash-set! table 1 double-sharp)
+    (hash-set! table -1 double-flat)
+    (hash-set! table 0 natural)
+    ;; Use `natural-down` and `natural-up` here for experimental directional
+    ;; natural signs.
+    (hash-set! table "natural-down" natural)
+    (hash-set! table "natural-up" natural)
+    table))
 
 #(define (cn-accidental-grob-callback grob)
    ;; Returns an accidental sign stencil.
@@ -587,7 +593,7 @@ accidental-styles.none = #'(#t () ())
           (direction (and (= 0 alt)
                           (ly:grob-property grob 'cn-natural-sign-direction)))
           (stencil-key (if (string? direction) direction alt))
-          (stencil (assoc-ref cn-acc-sign-stils stencil-key)))
+          (stencil (hash-ref cn-accidental-table stencil-key)))
      (cond
       (stencil (ly:stencil-scale stencil mag mag))
       ;; Quarter tones: sharp-and-a-half (3/4) and flat-and-a-half (-3/4) get
@@ -595,11 +601,13 @@ accidental-styles.none = #'(#t () ())
       ;; already raised or lowered by 1/2 (one staff position) due to the
       ;; chromatic staff.
       ((= alt 3/4) (ly:stencil-add
-                    (ly:stencil-translate (assoc-ref cn-acc-sign-stils 1/2) '(-0.5 . 0))
+                    (ly:stencil-translate (hash-ref cn-accidental-table 1/2)
+                                          '(-0.5 . 0))
                     (ly:font-get-glyph (ly:grob-default-font grob)
                                        "accidentals.sharp.slashslash.stem")))
       ((= alt -3/4) (ly:stencil-add
-                     (ly:stencil-translate (assoc-ref cn-acc-sign-stils -1/2) '(-0.5 . 0))
+                     (ly:stencil-translate (hash-ref cn-accidental-table -1/2)
+                                           '(-0.5 . 0))
                      (ly:font-get-glyph (ly:grob-default-font grob)
                                         "accidentals.mirroredflat")))
       ;; Quarter tones: half-sharp (1/4) and half-flat (-1/4) get their usual
