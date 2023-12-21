@@ -597,6 +597,10 @@ accidental-styles.none = #'(#t () ())
           (stencil (hash-ref cn-accidental-table stencil-key)))
      (cond
       (stencil (ly:stencil-scale stencil mag mag))
+      ;; Quarter tones: half-sharp (1/4) and half-flat (-1/4) get their usual
+      ;; traditional accidental signs.
+      ((= alt 1/4) (ly:accidental-interface::print grob))
+      ((= alt -1/4) (ly:accidental-interface::print grob))
       ;; Quarter tones: sharp-and-a-half (3/4) and flat-and-a-half (-3/4) get
       ;; special combined symbols (1/2 + 1/4 and -1/2 + -1/4) because they are
       ;; already raised or lowered by 1/2 (one staff position) due to the
@@ -611,10 +615,6 @@ accidental-styles.none = #'(#t () ())
                                            '(-0.5 . 0))
                      (ly:font-get-glyph (ly:grob-default-font grob)
                                         "accidentals.mirroredflat")))
-      ;; Quarter tones: half-sharp (1/4) and half-flat (-1/4) get their usual
-      ;; traditional accidental signs.
-      ((= alt 1/4) (ly:accidental-interface::print grob))
-      ((= alt -1/4) (ly:accidental-interface::print grob))
       ;; Else fall back to (scaled) traditional accidental sign.
       (else (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63)))))
 
