@@ -538,10 +538,25 @@ accidental-styles.none = #'(#t () ())
    ;; A hash table from alteration keys (e.g. 1/2, -1/2) to accidental sign
    ;; stencils.
    (let*
-    ((vertical-line
-      (make-path-stencil '(moveto 0 -0.5 lineto 0 0.5) 0.2 1 1 #f))
+    ((vertical-line (make-path-stencil '(moveto 0 -0.5 lineto 0 0.5) 0.2 1 1 #f))
 
      (circle (make-circle-stencil 0.24 0.01 #t))
+
+     (acc-sign (lambda (dot-position)
+                 ;; Return a sharp or flat sign stencil.
+                 (ly:stencil-add vertical-line
+                                 (ly:stencil-translate circle `(0 . ,dot-position)))))
+
+     (double-acc-sign (lambda (stencil)
+                        ;; Return a double sharp or double flat sign stencil.
+                        (ly:stencil-add
+                         (ly:stencil-translate stencil '(-0.25 . 0))
+                         (ly:stencil-translate stencil '(0.25 . 0)))))
+
+     (sharp (acc-sign 0.5))
+     (flat (acc-sign -0.5))
+     (double-sharp (double-acc-sign sharp))
+     (double-flat (double-acc-sign flat))
 
      (diagonal-line
       (make-path-stencil '(moveto -0.13 -0.07 lineto 0.13 0.07) 0.33 1 1 #f))
@@ -549,24 +564,10 @@ accidental-styles.none = #'(#t () ())
      (short-vertical-line
       (make-path-stencil '(moveto 0 -0.3 lineto 0 0.3) 0.2 1 1 #f))
 
-     (acc-sign (lambda (dot-position)
-                 ;; Return a sharp or flat sign stencil.
-                 (ly:stencil-add vertical-line
-                                 (ly:stencil-translate circle `(0 . ,dot-position)))))
-
-     (double-acc-sign (lambda (stil)
-                        ;; Return a double sharp or double flat sign stencil.
-                        (ly:stencil-add
-                         (ly:stencil-translate stil '(-0.25 . 0))
-                         (ly:stencil-translate stil '(0.25 . 0)))))
-
-     (sharp (acc-sign 0.5))
-     (flat (acc-sign -0.5))
-     (natural (ly:stencil-add diagonal-line
-                              (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
-                              (ly:stencil-translate short-vertical-line '(-0.2 . 0.3))))
-     (double-sharp (double-acc-sign sharp))
-     (double-flat (double-acc-sign flat))
+     (natural (ly:stencil-add
+               diagonal-line
+               (ly:stencil-translate short-vertical-line '(0.2 . -0.3))
+               (ly:stencil-translate short-vertical-line '(-0.2 . 0.3))))
 
      (natural-down (ly:stencil-add natural
                                    (ly:stencil-translate circle '(0.2 . -0.6))))
