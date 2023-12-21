@@ -590,17 +590,24 @@ accidental-styles.none = #'(#t () ())
           (stencil (assoc-ref cn-acc-sign-stils stencil-key)))
      (cond
       (stencil (ly:stencil-scale stencil mag mag))
-      ;; For quarter tone accidentals: 3/4 sharps and flats get the 1/4 sharp
-      ;; or flat symbol because the note is already raised or lowered 1/2
-      ;; (one staff position) due to the chromatic staff.
-      ((= alt 3/4) (ly:font-get-glyph (ly:grob-default-font grob)
-                                      "accidentals.sharp.slashslash.stem"))
-      ((= alt -3/4) (ly:font-get-glyph (ly:grob-default-font grob)
-                                       "accidentals.mirroredflat"))
-      ;; Else fall back to traditional accidental sign.
-      ;; Before supporting quarter tones we were scaling this as follows:
-      ;; (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63)
-      (else (ly:accidental-interface::print grob)))))
+      ;; Quarter tones: sharp-and-a-half (3/4) and flat-and-a-half (-3/4) get
+      ;; special combined symbols (1/2 + 1/4 and -1/2 + -1/4) because they are
+      ;; already raised or lowered by 1/2 (one staff position) due to the
+      ;; chromatic staff.
+      ((= alt 3/4) (ly:stencil-add
+                    (ly:stencil-translate (assoc-ref cn-acc-sign-stils 1/2) '(-0.5 . 0))
+                    (ly:font-get-glyph (ly:grob-default-font grob)
+                                       "accidentals.sharp.slashslash.stem")))
+      ((= alt -3/4) (ly:stencil-add
+                     (ly:stencil-translate (assoc-ref cn-acc-sign-stils -1/2) '(-0.5 . 0))
+                     (ly:font-get-glyph (ly:grob-default-font grob)
+                                        "accidentals.mirroredflat")))
+      ;; Quarter tones: half-sharp (1/4) and half-flat (-1/4) get their usual
+      ;; traditional accidental signs.
+      ((= alt 1/4) (ly:accidental-interface::print grob))
+      ((= alt -1/4) (ly:accidental-interface::print grob))
+      ;; Else fall back to (scaled) traditional accidental sign.
+      (else (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63)))))
 
 
 %--- KEY SIGNATURES ----------------
