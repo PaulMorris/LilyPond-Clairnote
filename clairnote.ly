@@ -606,13 +606,17 @@ accidental-styles.none = #'(#t () ())
       ;; already raised or lowered by 1/2 (one staff position) due to the
       ;; chromatic staff.
       ((= alt 3/4) (ly:stencil-add
-                    (ly:stencil-translate (hash-ref cn-accidental-table 1/2)
-                                          '(-0.5 . 0))
+                    (ly:stencil-scale
+                     (ly:stencil-translate
+                      (hash-ref cn-accidental-table 1/2) '(-0.5 . 0))
+                     mag mag)
                     (ly:font-get-glyph (ly:grob-default-font grob)
                                        "accidentals.sharp.slashslash.stem")))
       ((= alt -3/4) (ly:stencil-add
-                     (ly:stencil-translate (hash-ref cn-accidental-table -1/2)
-                                           '(-0.5 . 0))
+                     (ly:stencil-scale
+                      (ly:stencil-translate
+                       (hash-ref cn-accidental-table -1/2) '(-0.5 . 0))
+                      mag mag)
                      (ly:font-get-glyph (ly:grob-default-font grob)
                                         "accidentals.mirroredflat")))
       ;; Else fall back to (scaled) traditional accidental sign.
