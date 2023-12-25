@@ -588,14 +588,23 @@ accidental-styles.none = #'(#t () ())
     table))
 
 #(define (cn-accidental-grob-callback grob)
-   ;; Returns an accidental sign stencil.
+   ;; Takes an accidental sign grob and returns an accidental sign stencil.
    (let* ((mag (cn-magnification grob))
           (alt (accidental-interface::calc-alteration grob))
           (direction (and (= 0 alt)
                           (ly:grob-property grob 'cn-natural-sign-direction)))
           (stencil-key (if (string? direction) direction alt))
-          (stencil (hash-ref cn-accidental-table stencil-key)))
+          (stencil (hash-ref cn-accidental-table stencil-key))
+          ;; If the user has customized the alterationGlyphs Staff context
+          ;; property use that (it comes through as the grob property
+          ;; 'alteration-glyph-name-alist).
+          ;; http://lilypond.org/doc/v2.25/Documentation/notation/alternate-accidental-glyphs
+          (alteration-glyph-name-alist (ly:grob-property
+                                        grob
+                                        'alteration-glyph-name-alist))
+          (custom-glyph (assv-ref alteration-glyph-name-alist alt)))
      (cond
+      (custom-glyph (ly:accidental-interface::print grob))
       (stencil (ly:stencil-scale stencil mag mag))
       ;; Quarter tones: half-sharp (1/4) and half-flat (-1/4) get their usual
       ;; traditional accidental signs.
