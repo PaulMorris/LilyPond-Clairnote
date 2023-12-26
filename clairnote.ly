@@ -606,28 +606,41 @@ accidental-styles.none = #'(#t () ())
      (cond
       (custom-glyph (ly:accidental-interface::print grob))
       (stencil (ly:stencil-scale stencil mag mag))
-      ;; Quarter tones: half-sharp (1/4) and half-flat (-1/4) get their usual
-      ;; traditional accidental signs.
-      ((= alt 1/4) (ly:accidental-interface::print grob))
-      ((= alt -1/4) (ly:accidental-interface::print grob))
-      ;; Quarter tones: sharp-and-a-half (3/4) and flat-and-a-half (-3/4) get
-      ;; special combined symbols (1/2 + 1/4 and -1/2 + -1/4) because they are
-      ;; already raised or lowered by 1/2 (one staff position) due to the
-      ;; chromatic staff.
+      ;; Quarter tones: quarter-tone sharp and flat (1/4 and -1/4) glyphs
+      ;; come from a custom Clairnote grob property that users can change.
+      ((= alt 1/4) (begin
+                    (ly:grob-set-property!
+                     grob 'glyph-name
+                     (ly:grob-property grob 'cn-quarter-tone-sharp-glyph))
+                    (ly:accidental-interface::print grob)))
+      ((= alt -1/4) (begin
+                     (ly:grob-set-property!
+                      grob 'glyph-name
+                      (ly:grob-property grob 'cn-quarter-tone-flat-glyph))
+                     (ly:accidental-interface::print grob)))
+      ;; Quarter tones: three-quarter-tones sharp and flat (3/4 and -3/4) get
+      ;; special combined symbols because they are already raised or lowered
+      ;; by 1/2 (one staff position) due to the chromatic staff.
       ((= alt 3/4) (ly:stencil-add
+                    ;; Clairnote sharp sign.
                     (ly:stencil-scale
                      (ly:stencil-translate
                       (hash-ref cn-accidental-table 1/2) '(-0.5 . 0))
                      mag mag)
-                    (ly:font-get-glyph (ly:grob-default-font grob)
-                                       "accidentals.sharp.slashslash.stem")))
+                    ;; Quarter-tone sharp sign.
+                    (ly:font-get-glyph
+                     (ly:grob-default-font grob)
+                     (ly:grob-property grob 'cn-quarter-tone-sharp-glyph))))
       ((= alt -3/4) (ly:stencil-add
+                     ;; Clairnote flat sign.
                      (ly:stencil-scale
                       (ly:stencil-translate
                        (hash-ref cn-accidental-table -1/2) '(-0.5 . 0))
                       mag mag)
-                     (ly:font-get-glyph (ly:grob-default-font grob)
-                                        "accidentals.mirroredflat")))
+                     ;; Quarter-tone flat sign.
+                     (ly:font-get-glyph
+                      (ly:grob-default-font grob)
+                      (ly:grob-property grob 'cn-quarter-tone-flat-glyph))))
       ;; Else fall back to (scaled) traditional accidental sign.
       (else (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63)))))
 
@@ -1839,7 +1852,6 @@ accidental-styles.none = #'(#t () ())
 
 %--- USER: CUSTOMIZE NOTEADS ----------------
 
-
 #(define (cn-set-notehead-style! stencil stem-attachment rotation)
    #{
      \override Staff.NoteHead.stencil = #stencil
@@ -1884,6 +1896,31 @@ accidental-styles.none = #'(#t () ())
         #f))
       )))
 
+%--- USER: CUSTOMIZE ACCIDENTAL SIGNS ----------------
+
+% With these functions users can customize just the quarter-tone sharp and flat
+% sign glyphs, and those custom glyphs will also be used in three-quarter-tone
+% sharp and flat signs.
+
+#(define cnQuarterToneSharpGlyph
+   (define-music-function (glyph-name) (string?)
+     #{
+       \override Accidental.cn-quarter-tone-sharp-glyph = #glyph-name
+       \override AccidentalCautionary.cn-quarter-tone-sharp-glyph = #glyph-name
+       \override AccidentalSuggestion.cn-quarter-tone-sharp-glyph = #glyph-name
+       \override AmbitusAccidental.cn-quarter-tone-sharp-glyph = #glyph-name
+       \override TrillPitchAccidental.cn-quarter-tone-sharp-glyph = #glyph-name
+     #}))
+
+#(define cnQuarterToneFlatGlyph
+   (define-music-function (glyph-name) (string?)
+     #{
+       \override Accidental.cn-quarter-tone-flat-glyph = #glyph-name
+       \override AccidentalCautionary.cn-quarter-tone-flat-glyph = #glyph-name
+       \override AccidentalSuggestion.cn-quarter-tone-flat-glyph = #glyph-name
+       \override AmbitusAccidental.cn-quarter-tone-flat-glyph = #glyph-name
+       \override TrillPitchAccidental.cn-quarter-tone-flat-glyph = #glyph-name
+     #}))
 
 %--- CUSTOM PROPERTIES ----------------
 
@@ -1963,7 +2000,14 @@ accidental-styles.none = #'(#t () ())
 
   ;; Used for directional natural accidental signs.
   ;; The value is "natural-down" or "natural-up".
-  (grob-prop 'cn-natural-sign-direction string?))
+  (grob-prop 'cn-natural-sign-direction string?)
+
+  ;; Used for customizing quarter tone sharp/flat signs, and thus the three
+  ;; quarter tone sharp/flat signs as well.
+  ;; The value should be an accidental glyph names, see:
+  ;; http://lilypond.org/doc/v2.25/Documentation/notation/accidental-glyphs
+  (grob-prop 'cn-quarter-tone-sharp-glyph string?)
+  (grob-prop 'cn-quarter-tone-flat-glyph string?))
 
 
 %--- STAFF CONTEXT DEFINITION ----------------
@@ -2046,6 +2090,21 @@ clairnoteTypeUrl = ""
 
     \override Accidental.horizontal-skylines = #'()
     \override Accidental.vertical-skylines = #'()
+
+    % The quarter-tone sharp/flat glyphs are the LilyPond defaults, but we put
+    % them in a custom grob property so they are user customizable.
+    \override Accidental.cn-quarter-tone-sharp-glyph = "accidentals.sharp.slashslash.stem"
+    \override AccidentalCautionary.cn-quarter-tone-sharp-glyph = "accidentals.sharp.slashslash.stem"
+    \override AccidentalSuggestion.cn-quarter-tone-sharp-glyph = "accidentals.sharp.slashslash.stem"
+    \override AmbitusAccidental.cn-quarter-tone-sharp-glyph = "accidentals.sharp.slashslash.stem"
+    \override TrillPitchAccidental.cn-quarter-tone-sharp-glyph = "accidentals.sharp.slashslash.stem"
+
+    \override Accidental.cn-quarter-tone-flat-glyph = "accidentals.mirroredflat"
+    \override AccidentalCautionary.cn-quarter-tone-flat-glyph = "accidentals.mirroredflat"
+    \override AccidentalSuggestion.cn-quarter-tone-flat-glyph = "accidentals.mirroredflat"
+    \override AmbitusAccidental.cn-quarter-tone-flat-glyph = "accidentals.mirroredflat"
+    \override TrillPitchAccidental.cn-quarter-tone-flat-glyph = "accidentals.mirroredflat"
+
     \override Accidental.stencil = #cn-accidental-grob-callback
     \override AccidentalCautionary.stencil = #cn-accidental-grob-callback
     \override AccidentalSuggestion.stencil = #cn-accidental-grob-callback
