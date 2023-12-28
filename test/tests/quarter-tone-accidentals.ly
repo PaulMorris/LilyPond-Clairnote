@@ -1,3 +1,4 @@
+\language "english"
 \include "../test-includes.ly"
 
 \markup "Quarter Tone Accidentals"
@@ -5,22 +6,24 @@
 
 example = \relative f' {
   \time 5/4
-  | c4 cih cis  cisih cisis
-  | d4 deh des deseh deses
-  | e4 eih eis eisih eisis
-  | f4 feh fes feseh feses
+  | c4 cqs cs  ctqs css
+  | d4 dqf df dtqf dff
+  | e4 eqs es etqs ess
+  | f4 fqf ff ftqf fff
   \break
   \time 4/4
-  | c4 cisih d dih
-  | d4 deseh c ceh
-  | e4 eisih f fih
-  | f4 feseh e eeh
+  | c4 ctqs d dqs
+  | d4 dtqf c cqf
+  | e4 etqs f fqs
+  | f4 ftqf e eqf
   \break
   \time 5/4
-  | c cih c cih c
-  | d deh d deh d
-  | cis cisih cis cisih cis
-  | des deseh des deseh des
+  | c cqs c cqs c
+  | d dqf d dqf d
+  | cs ctqs cs ctqs cs
+  | df dtqf df dtqf df
+  \break
+
 }
 
 \score {
