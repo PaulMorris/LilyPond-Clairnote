@@ -534,9 +534,43 @@ accidental-styles.none = #'(#t () ())
 
 %--- ACCIDENTAL SIGNS ----------------
 
+% Quarter-tone sharp and flat (1/4 and -1/4) glyphs come from a custom
+% Clairnote grob property that users can change.
+% Three-quarter-tones sharp and flat (3/4 and -3/4) get special combined
+% symbols because they are already raised or lowered by 1/2 (one staff
+% position) due to the chromatic staff.
+
+#(define (cn-quarter-tone-sharp grob)
+   ;; Takes an accidental sign grob and returns a stencil.
+   (ly:font-get-glyph (ly:grob-default-font grob)
+                      (ly:grob-property grob 'cn-quarter-tone-sharp-glyph)))
+
+#(define (cn-quarter-tone-flat grob)
+   ;; Takes an accidental sign grob and returns a stencil.
+   (ly:font-get-glyph (ly:grob-default-font grob)
+                      (ly:grob-property grob 'cn-quarter-tone-flat-glyph)))
+
+#(define (cn-three-quarter-tone-sharp grob)
+   ;; Takes an accidental sign grob and returns a stencil.
+   (let* ((make-sharp (hash-ref cn-accidental-table 1/2))
+          (sharp (make-sharp grob))
+          (spacing (* -0.5 (cn-magnification grob)))
+          (sharp-translated (ly:stencil-translate sharp (cons spacing 0)))
+          (quarter-tone-sharp (cn-quarter-tone-sharp grob)))
+     (ly:stencil-add sharp-translated quarter-tone-sharp)))
+
+#(define (cn-three-quarter-tone-flat grob)
+   ;; Takes an accidental sign grob and returns a stencil.
+   (let* ((make-flat (hash-ref cn-accidental-table -1/2))
+          (flat (make-flat grob))
+          (spacing (* -0.5 (cn-magnification grob)))
+          (flat-translated (ly:stencil-translate flat (cons spacing 0)))
+          (quarter-tone-flat (cn-quarter-tone-flat grob)))
+     (ly:stencil-add flat-translated quarter-tone-flat)))
+
 #(define cn-accidental-table
-   ;; A hash table from alteration keys (e.g. 1/2, -1/2) to accidental sign
-   ;; stencils.
+   ;; A hash table from alteration keys (e.g. 1/2, -1/2) to procedures that
+   ;; take an accidental sign grob and return an accidental sign stencil.
    (let*
     ((vertical-line (make-path-stencil '(moveto 0 -0.5 lineto 0 0.5) 0.2 1 1 #f))
 
@@ -574,37 +608,56 @@ accidental-styles.none = #'(#t () ())
 
      (natural-up (ly:stencil-add natural
                                  (ly:stencil-translate circle '(-0.2 . 0.6))))
-     (table (make-hash-table 8)))
+     (natural-proc
+      (lambda (grob)
+        (let* ((mag (cn-magnification grob))
+               (direction (ly:grob-property grob 'cn-natural-sign-direction))
+               (stencil
+                (cond
+                 ((and (string? direction) (string= "natural-down" direction))
+                  natural-down)
+                 ((and (string? direction) (string= "natural-up" direction))
+                  natural-up)
+                 (else natural))))
+          (ly:stencil-scale stencil mag mag))))
 
-    (hash-set! table 1/2 sharp)
-    (hash-set! table -1/2 flat)
-    (hash-set! table 1 double-sharp)
-    (hash-set! table -1 double-flat)
-    (hash-set! table 0 natural)
-    (hash-set! table "natural-down" natural-down)
-    (hash-set! table "natural-up" natural-up)
+     (make-stencil-proc (lambda (stencil)
+                          (lambda (grob)
+                            (define mag (cn-magnification grob))
+                            (ly:stencil-scale stencil mag mag))))
+
+     (table (make-hash-table 9)))
+
+    (hash-set! table 1/2 (make-stencil-proc sharp))
+    (hash-set! table -1/2 (make-stencil-proc flat))
+    (hash-set! table 1 (make-stencil-proc double-sharp))
+    (hash-set! table -1 (make-stencil-proc double-flat))
+    (hash-set! table 0 (make-stencil-proc natural))
+    ;; Uncomment this code for experimental directional natural signs.
+    ;; (hash-set! table 0 natural-proc)
+    (hash-set! table 1/4 cn-quarter-tone-sharp)
+    (hash-set! table -1/4 cn-quarter-tone-flat)
+    (hash-set! table 3/4 cn-three-quarter-tone-sharp)
+    (hash-set! table -3/4 cn-three-quarter-tone-flat)
     table))
 
 #(define (cn-parenthesize grob stencil)
    ;; Based on the `parenthesize` in accidental.cc in LilyPond source code.
-   (if (eq? #t (ly:grob-property grob 'parenthesized))
-       (let* ((font (ly:grob-default-font grob))
-              (left-paren (ly:font-get-glyph font "accidentals.leftparen"))
-              (right-paren (ly:font-get-glyph font "accidentals.rightparen"))
-              (with-open-paren (ly:stencil-combine-at-edge
-                                stencil
-                                X LEFT left-paren 0))
-              (with-both-parens (ly:stencil-combine-at-edge
-                                 with-open-paren
-                                 X RIGHT right-paren 0)))
-         with-both-parens)
-       stencil))
+   (let* ((font (ly:grob-default-font grob))
+          (left-paren (ly:font-get-glyph font "accidentals.leftparen"))
+          (right-paren (ly:font-get-glyph font "accidentals.rightparen"))
+          (with-left-paren (ly:stencil-combine-at-edge
+                            stencil
+                            X LEFT left-paren 0))
+          (with-both-parens (ly:stencil-combine-at-edge
+                             with-left-paren
+                             X RIGHT right-paren 0)))
+     with-both-parens))
 
 #(define (cn-accidental-grob-callback grob)
    ;; Takes an accidental sign grob and returns an accidental sign stencil.
-   (let* ((mag (cn-magnification grob))
-          (alt (accidental-interface::calc-alteration grob))
-          (stencil (hash-ref cn-accidental-table alt))
+   (let* ((alt (accidental-interface::calc-alteration grob))
+          (make-stencil (hash-ref cn-accidental-table alt))
           ;; If the user has customized the alterationGlyphs Staff context
           ;; property use that (it comes through as the grob property
           ;; 'alteration-glyph-name-alist).
@@ -614,59 +667,10 @@ accidental-styles.none = #'(#t () ())
                          alt)))
      (cond
       ((string? custom-glyph) (ly:accidental-interface::print grob))
-
-      ;; Uncomment this code for experimental directional natural signs.
-      ;; ((= 0 alt)
-      ;;  (let* ((direction (ly:grob-property
-      ;;                     grob 'cn-natural-sign-direction))
-      ;;         (natural-stencil
-      ;;          (if (and (string? direction)
-      ;;                   (or (string= "natural-down" direction)
-      ;;                       (string= "natural-up" direction)))
-      ;;              (hash-ref cn-accidental-table direction)
-      ;;              stencil)))
-      ;;    (cn-parenthesize grob (ly:stencil-scale natural-stencil mag mag))))
-
-      (stencil (cn-parenthesize grob (ly:stencil-scale stencil mag mag)))
-      ;; Quarter tones: quarter-tone sharp and flat (1/4 and -1/4) glyphs
-      ;; come from a custom Clairnote grob property that users can change.
-      ((= 1/4 alt) (begin
-                    (ly:grob-set-property!
-                     grob 'glyph-name
-                     (ly:grob-property grob 'cn-quarter-tone-sharp-glyph))
-                    (ly:accidental-interface::print grob)))
-      ((= -1/4 alt) (begin
-                     (ly:grob-set-property!
-                      grob 'glyph-name
-                      (ly:grob-property grob 'cn-quarter-tone-flat-glyph))
-                     (ly:accidental-interface::print grob)))
-      ;; Quarter tones: three-quarter-tones sharp and flat (3/4 and -3/4) get
-      ;; special combined symbols because they are already raised or lowered
-      ;; by 1/2 (one staff position) due to the chromatic staff.
-      ((= 3/4 alt) (cn-parenthesize
-                    grob
-                    (ly:stencil-add
-                     ;; Clairnote sharp sign.
-                     (ly:stencil-scale
-                      (ly:stencil-translate
-                       (hash-ref cn-accidental-table 1/2) '(-0.5 . 0))
-                      mag mag)
-                     ;; Quarter-tone sharp sign.
-                     (ly:font-get-glyph
-                      (ly:grob-default-font grob)
-                      (ly:grob-property grob 'cn-quarter-tone-sharp-glyph)))))
-      ((= -3/4 alt) (cn-parenthesize
-                     grob
-                     (ly:stencil-add
-                      ;; Clairnote flat sign.
-                      (ly:stencil-scale
-                       (ly:stencil-translate
-                        (hash-ref cn-accidental-table -1/2) '(-0.5 . 0))
-                       mag mag)
-                      ;; Quarter-tone flat sign.
-                      (ly:font-get-glyph
-                       (ly:grob-default-font grob)
-                       (ly:grob-property grob 'cn-quarter-tone-flat-glyph)))))
+      ((procedure? make-stencil)
+       (if (eq? #t (ly:grob-property grob 'parenthesized))
+           (cn-parenthesize grob (make-stencil grob))
+           (make-stencil grob)))
       ;; Else fall back to (scaled) traditional accidental sign.
       (else (ly:stencil-scale (ly:accidental-interface::print grob) 0.63 0.63)))))
 
