@@ -1,10 +1,18 @@
 \include "../test-includes.ly"
 \language "english"
 
-\markup "Ledger recipes"
+\markup "Classical Ledger recipes"
 
 \paper {
   ragged-last-bottom = ##f
+}
+
+\layout {
+  \context {
+    \Staff
+    \override StaffSymbol.cn-staff = #cn:staff-with-legacy-ledgers
+    % \override LedgerLineSpanner.length-fraction = 0.45
+  }
 }
 
 m = <<
@@ -29,6 +37,15 @@ m = <<
     }
   }
 >>
+
+\markup "ledgers-gradual"
+
+\new Staff \with {
+  \override StaffSymbol.cn-ledger-recipe =
+  #(if (string= clairnoteTypeName "Clairnote SN")
+       cn-sn-ledgers-gradual
+       cn-dn-ledgers-gradual)
+} { \m }
 
 \markup "ledgers-less-gradual"
 

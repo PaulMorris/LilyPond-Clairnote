@@ -17,17 +17,15 @@ STEPS
 1. Optionally edit test/test-includes.ly to point to the "clairnote.ly"
 file to be tested and version of LilyPond to be used.
 
-2. Update the DATE variable and run the following commands in a terminal,
-in the test directory (not the tests directory). (This is on GNU/Linux.)
-The pdfs will be in DATE-pdfs-cn-dn and DATE-pdfs-cn-sn directories.
+2. run the following commands in a terminal,
 
-  DATE=2023-01-03;
-  SN=$DATE-pdfs-cn-sn;
-  DN=$DATE-pdfs-cn-dn;
-  mkdir "${SN}";
-  find ./tests/*.ly -exec ~/some/path/to/bin/lilypond -dno-point-and-click -o ${SN} {} \;
-  mkdir "${DN}";
-  find ./tests/*.ly -exec ~/some/path/to/bin/lilypond -dno-point-and-click -dinclude-settings="clairnote-dn.ly" -o ${DN} {} \;
+CLAIRNOTE=sn ./test.py -o ./sn-2023-01-03
+CLAIRNOTE=dn ./test.py -o ./dn-2023-01-03
+
+# optional: lilypond regression tests
+CLAIRNOTE=sn path/to/test.py path/to/lilypond-src/input/regression/* -o ./lilypond-rgressions-sn -i test-includes.ly
+CLAIRNOTE=dn path/to/test.py path/to/lilypond-src/input/regression/* -o ./lilypond-rgressions-dn -i test-includes.ly
+
 
 3. Open old and new pdfs in Firefox in a mostly empty profile,
 use a tab sorting extension to sort the tabs, use ctrl+tab and

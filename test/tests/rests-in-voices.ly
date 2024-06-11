@@ -1,6 +1,6 @@
 \version "2.22.2"
 % clairnote-type = "dn"
-\include "clairnote.ly"
+\include "../test-includes.ly"
 \language "english"
 #(set-default-paper-size "letter")
 

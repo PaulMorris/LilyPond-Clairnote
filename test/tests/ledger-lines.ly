@@ -57,11 +57,11 @@ n = <<
   \m
 }
 
-\markup "ledgers-gradual"
+\markup "uneven"
 
 \new Staff \with {
-  \override StaffSymbol.cn-ledger-recipe =
+  \override StaffSymbol.cn-staff =
   #(if (string= clairnoteTypeName "Clairnote SN")
-       cn-sn-ledgers-gradual
-       cn-dn-ledgers-gradual)
+       cn:staff-sn-uneven
+       cn:staff-dn-uneven)
 } { \n }

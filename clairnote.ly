@@ -27,6 +27,15 @@
 % For docstrings we use ;; instead of the usual "" to allow automated
 % minification for LilyBin + Clairnote.
 
+% https://www.gnu.org/software/guile/manual/html_node/Load-Paths.html
+#(add-to-load-path (dirname (current-filename)))
+
+#(load
+  (string-concatenate
+   (list
+    (dirname (current-filename))
+    "/clairnote/init.scm")))
+
 %--- UTILITY FUNCTIONS ----------------
 
 #(define (non-zero? n) (not (zero? n)))
@@ -85,19 +94,19 @@
    ;; via a grob's font size.
    (magstep (ly:grob-property grob 'font-size 0)))
 
-#(define (cn-get-staff-clef-adjust staff-octaves clef-octave-shift)
+
+#(define (cn-get-staff-clef-adjust global-yshift clef-octave-shift)
    ;; Calculate the amount to vertically adjust the position of the clef,
    ;; key signature, and time signature, in note-spaces / half-staff-spaces.
    (+
     (* 12 clef-octave-shift)
-    (if (odd? staff-octaves)
-        6
-        (if (> staff-octaves 2) 12 0))))
+    global-yshift))
 
 #(define (cn-staff-clef-adjust-from-grob grob)
    (cn-get-staff-clef-adjust
-    (cn-staff-symbol-property grob 'cn-staff-octaves 2)
+    (cn-staff-symbol-property grob 'cn-internal-yshift 0)
     (cn-staff-symbol-property grob 'cn-clef-shift 0)))
+
 
 #(define (cn-note-heads-from-grob grob default)
    ;; Takes a grob like a Stem and returns a list of
@@ -881,7 +890,8 @@ accidental-styles.none = #'(#t () ())
                                  (middleCOffset . ())
 
                                  (cnStaffOctaves . ())
-                                 (cnClefShift . ()))))
+                                 (cnClefShift . ())
+                                 (cnInternalYshift . ()))))
      (set-prop! (lambda (kee val)
                   (hash-set! props kee val)
                   (ly:context-set-property! context kee val)))
@@ -921,7 +931,8 @@ accidental-styles.none = #'(#t () ())
       ((rhythmic-event engraver event)
        (let*
         ((new-staff-octaves (changed? 'cnStaffOctaves eqv?))
-         (new-clef-shift (changed? 'cnClefShift eqv?))
+         (new-clef-shift (or (changed? 'cnClefShift eqv?)
+                             (changed? 'cnInternalYshift eqv?)))
          (new-mid-c-offset (changed? 'middleCOffset eqv?))
 
          (new-clef (or (changed? 'clefPosition eqv?)
@@ -940,12 +951,11 @@ accidental-styles.none = #'(#t () ())
                 new-staff-octaves new-clef-shift new-mid-c-offset)
             (let
              ;; clef-adjust shifts clefPosition and middleCClefPosition:
-             ;; up 6 note-positions for odd octave staves
-             ;; up 12 for even octave staves with 4 or more octaves
              ;; up or down 12 * Staff.cnClefShift
-             ((clef-adjust (cn-get-staff-clef-adjust
-                            (ly:context-property context 'cnStaffOctaves)
-                            (ly:context-property context 'cnClefShift))))
+             ((clef-adjust
+               (cn-get-staff-clef-adjust
+                (ly:context-property context 'cnInternalYshift 0)
+                (ly:context-property context 'cnClefShift))))
 
              ;; Custom Clairnote props don't need conversion, just store them.
              (if new-staff-octaves
@@ -986,8 +996,12 @@ accidental-styles.none = #'(#t () ())
      (acknowledgers
       ((clef-interface engraver grob source-engraver)
        (ly:grob-set-property! grob 'cn-clef-transposition
-                              (ly:context-property context 'clefTransposition))))
-     )))
+                              (ly:context-property context 'clefTransposition)))
+      ((staff-symbol-interface engraver grob source-engraver)
+       (ly:grob-set-property! grob 'cn-internal-yshift
+                              (ly:context-property context 'cnInternalYshift 0))
+       (ly:grob-set-property! grob 'cn-internal-staff-range-engraved
+                              (ly:context-property context 'cnInternalStaffRange '(-8 . 8))))))))
 
 
 %--- CLEF GLYPHS
@@ -1499,7 +1513,6 @@ accidental-styles.none = #'(#t () ())
      (ly:grob-set-property! grob 'beam-thickness (* thick bss-inverse))
      ))
 
-
 %--- LEDGER LINES ----------------
 
 % Ledger line recipes for Clairnote DN and SN
@@ -1564,158 +1577,9 @@ accidental-styles.none = #'(#t () ())
          (10 0 0)
          (12 2 #f))))
 
-#(define (cn-ledger-pattern dist staff-symbol)
-   ;; Produces the ledger line pattern for a given note.
-   ;; dist is distance of note from closest staff line.
-
-   ;; A cycle is generally an octave, so cycle-size is
-   ;; 12 (staff positions per octave) and cycle-count
-   ;; is the number of octaves we are dealing with.
-   (let*
-    ((recipe (ly:grob-property staff-symbol 'cn-ledger-recipe cn-dn-ledgers-gradual))
-     (cycle-size (list-ref recipe 0))
-     (configs (list-ref recipe 1))
-     (cycle-count (+ 1 (quotient dist cycle-size)))
-     (config-to-ledgers
-      (lambda (config)
-        (let*
-         ((ledger-posn (list-ref config 0))
-          (further-add (list-ref config 1))
-          (nearer-drop (list-ref config 2))
-          (furthest (+ dist further-add))
-          (nearest (if nearer-drop (- dist nearer-drop) 0))
-          ;; Generate the list of ledgers in descending order.
-          (ledgers (reverse (iota cycle-count ledger-posn cycle-size)))
-          (in-range (lambda (l) (and (<= l furthest)
-                                     (>= l nearest)))))
-         (filter in-range ledgers))))
-     (ledger-lists (map config-to-ledgers configs))
-
-     ;; When there is an accidental sign on a note, LilyPond may
-     ;; shorten the furthest ledger, the first in the list.
-     ;; So we merge into one list, keeping descending order
-     (ledger-list (fold (lambda (lst result) (merge lst result >))
-                        '() ledger-lists))
-     ;; But if the note is on a ledger, move that ledger to the
-     ;; front of the list, so that ledger will be shortened.
-     (ledger-list2 (if (memv dist ledger-list)
-                       (cons dist (delv dist ledger-list))
-                       ledger-list)))
-    ledger-list2))
-
-#(define cn-ledger-positions
-   ;; A function that takes a StaffSymbol grob and a vertical
-   ;; position of a note head and returns a list of ledger line positions,
-   ;; based on StaffSymbol.cn-ledger-recipe."
-   '(lambda (staff-symbol pos)
-      (let*
-       ((lines (ly:grob-property staff-symbol 'line-positions '(-8 -4 4 8)))
-
-        (nearest-line
-         (fold (lambda (line prev)
-                 (if (< (abs (- line pos)) (abs (- prev pos)))
-                     line
-                     prev))
-               (car lines)
-               (cdr lines)))
-
-        (diff (- pos nearest-line))
-        (dist (abs diff))
-        (dir (if (negative? diff) -1 1))
-
-        ;; get generic ledger positions and then transform them so
-        ;; they are relative to nearest-line and in the right direction
-        (ledgers0 (cn-ledger-pattern dist staff-symbol))
-        (ledgers1 (map (lambda (n) (+ nearest-line (* dir n)))
-                       ledgers0))
-
-        ;; remove any ledgers that would fall on staff lines
-        (ledgers2 (filter (lambda (n) (not (member n lines)))
-                          ledgers1)))
-       ledgers2)))
-
-
-%--- ARTICULATIONS (SCRIPT GROBS) ----------------
-
-#(define (cn-script-y-offset-callback grob default-value)
-   ;; Script grobs (articulations) collide with ledgers that
-   ;; are further from the staff than the note head, so we
-   ;; have to adjust their vertical position.
-   (let*
-    ((direction (ly:grob-property grob 'direction))
-     (note-head (ly:grob-parent grob X))
-     (nh-pos (ly:grob-staff-position note-head))
-
-     (staff-symbol (ly:grob-object grob 'staff-symbol))
-     (ledger-function (eval cn-ledger-positions
-                            (interaction-environment)))
-     (ledger-posns (ledger-function staff-symbol nh-pos))
-
-     (max-or-min (if (> direction 0) max min))
-     (ledger-pos (reduce max-or-min 0 ledger-posns))
-     (diff (- (abs ledger-pos) (abs nh-pos)))
-     (adjust (if (> diff 0)
-                 (* direction (- diff 1))
-                 0))
-     (staff-space (ly:grob-property staff-symbol 'staff-space))
-     (note-space (* 0.5 staff-space))
-     (final-adjust (* adjust note-space)))
-    (+ default-value final-adjust)))
 
 
 %--- USER: EXTENDING STAVES & DIFFERENT OCTAVE SPANS ----------------
-
-#(define (cn-get-new-staff-positions posns base-positions going-up going-down)
-
-   (define recurser
-     (lambda (proc posns extension n)
-       (if (<= n 0)
-           posns
-           (recurser proc (proc posns extension) extension (- n 1)))))
-
-   (define (extend-up posns extension)
-     (let ((furthest (reduce max '() posns)))
-       (append posns (map (lambda (ext) (+ furthest ext)) extension))))
-
-   (define (extend-down posns extension)
-     (let ((furthest (reduce min '() posns)))
-       (append (map (lambda (ext) (- furthest ext)) extension) posns)))
-
-   (let*
-    ((max-bp (reduce max '() base-positions))
-     (min-bp (reduce min '() base-positions))
-     ;; the number of empty positions between staves from one octave to the next
-     ;; 8 for Clairnote
-     (gap (+ min-bp (- 12 max-bp)))
-
-     ;; relative locations of a new octave of staff lines,
-     ;; as if 0 is the the furthest current staff line.  '(8 12) for Clairnote
-     (extension (map (lambda (bp) (+ bp gap (- min-bp))) base-positions))
-     (extension-length (length extension))
-
-     (posns-up
-      (cond
-       ((positive? going-up) (recurser extend-up posns extension going-up))
-       ((negative? going-up)
-        (if (> (length posns) extension-length)
-            (drop-right (sort posns <) extension-length)
-            (begin
-             (ly:warning "\\cnUnextendStaffUp failed, not enough staff to unextend")
-             posns)))
-       (else posns)))
-
-     (posns-down
-      (cond
-       ((positive? going-down) (recurser extend-down posns-up extension going-down))
-       ((negative? going-down)
-        (if (> (length posns) extension-length)
-            (drop (sort posns <) extension-length)
-            (begin
-             (ly:warning "\\cnUnextendStaffDown failed, not enough staff to unextend")
-             posns)))
-       (else posns-up))))
-
-    posns-down))
 
 #(define cnStaffExtender
    (define-music-function
@@ -1724,18 +1588,7 @@ accidental-styles.none = #'(#t () ())
     #{
       \context Staff \applyContext
       #(lambda (context)
-         (if (not (eqv? 'TradStaff (ly:context-name context)))
-             (let*
-              ((grob-def (ly:context-grob-definition context 'StaffSymbol))
-               (current-lines (ly:assoc-get 'line-positions grob-def '(-8 -4 4 8)))
-               ;; base is '(-8 -4) or '(-2 2) for Clairnote
-               (base-lines (ly:context-property context 'cnBaseStaffLines))
-               (posns (if reset base-lines current-lines))
-               (new-posns (cn-get-new-staff-positions
-                           posns base-lines going-up going-down)))
-
-              (ly:context-pushpop-property
-               context 'StaffSymbol 'line-positions new-posns))))
+         (cn:internal-extend-staff context reset going-up going-down))
       \stopStaff
       \startStaff
     #}))
@@ -1751,16 +1604,15 @@ accidental-styles.none = #'(#t () ())
      ;; even octaves: extended up one more than they are down
      (let*
       ((odd-octs (odd? octaves))
-       (base-lines (if odd-octs '(-2 2) '(-8 -4)))
        (n (/ (1- octaves) 2))
        (upwards (if odd-octs n (ceiling n)))
        (downwards (if odd-octs n (floor n))))
       #{
-        \set Staff.cnStaffOctaves = #octaves
-        \override Staff.StaffSymbol.cn-staff-octaves = #octaves
-        \set Staff.cnBaseStaffLines = #base-lines
-        \override Staff.StaffSymbol.ledger-positions = #base-lines
-        \cnStaffExtender ##t #upwards #downwards
+        \context Staff \applyContext
+        #(lambda (context)
+           (cn:internal-extend-staff context #t (1- upwards) downwards))
+        \stopStaff
+        \startStaff
       #})))
 
 #(define cnClefPositionShift
@@ -1772,20 +1624,33 @@ accidental-styles.none = #'(#t () ())
        \startStaff
      #}))
 
+#(define cnExperimentalYshift
+   ;; in lily/pitch.cc set_middle_C assumes int, so integer is required here
+   (define-music-function (val) (integer?)
+     #{
+       \context Staff \applyContext
+       #(lambda (context)
+          (cn:internal-set-yshift context val))
+       \stopStaff
+       \startStaff
+     #}))
+
 
 %--- USER: ALTERNATE STAVES (EXPERIMENTAL) ----------------
 
-#(define cnFiveLineStaff
-   #{
-     \cnStaffOctaveSpan 2
-     \override Staff.StaffSymbol.line-positions = #'(-8 -4 0 4 8)
-   #})
+% #(define cnFiveLineStaff
+%    #{
+%      \override Staff.StaffSymbol.cn-staff-style = #cn:staff-style-5-lines
+%      \stopStaff
+%      \startStaff
+%    #})
 
-#(define cnFourLineStaff
-   #{
-     \cnStaffOctaveSpan 2
-     \override Staff.StaffSymbol.line-positions = #'(-8 -4 0 4)
-   #})
+% #(define cnFourLineStaff
+%    #{
+%      \override Staff.StaffSymbol.cn-staff-style = #cn:staff-style-default
+%      \stopStaff
+%      \startStaff
+%    #})
 
 
 %--- USER: SET STAFF COMPRESSION ----------------
@@ -1897,10 +1762,6 @@ accidental-styles.none = #'(#t () ())
   ;; invalidated entries in LilyPond's context property `localAlterations`.
   (context-prop 'cnAlterations list?)
 
-  ;; Stores the base staff line positions used for extending the staff
-  ;; up or down. See cnExtendStaff function.
-  (context-prop 'cnBaseStaffLines list?)
-
   ;; Indicates number of octaves the staff spans, lets us use
   ;; different clef settings so stems always flip at center of staff.
   (context-prop 'cnStaffOctaves positive-integer?)
@@ -1970,6 +1831,7 @@ clairnoteTypeUrl = ""
 
   % customize Staff context to make it a Clairnote staff
   \context {
+
     \Staff
 
     % CONTEXT PROPERTIES
@@ -1986,7 +1848,6 @@ clairnoteTypeUrl = ""
     printKeyCancellation = ##f
     \numericTimeSignature
 
-    cnBaseStaffLines = #'(-8 -4)
     cnStaffOctaves = #2
     cnClefShift = #0
 
@@ -1997,7 +1858,16 @@ clairnoteTypeUrl = ""
     % GROB PROPERTIES
     \override StaffSymbol.cn-staff-octaves = #2
     \override StaffSymbol.cn-clef-shift = #0
-    \override StaffSymbol.line-positions = #'(-8 -4 4 8)
+
+    \override StaffSymbol.cn-staff-range = #cn:StaffSymbol-cn-staff-range
+
+    \override StaffSymbol.line-positions = #cn:StaffSymbol-line-positions
+    \override StaffSymbol.cn-internal-staff-cached = #cn:compute-staff-regions
+    \override StaffSymbol.stencil = #cn:StaffSymbol-stencil
+    \override StaffSymbol.layer = #-2
+
+    \override StaffSymbol.vertical-skylines = #grob::unpure-vertical-skylines-from-stencil
+    % \override StaffSymbol.show-vertical-skylines = ##t
 
     % staff-space reflects vertical compression of Clairnote staff.
     % Default of 0.75 makes the Clairnote octave 1.28571428571429
@@ -2031,11 +1901,9 @@ clairnoteTypeUrl = ""
     \override TimeSignature.before-line-breaking = #cn-time-signature-grob-callback
 
     % TODO: whole note ledger lines are a bit too wide
-    \override LedgerLineSpanner.length-fraction = 0.45
-    \override LedgerLineSpanner.minimum-length-fraction = 0.35
+    \override LedgerLineSpanner.springs-and-rods = ##f
 
-    \override Script.Y-offset =
-    #(grob-transformer 'Y-offset cn-script-y-offset-callback)
+    \override Script.Y-offset = #cn:script-y-offset-callback
 
     \override Clef.stencil = #cn-clef-stencil-callback
     \override CueClef.stencil = #cn-clef-stencil-callback
@@ -2045,7 +1913,12 @@ clairnoteTypeUrl = ""
     \override Stem.note-collision-threshold = 2
     \override NoteCollision.note-collision-threshold = 2
 
-    \override StaffSymbol.ledger-positions-function = #cn-ledger-positions
+    % \override LedgerLineSpanner.stencil = #cn:LedgerLineSpanner-stencil
+    % \override LedgerLineSpanner.layer = #10
+    % \override LedgerLineSpanner.color = #"red"
+    \override StaffSymbol.ledger-positions-function = #'(lambda (grob h) '())
+
+    \override NoteHead.ledger-positions = #cn:NoteHead-ledger-positions
 
     % ENGRAVERS
     % There is also the customized Span_stem_engraver (added in LilyPond 2.19.??)
@@ -2086,6 +1959,8 @@ initClairnoteDN =
      \layout {
        \context {
          \Staff
+         \override StaffSymbol.cn-staff = #cn:staff-dn
+
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
          \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
          \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
@@ -2154,6 +2029,8 @@ initClairnoteSN =
      \layout {
        \context {
          \Staff
+         \override StaffSymbol.cn-staff = #cn:staff-sn
+
          \override NoteHead.stencil = \cn-default-note-head-stencil-callback
          \override AmbitusNoteHead.stencil = \cn-default-note-head-stencil-callback
          \override TrillPitchGroup.stencil = \cn-default-note-head-stencil-callback
@@ -2174,11 +2051,6 @@ initClairnoteSN =
 % Let parent contexts accept TradStaff and TradRhythmicStaff
 % in midi output.
 \midi {
-  \context {
-    \Staff
-    cnBaseStaffLines = #'(-8 -4)
-  }
-
   \context {
     \Staff
     \name TradStaff
