@@ -1,0 +1,96 @@
+{
+  "nodes": {
+    "flake-utils": {
+      "inputs": {
+        "systems": "systems"
+      },
+      "locked": {
+        "lastModified": 1694529238,
+        "narHash": "sha256-zsNZZGTGnMOf9YpHKJqMSsa0dXbfmxeoJ7xHlrt+xmY=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "ff7b65b44d01cf9ba6a71320833626af21126384",
+        "type": "github"
+      },
+      "original": {
+        "id": "flake-utils",
+        "type": "indirect"
+      }
+    },
+    "lilypond-2-24": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1721474473,
+        "narHash": "sha256-CvbVQUXE0rbU8599YA76CB8xmf1cxwwIm8ZywyLKHfY=",
+        "owner": "lilypond",
+        "repo": "lilypond",
+        "rev": "b7908403efe0761cec86c94db0c529db031246a0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "lilypond",
+        "ref": "v2.24.4",
+        "repo": "lilypond",
+        "type": "github"
+      }
+    },
+    "lilypond-2-25": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1720954141,
+        "narHash": "sha256-haiVEMeeIggUQjGJ6i0zj20JEn5VW1tPOrTlwDsmQaQ=",
+        "owner": "lilypond",
+        "repo": "lilypond",
+        "rev": "f1777509159e606513829c6794ec57782b7cacd9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "lilypond",
+        "ref": "v2.25.18",
+        "repo": "lilypond",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1722141560,
+        "narHash": "sha256-Ul3rIdesWaiW56PS/Ak3UlJdkwBrD4UcagCmXZR9Z7Y=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "038fb464fcfa79b4f08131b07f2d8c9a6bcc4160",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "lilypond-2-24": "lilypond-2-24",
+        "lilypond-2-25": "lilypond-2-25",
+        "nixpkgs": "nixpkgs"
+      }
+    },
+    "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        clairnote: ["sn", "dn"]
+        lilypond: ["2-24", "2-25"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - run: CLAIRNOTE=${{ matrix.clairnote }} ./scripts/test.py -o out -l "$(nix build .#lilypond-${{ matrix.lilypond }} --quiet --no-link --print-out-paths)/bin/lilypond"
